@@ -1,0 +1,132 @@
+# go-gitea/gitea#39426: fix(git)!: use internal proxy for all git operations
+head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 39 ms
+
+## L0 Core  (2 files, +712/-0)
+  - modules/egress/policy/matchlist.go  [+460/-0]
+      used by modules/egress/, modules/setting/, services/gitproxy/ · Go package modules/egress/policy/ kept together
+  - modules/egress/policy/policy.go  [+252/-0]
+      used by modules/egress/, modules/setting/, services/gitproxy/ · Go package modules/egress/policy/ kept together
+
+## L1 Callers · level 1  (3 files, +72/-10)
+  - modules/setting/migrations.go  [+35/-9]
+      used by cmd/, (root)/, modules/egress/ +9 more · Go package modules/setting/ kept together
+  - modules/setting/security.go  [+34/-1]
+      imports modules/egress/policy/ [Core]; used by cmd/, (root)/, modules/egress/ +9 more · Go package modules/setting/ kept together
+  - modules/setting/webhook.go  [+3/-0]
+      used by cmd/, (root)/, modules/egress/ +9 more · Go package modules/setting/ kept together
+
+## L2 Callers · level 2  (3 files, +37/-61)
+  - modules/git/gitcmd/command.go  [+5/-1]
+      used by modules/git/, routers/, services/gitproxy/ +2 more · Go package modules/git/gitcmd/ kept together
+  - modules/git/gitcmd/env.go  [+8/-0]
+      imports modules/setting/ [Callers · level 1]; used by modules/git/, routers/, services/gitproxy/ +2 more · Go package modules/git/gitcmd/ kept together
+  - modules/proxy/proxy.go  [+24/-60]
+      imports modules/setting/ [Callers · level 1]; used by modules/egress/
+
+## L3 Callers · level 3  (2 files, +118/-17)
+  - modules/egress/policies.go  [+117/-0]
+      imports modules/egress/policy/ [Core], modules/proxy/ [Callers · level 2], modules/setting/ [Callers · level 1]; used by modules/auth/openid/, routers/web/auth/, services/gitproxy/ +2 more
+  - modules/git/repo.go  [+1/-17]
+      imports modules/git/gitcmd/ [Callers · level 2], modules/setting/ [Callers · level 1]; used by cmd/, routers/, services/migrations/ +1 more
+
+## L4 Callers · level 4+  (16 files, +446/-186)
+  - cmd/dump_repo.go  [+4/-0]
+      imports modules/git/ [Callers · level 3], modules/setting/ [Callers · level 1], services/gitproxy/ [Callers · level 4+] +1 more; used by (root)/
+  - main.go  [+2/-0]
+      imports cmd/ [Callers · level 4+], modules/setting/ [Callers · level 1], services/gitproxy/ [Callers · level 4+]
+  - modules/auth/openid/openid.go  [+3/-9]
+      imports modules/egress/ [Callers · level 3]
+  - routers/init.go  [+2/-2]
+      imports modules/git/ [Callers · level 3], modules/git/gitcmd/ [Callers · level 2], modules/setting/ [Callers · level 1] +3 more
+  - routers/web/auth/oauth.go  [+2/-14]
+      imports modules/egress/ [Callers · level 3], modules/setting/ [Callers · level 1]
+  - services/gitproxy/server.go  [+397/-0]
+      imports modules/egress/ [Callers · level 3], modules/egress/policy/ [Core], modules/git/gitcmd/ [Callers · level 2] +1 more; used by cmd/, (root)/, routers/
+  - services/migrations/codebase.go  [+8/-9]
+      used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/migrations/gitea_uploader.go  [+1/-1]
+      imports modules/git/ [Callers · level 3], modules/git/gitcmd/ [Callers · level 2], modules/setting/ [Callers · level 1]; used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/migrations/github.go  [+1/-7]
+      imports modules/git/ [Callers · level 3]; used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/migrations/gogs.go  [+2/-1]
+      used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/migrations/http_client.go  [+9/-23]
+      imports modules/egress/ [Callers · level 3], modules/setting/ [Callers · level 1]; used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/migrations/migrate.go  [+4/-60]
+      imports modules/egress/ [Callers · level 3], modules/git/ [Callers · level 3], modules/setting/ [Callers · level 1]; used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/migrations/onedev.go  [+2/-1]
+      used by cmd/, services/mirror/ · Go package services/migrations/ kept together
+  - services/mirror/mirror_pull.go  [+3/-10]
+      imports modules/git/ [Callers · level 3], modules/git/gitcmd/ [Callers · level 2], modules/setting/ [Callers · level 1] +1 more; used by routers/ · Go package services/mirror/ kept together
+  - services/mirror/mirror_push.go  [+0/-3]
+      imports modules/git/ [Callers · level 3], modules/setting/ [Callers · level 1], services/migrations/ [Callers · level 4+]; used by routers/ · Go package services/mirror/ kept together
+  - services/webhook/deliver.go  [+6/-46]
+      imports modules/egress/ [Callers · level 3], modules/setting/ [Callers · level 1]; used by routers/
+
+## L5 Deleted code  (3 files, +0/-307)
+  - modules/git/redirection.go  [+0/-15]
+      file deleted
+  - modules/hostmatcher/hostmatcher.go  [+0/-211]
+      file deleted
+  - modules/hostmatcher/http.go  [+0/-81]
+      file deleted
+
+## L6 Tests  (25 files, +927/-500)
+  - modules/egress/policy/matchlist_test.go  [+134/-0]
+      tests policy/matchlist.go (Core): named after policy/matchlist.go
+  - routers/web/auth/oauth_test.go  [+2/-16]
+      tests policy/matchlist.go (Core): imports policy/matchlist.go, policy/policy.go
+  - services/gitproxy/server_test.go  [+444/-0]
+      tests policy/matchlist.go (Core): imports policy/matchlist.go, policy/policy.go, gitcmd/command.go +4 more
+  - modules/egress/policy/policy_test.go  [+160/-0]
+      tests policy/policy.go (Core): named after policy/policy.go
+  - modules/egress/policies_test.go  [+100/-0]
+      tests setting/migrations.go (Callers · level 1): imports setting/migrations.go, setting/security.go, setting/webhook.go
+  - modules/setting/migrations_test.go  [+33/-0]
+      tests setting/migrations.go (Callers · level 1): named after setting/migrations.go
+  - services/migrations/main_test.go  [+2/-0]
+      tests setting/migrations.go (Callers · level 1): imports setting/migrations.go, setting/security.go, setting/webhook.go
+  - services/webhook/main_test.go  [+1/-4]
+      tests setting/migrations.go (Callers · level 1): imports setting/migrations.go, setting/security.go, setting/webhook.go
+  - tests/integration/api_repo_lfs_migrate_test.go  [+0/-3]
+      tests setting/migrations.go (Callers · level 1): imports setting/migrations.go, setting/security.go, setting/webhook.go
+  - tests/integration/api_repo_test.go  [+2/-9]
+      tests setting/migrations.go (Callers · level 1): imports setting/migrations.go, setting/security.go, setting/webhook.go
+  - tests/integration/dump_restore_test.go  [+0/-2]
+      tests setting/migrations.go (Callers · level 1): imports setting/migrations.go, setting/security.go, setting/webhook.go +7 more
+  - modules/setting/security_test.go  [+4/-1]
+      tests setting/security.go (Callers · level 1): named after setting/security.go
+  - services/migrations/migrate_test.go  [+12/-86]
+      tests gitcmd/command.go (Callers · level 2): imports gitcmd/command.go, gitcmd/env.go, setting/migrations.go +2 more
+  - modules/git/repo_test.go  [+0/-24]
+      tests git/repo.go (Callers · level 3): named after git/repo.go
+  - tests/integration/api_repo_edit_test.go  [+6/-13]
+      tests git/repo.go (Callers · level 3): imports git/repo.go, mirror/mirror_pull.go, mirror/mirror_push.go
+  - tests/integration/migrate_test.go  [+0/-4]
+      tests migrations/migrate.go (Callers · level 4+): imports and is named after migrations/migrate.go
+  - tests/integration/actions_schedule_test.go  [+0/-9]
+      tests mirror/mirror_pull.go (Callers · level 4+): imports mirror/mirror_pull.go, mirror/mirror_push.go
+  - tests/integration/mirror_pull_test.go  [+14/-35]
+      tests mirror/mirror_pull.go (Callers · level 4+): imports and is named after mirror/mirror_pull.go
+  - tests/integration/mirror_push_test.go  [+1/-12]
+      tests mirror/mirror_push.go (Callers · level 4+): imports and is named after mirror/mirror_push.go
+  - services/webhook/deliver_test.go  [+0/-64]
+      tests webhook/deliver.go (Callers · level 4+): named after webhook/deliver.go
+  - modules/hostmatcher/hostmatcher_test.go  [+0/-218]
+      tests hostmatcher/hostmatcher.go (Deleted code): named after hostmatcher/hostmatcher.go
+  - tests/mssql.ini.tmpl  [+3/-0]
+      inside a tests/ directory; no changed subject found
+  - tests/mysql.ini.tmpl  [+3/-0]
+      inside a tests/ directory; no changed subject found
+  - tests/pgsql.ini.tmpl  [+3/-0]
+      inside a tests/ directory; no changed subject found
+  - tests/sqlite.ini.tmpl  [+3/-0]
+      inside a tests/ directory; no changed subject found
+
+## L7 Config, docs & assets  (3 files, +40/-21)
+  - AGENTS.md  [+1/-0]
+      documentation
+  - custom/conf/app.example.ini  [+38/-20]
+      configuration file
+  - options/locale/locale_en-US.json  [+1/-1]
+      localization strings

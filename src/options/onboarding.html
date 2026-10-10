@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PR Layers · Setup</title>
+  <link rel="stylesheet" href="onboarding.css" />
+</head>
+<body>
+<main>
+  <h1>PR Layers setup</h1>
+  <p class="lead">PR Layers groups a large pull request into ordered layers so you can review it bottom-up. It runs entirely in your browser and only <b>reads</b> from GitHub, using a fine-grained personal access token that you create and paste here. No app registration, no backend.</p>
+
+  <section id="current" hidden>
+    <h2>Current token</h2>
+    <p id="currentText"></p>
+    <button id="clear">Remove token</button>
+  </section>
+
+  <section>
+    <h2>1 · Create a read-only token on GitHub</h2>
+    <label>Organization that owns the repos (resource owner)
+      <input id="owner" placeholder="e.g. your-org (leave empty for your personal account)" autocomplete="off" />
+    </label>
+    <p><button id="create" class="primary">Open GitHub token page (pre-filled) ↗</button></p>
+    <p class="muted">Opens <code id="createUrl"></code></p>
+    <ol>
+      <li><b>Token name</b>: pre-filled as <code>PR Layers (read-only)</code>.</li>
+      <li><b>Expiration</b>: pre-filled to 90 days. Shorter is fine; avoid "No expiration".</li>
+      <li><b>Resource owner</b>: pick your organization (e.g. Wayground). If it isn't listed and the org uses SAML SSO, first open the org on github.com and sign in through SSO, then reload the token page. Fine-grained tokens are SSO-authorized at creation, so there's no separate "Configure SSO" step.</li>
+      <li><b>Repository access</b>: <i>Only select repositories</i> and choose the repos you review (GitHub can't pre-fill this). "All repositories" also works but grants more than needed.</li>
+      <li><b>Permissions → Repository permissions</b>: <b>Pull requests: Read-only</b> and <b>Contents: Read-only</b> (pre-filled). <b>Metadata: Read-only</b> is added automatically. <b>Add nothing else</b>: no "Read and write", no account or organization permissions.</li>
+      <li>Click <b>Generate token</b>. If your org requires approval, the token stays <i>pending</i> (public repos only) until an admin approves it.</li>
+      <li>Copy the token (starts with <code>github_pat_</code>).</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>2 · Paste and validate</h2>
+    <label>Token
+      <input id="token" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false" />
+    </label>
+    <label>Private repo to test against (optional, recommended)
+      <input id="testRepo" placeholder="owner/repo" autocomplete="off" />
+    </label>
+    <label class="check"><input type="checkbox" id="attest" /> I confirm this token has only <b>Pull requests: Read-only</b> and <b>Contents: Read-only</b> (plus automatic Metadata), and no write permissions.</label>
+    <p class="muted">Why the checkbox? GitHub doesn't let an extension read a fine-grained token's permissions, so write access can't be detected automatically. Classic tokens are rejected outright. PR Layers itself only ever sends GET requests.</p>
+    <p><button id="validate">Validate</button> <button id="save" class="primary">Validate &amp; save</button></p>
+    <div id="result"></div>
+  </section>
+
+  <section class="muted small">
+    <h2>Privacy</h2>
+    <p>The token is stored in <code>chrome.storage.local</code> on this device and sent only as the Authorization header of GET requests to <code>api.github.com</code>. PR code is processed locally and never sent anywhere else.</p>
+  </section>
+</main>
+<script type="module" src="onboarding.js"></script>
+</body>
+</html>

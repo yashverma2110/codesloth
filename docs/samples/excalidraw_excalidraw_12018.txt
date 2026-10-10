@@ -1,0 +1,147 @@
+# excalidraw/excalidraw#12018: feat(editor): Host abstraction
+head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetched for 49 files · engine 57 ms
+  ! 1 modified file(s) analysed from the diff only (full contents not fetched); imports outside changed hunks may be missed.
+
+## L0 Contracts & schemas  (2 files, +37/-0)
+  - packages/excalidraw/scene/types.ts  [+14/-0]
+      type definitions module; used by data/index.ts, renderer/staticScene.test.ts, renderer/staticScene.ts +4 more
+  - packages/excalidraw/types.ts  [+23/-0]
+      type definitions module; used by actions/actionBoundText.tsx, actions/actionFlip.ts, actions/actionProperties.tsx +24 more
+
+## L1 Core  (9 files, +392/-37)
+  - packages/element/src/renderEnvironment.ts  [+119/-0]
+      used by src/image.ts, src/index.ts, src/newElement.ts +6 more
+  - packages/excalidraw/actions/actionProperties.tsx  [+10/-1]
+      used by wysiwyg/textWysiwyg.tsx
+  - packages/excalidraw/appState.ts  [+10/-4]
+      used by components/App.cursor.ts, data/blob.ts, scene/export.ts
+  - packages/excalidraw/charts/charts.helpers.ts  [+106/-18]
+      used by charts/charts.bar.ts, charts/charts.line.ts, charts/charts.radar.ts +1 more
+  - packages/excalidraw/components/hyperlink/helpers.ts  [+81/-4]
+      used by hyperlink/Hyperlink.tsx, renderer/staticScene.ts
+  - packages/excalidraw/components/Tooltip.tsx  [+8/-0]
+      used by hyperlink/Hyperlink.tsx
+  - packages/excalidraw/fonts/Fonts.ts  [+10/-2]
+      used by excalidraw/index.tsx
+  - packages/excalidraw/renderer/animation.ts  [+33/-5]
+      used by components/App.viewport.ts, canvases/InteractiveCanvas.tsx
+  - packages/utils/src/export.ts  [+15/-3]
+      used by src/index.ts
+
+## L2 Callers · level 1  (10 files, +510/-115)
+  - packages/element/src/image.ts  [+5/-1]
+      imports src/renderEnvironment.ts [Core]; used by src/index.ts
+  - packages/element/src/textMeasurements.ts  [+103/-26]
+      imports src/renderEnvironment.ts [Core]; used by src/index.ts, src/newElement.ts, src/renderElement.ts +4 more
+  - packages/excalidraw/charts/charts.bar.ts  [+13/-1]
+      imports charts/charts.helpers.ts [Core]; used by charts/index.ts
+  - packages/excalidraw/charts/charts.line.ts  [+13/-1]
+      imports charts/charts.helpers.ts [Core]; used by charts/index.ts
+  - packages/excalidraw/charts/charts.radar.ts  [+13/-1]
+      imports charts/charts.helpers.ts [Core]; used by charts/index.ts
+  - packages/excalidraw/components/App.tsx  [+111/-14]
+      imports hyperlink/Hyperlink.tsx [Callers · level 1]; used by components/App.cursor.ts, components/App.viewport.ts, components/PasteChartDialog.tsx +4 more · in an import cycle with hyperlink/Hyperlink.tsx (kept together)
+  - packages/excalidraw/components/canvases/InteractiveCanvas.tsx  [+17/-5]
+      imports renderer/animation.ts [Core]
+  - packages/excalidraw/components/hyperlink/Hyperlink.tsx  [+55/-15]
+      imports components/Tooltip.tsx [Core], components/App.tsx [Callers · level 1], hyperlink/helpers.ts [Core]; used by components/App.tsx · in an import cycle with components/App.tsx (kept together)
+  - packages/excalidraw/renderer/staticScene.ts  [+175/-51]
+      imports hyperlink/helpers.ts [Core]; used by scene/Renderer.ts, scene/export.ts
+  - packages/utils/src/index.ts  [+5/-0]
+      imports src/export.ts [Core]
+
+## L3 Callers · level 2  (7 files, +109/-42)
+  - packages/element/src/textWrapping.ts  [+19/-12]
+      imports src/textMeasurements.ts [Callers · level 1], src/renderEnvironment.ts [Core]; used by src/index.ts, src/newElement.ts, src/resizeElements.ts +1 more
+  - packages/excalidraw/charts/index.ts  [+6/-3]
+      imports charts/charts.bar.ts [Callers · level 1], charts/charts.line.ts [Callers · level 1], charts/charts.radar.ts [Callers · level 1] +1 more; used by components/PasteChartDialog.tsx, excalidraw/index.tsx
+  - packages/excalidraw/components/App.cursor.ts  [+1/-1]
+      imports excalidraw/appState.ts [Core], components/App.tsx [Callers · level 1]
+  - packages/excalidraw/components/App.viewport.ts  [+43/-16]
+      imports renderer/animation.ts [Core], components/App.tsx [Callers · level 1]
+  - packages/excalidraw/scene/export.ts  [+24/-4]
+      imports excalidraw/appState.ts [Core], renderer/staticScene.ts [Callers · level 1]; used by components/PasteChartDialog.tsx, data/blob.ts, data/index.ts
+  - packages/excalidraw/scene/Renderer.ts  [+3/-3]
+      imports renderer/staticScene.ts [Callers · level 1]
+  - packages/excalidraw/wysiwyg/textWysiwyg.tsx  [+13/-3]
+      imports actions/actionProperties.tsx [Core], components/App.tsx [Callers · level 1]
+
+## L4 Callers · level 3  (8 files, +184/-59)
+  - packages/element/src/index.ts  [+1/-0]
+      imports src/image.ts [Callers · level 1], src/newElement.ts [Callers · level 3], src/renderElement.ts [Callers · level 3] +6 more; used by src/textElement.ts · in an import cycle with src/newElement.ts, src/renderElement.ts, src/resizeElements.ts +2 more (kept together)
+  - packages/element/src/newElement.ts  [+16/-1]
+      imports src/textElement.ts [Callers · level 3], src/textMeasurements.ts [Callers · level 1], src/textWrapping.ts [Callers · level 2] +1 more; used by src/index.ts, src/transform.ts · in an import cycle with src/index.ts, src/renderElement.ts, src/resizeElements.ts +2 more (kept together)
+  - packages/element/src/renderElement.ts  [+112/-53]
+      imports src/renderEnvironment.ts [Core], src/textElement.ts [Callers · level 3], src/textMeasurements.ts [Callers · level 1]; used by src/index.ts · in an import cycle with src/index.ts, src/newElement.ts, src/resizeElements.ts +2 more (kept together)
+  - packages/element/src/resizeElements.ts  [+18/-0]
+      imports src/textElement.ts [Callers · level 3], src/textMeasurements.ts [Callers · level 1], src/textWrapping.ts [Callers · level 2] +1 more; used by src/index.ts · in an import cycle with src/index.ts, src/newElement.ts, src/renderElement.ts +2 more (kept together)
+  - packages/element/src/textElement.ts  [+9/-0]
+      imports src/textMeasurements.ts [Callers · level 1], src/textWrapping.ts [Callers · level 2], src/index.ts [Callers · level 3] +1 more; used by src/index.ts, src/newElement.ts, src/renderElement.ts +2 more · in an import cycle with src/index.ts, src/newElement.ts, src/renderElement.ts +2 more (kept together)
+  - packages/element/src/transform.ts  [+14/-2]
+      imports src/newElement.ts [Callers · level 3], src/textMeasurements.ts [Callers · level 1], src/textElement.ts [Callers · level 3] +1 more; used by src/index.ts · in an import cycle with src/index.ts, src/newElement.ts, src/renderElement.ts +2 more (kept together)
+  - packages/excalidraw/components/PasteChartDialog.tsx  [+11/-2]
+      imports charts/index.ts [Callers · level 2], scene/export.ts [Callers · level 2], components/App.tsx [Callers · level 1]
+  - packages/excalidraw/data/blob.ts  [+3/-1]
+      imports excalidraw/appState.ts [Core], scene/export.ts [Callers · level 2]; used by components/PublishLibrary.tsx, data/index.ts, excalidraw/index.tsx
+
+## L5 Callers · level 4+  (3 files, +23/-3)
+  - packages/excalidraw/components/PublishLibrary.tsx  [+12/-3]
+      imports data/blob.ts [Callers · level 3], components/App.tsx [Callers · level 1]
+  - packages/excalidraw/data/index.ts  [+4/-0]
+      imports scene/export.ts [Callers · level 2], data/blob.ts [Callers · level 3]
+  - packages/excalidraw/index.tsx  [+7/-0]
+      imports components/App.tsx [Callers · level 1], data/blob.ts [Callers · level 3], fonts/Fonts.ts [Core] +1 more
+
+## L6 Standalone changes  (7 files, +72/-23)
+  - packages/common/src/editorInterface.ts  [+20/-12]
+      no import links to other changed source files
+  - packages/common/src/utils.ts  [+8/-7]
+      no import links to other changed source files
+  - packages/excalidraw/actions/actionBoundText.tsx  [+12/-2]
+      no import links to other changed source files; uses contracts excalidraw/types.ts
+  - packages/excalidraw/actions/actionFlip.ts  [+1/-0]
+      no import links to other changed source files; uses contracts excalidraw/types.ts
+  - packages/excalidraw/actions/actionStyles.ts  [+6/-1]
+      no import links to other changed source files
+  - packages/excalidraw/components/TTDDialog/common.ts  [+1/-1]
+      no import links to other changed source files; uses contracts excalidraw/types.ts
+  - vitest.config.node.mts  [+24/-0]
+      no import links to other changed source files
+
+## L7 Tests  (15 files, +2098/-61)
+  - packages/element/tests/renderEnvironment.test.ts  [+58/-0]
+      tests src/renderEnvironment.ts (Core): imports and is named after src/renderEnvironment.ts
+  - packages/excalidraw/tests/elementCanvasScale.test.ts  [+191/-0]
+      tests excalidraw/appState.ts (Core): imports excalidraw/appState.ts, renderer/staticScene.ts, excalidraw/types.ts +1 more
+  - packages/excalidraw/tests/headlessExport.test.ts  [+379/-0]
+      tests excalidraw/appState.ts (Core): imports excalidraw/appState.ts, scene/export.ts, excalidraw/types.ts
+  - packages/excalidraw/tests/linkIcon.test.ts  [+368/-0]
+      tests excalidraw/appState.ts (Core): imports excalidraw/appState.ts, renderer/staticScene.ts, excalidraw/types.ts +1 more
+  - packages/excalidraw/tests/tooltip.test.tsx  [+260/-0]
+      tests components/Tooltip.tsx (Core): imports and is named after components/Tooltip.tsx
+  - packages/excalidraw/tests/animation.test.ts  [+25/-0]
+      tests renderer/animation.ts (Core): imports and is named after renderer/animation.ts
+  - packages/element/tests/textMeasurements.test.ts  [+83/-0]
+      tests src/textMeasurements.ts (Callers · level 1): imports and is named after src/textMeasurements.ts
+  - packages/excalidraw/renderer/staticScene.test.ts  [+179/-0]
+      tests renderer/staticScene.ts (Callers · level 1): imports and is named after renderer/staticScene.ts
+  - packages/excalidraw/tests/node/headlessImport.test.ts  [+59/-0]
+      tests scene/export.ts (Callers · level 2): imports scene/export.ts, excalidraw/appState.ts
+  - packages/excalidraw/tests/scene/export.test.ts  [+88/-0]
+      tests scene/export.ts (Callers · level 2): imports and is named after scene/export.ts
+  - packages/element/tests/linearElementEditor.test.tsx  [+1/-0]
+      tests src/index.ts (Callers · level 3): imports src/index.ts, src/textElement.ts
+  - packages/excalidraw/tests/crossDocument.test.tsx  [+129/-4]
+      tests excalidraw/index.tsx (Callers · level 4+): imports excalidraw/index.tsx, components/Tooltip.tsx, excalidraw/types.ts
+  - packages/excalidraw/tests/fitToContent.test.tsx  [+78/-5]
+      tests excalidraw/index.tsx (Callers · level 4+): imports excalidraw/index.tsx, renderer/animation.ts
+  - packages/excalidraw/tests/renderEnvironmentProp.test.tsx  [+150/-0]
+      tests excalidraw/index.tsx (Callers · level 4+): imports excalidraw/index.tsx, excalidraw/types.ts
+  - packages/excalidraw/tests/scrollConstraints.test.tsx  [+50/-52]
+      tests excalidraw/index.tsx (Callers · level 4+): imports excalidraw/index.tsx, components/App.viewport.ts, renderer/animation.ts +1 more
+
+## L8 Config, docs & assets  (2 files, +9/-1)
+  - package.json  [+2/-1]
+      package manifest
+  - vitest.config.mts  [+7/-0]
+      build/tool config

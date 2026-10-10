@@ -1,0 +1,10 @@
+{
+  "largePrMinChangedLines": 300,
+  "largePrMinFiles": 15,
+  "maxFilesToFetchContents": 150,
+  "maxFileBytesForContents": 400000,
+  "contentFetchConcurrency": 6,
+  "apiVersion": "2026-03-10",
+  "defaultTokenOwner": "",
+  "tokenExpiresInDays": 90
+}
