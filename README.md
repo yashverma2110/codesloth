@@ -1,10 +1,10 @@
 # PR Layers: review big GitHub PRs layer by layer
 
-PR Layers is a Chrome extension (Manifest V3) for **human** code review. It reads a large GitHub pull request and groups its files into ordered **layers**:
+PR Layers is a browser extension (Manifest V3; Chrome, Arc, Edge, Brave) for **human** code review. It reads a large GitHub pull request and groups its files into ordered **layers**:
 
 > mechanical → contracts & schemas → core → callers (by import depth) → standalone → deleted code → tests → config/docs/assets → generated & lockfiles
 
-You can then review bottom-up, one layer at a time. The layers show up in Chrome's side panel next to the PR. Each file comes with a one-line reason for its placement (e.g. *"imports lib/db.ts [Core]; used by pages/Profile.tsx"*), and clicking it jumps to that file in **Files changed**.
+You can then review bottom-up, one layer at a time. The layers show up in a **floating, draggable widget** on the PR page. Each file comes with a one-line reason for its placement (e.g. *"imports lib/db.ts [Core]; used by pages/Profile.tsx"*), and clicking it jumps to that file in **Files changed**.
 
 - **Read-only.** It only sends `GET` requests, using a fine-grained token you create with *Pull requests: Read-only* and *Contents: Read-only*.
 - **Local.** There's no backend. PR code never leaves your browser. Results are cached in IndexedDB.
@@ -17,13 +17,34 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
 
 ## Install (load unpacked)
 
-1. Get the build: either unzip `pr-stacks-extension.zip`, or build it yourself (`npm ci && npm run build` gives you `dist/`).
-2. In Chrome, open `chrome://extensions` and turn on **Developer mode** (top right).
+1. Get the build. Download `pr-stacks-extension.zip` from the repo's **Releases** (v0.2.0+) and unzip it, or build it yourself (`npm ci && npm run build` gives you `dist/`).
+2. Open your browser's extensions page and turn on **Developer mode**:
+   - Chrome / Brave: `chrome://extensions` / `brave://extensions`
+   - Edge: `edge://extensions` (toggle at the bottom left)
+   - Arc: `arc://extensions`, or Arc menu → Extensions → Manage extensions
 3. Click **Load unpacked** and select the unzipped folder (or `dist/`).
-4. The **setup page opens automatically** on first install. You can reopen it later from the extension's **Details → Extension options**, or with **Set up token** in the side panel.
-5. Pin the extension. Open any PR on github.com, then click the toolbar icon or the green **☰ Layers** button at the bottom-right of the page.
+4. The **setup page opens automatically** on first install. You can reopen it from the extension's **Details → Extension options**, or with **Set up token** inside the widget.
+5. Open any PR on github.com. A round green **layers bubble** appears at the bottom-right.
 
-Chrome 116+ is required (`chrome.sidePanel`).
+### Using the widget
+
+- **Open/close:** click the bubble, click the toolbar icon (on a PR tab), or press **Alt+Shift+L** (⌥⇧L on macOS). Close with ✕ or **Esc**. Esc is ignored while you're typing in a GitHub text field.
+- **Move it:** drag the bubble or the panel header. On release it snaps to the left or right edge. You can put it anywhere vertically; it's kept below GitHub's header and inside the window. The side and vertical position are remembered across pages and restarts; a resized height lasts until you leave the page. A drag never counts as a click.
+- **Panel:** it opens toward the middle of the screen (downward if the bubble is in the top half, upward otherwise). Drag its bottom edge to resize; lists scroll inside it.
+- **Inside:** layers with file counts and +/−, a reason for each file, and a *reviewed* checkbox per layer (stored per head commit). Click a file (or press Enter on it) to jump to it in Files changed. **Re-analyze** ignores the cache.
+- The bubble only appears on `/{owner}/{repo}/pull/{n}` pages. It follows GitHub's in-page navigation and disappears on other pages. A red dot means no token is set yet.
+- Theme follows GitHub's `data-color-mode` (light/dark/auto), or your OS setting.
+- Change the shortcut at `chrome://extensions/shortcuts` (or the equivalent page in your browser).
+
+### Browser support
+
+| Browser | Status |
+|---|---|
+| Chrome 110+ | Supported |
+| Edge, Brave | Supported (Chromium MV3; same APIs) |
+| Arc | Supported. v0.2 removed the `chrome.sidePanel` dependency because Arc doesn't implement it. The setup page opens with `chrome.runtime.openOptionsPage()`, falling back to a normal tab. |
+
+v0.2.0 hasn't been checked in a real browser yet. See [Known limitations](#known-limitations).
 
 ## Onboarding: create a read-only fine-grained token
 
@@ -55,7 +76,7 @@ Back on the setup page:
 7. Paste the token. Optionally enter a **private** `owner/repo` to test against.
 8. Tick the confirmation box (see the next section for why), then click **Validate & save**.
 
-The token is stored in `chrome.storage.local` on this device. It's only ever sent as the `Authorization` header of `GET` requests to `api.github.com`. **Remove token** on the setup page deletes it.
+The token is stored in `chrome.storage.local` on this device. Access is restricted to trusted extension contexts with `storage.local.setAccessLevel('TRUSTED_CONTEXTS')`, so the content script and github.com pages can't read it. It's only ever sent as the `Authorization` header of `GET` requests to `api.github.com`. **Remove token** on the setup page deletes it.
 
 ## Why write tokens are rejected, and what can and can't be detected
 
@@ -124,26 +145,30 @@ Full outputs are in [`docs/samples/`](docs/samples). Regenerate them with `npm r
 
 ```mermaid
 flowchart LR
-  subgraph Browser["Chrome (your machine) - no third-party servers"]
-    CS["Content script (github.com)<br/>detects PR in SPA, ☰ Layers button,<br/>jump via #diff-sha256(path) anchors"]
-    SP["Side panel<br/>layers, reasons, per-layer reviewed ticks"]
-    OB["Onboarding / options page<br/>token creation link, validate, save"]
-    SW["MV3 service worker<br/>the ONLY caller of api.github.com (GET only)<br/>pagination, rate limits, ETags, engine"]
+  subgraph Browser["Browser (your machine) - no third-party servers"]
+    subgraph Page["github.com PR page"]
+      CS["Content script<br/>PR detection (soft nav), mount/unmount,<br/>jump via #diff-sha256(path)"]
+      W["Floating widget in a closed Shadow DOM<br/>bubble + panel: layers, reasons,<br/>reviewed ticks, drag/snap"]
+    end
+    OB["Onboarding / options page<br/>token link, validate, save"]
+    SW["MV3 service worker<br/>ONLY caller of api.github.com (GET only)<br/>auth, pagination, rate limits, ETags, engine,<br/>toolbar click + Alt+Shift+L"]
     DB[["IndexedDB<br/>analysis by owner/repo/n/headSha,<br/>blobs by sha, etags"]]
-    LS[["chrome.storage.local<br/>token, reviewed state"]]
+    LS[["chrome.storage.local (trusted contexts only)<br/>token, widget position, reviewed state"]]
   end
   GH["api.github.com (REST)"]
-  CS <-->|runtime messages| SW
-  SP <-->|runtime messages| SW
+  CS --- W
+  CS <-->|"allow-listed messages<br/>(no token ever)"| SW
   OB <-->|validate / save| SW
-  SP -->|jump| CS
+  SW -->|"toggle, progress, auth changed"| CS
   SW <--> DB
   SW <--> LS
   SW -->|"GET + Bearer token"| GH
 ```
 
-- **Content script:** runs on `https://github.com/*`, not just `/pull/*`, because GitHub navigates without page reloads. It only acts on `/{owner}/{repo}/pull/{n}` URLs. It never calls the API.
+- **Content script and widget:** the content script runs on `https://github.com/*`, not just `/pull/*`, because GitHub navigates without page reloads. It mounts the widget only on PR URLs and removes it elsewhere. The widget lives in a **closed shadow root** attached to `<html>`, so it survives Turbo swapping `<body>`, and neither GitHub's CSS nor its scripts can reach in. Its `z-index` keeps it above GitHub's UI, and it stays below the global header by default.
+- **Message gating:** the service worker accepts only a small allow-list from content scripts: status (login only), analyze, position, reviewed state, and opening setup. Token validate/save/clear is accepted only from extension pages. The content script never calls the API and never touches `chrome.storage`.
 - **Service worker:** handles auth, API calls (rate-limit errors carry the reset time, secondary limits retry with backoff, 5xx retries), caching, and runs the engine (pure TypeScript, no DOM).
+- **Toolbar icon / shortcut:** `chrome.action.onClicked` and `chrome.commands` (`toggle-widget`, Alt+Shift+L) tell the tab to toggle the widget. If the tab was opened before the extension was installed, the content script is injected on demand with `chrome.scripting`. On non-PR tabs the badge briefly shows "PR?". With no token set, they open setup.
 - **Jump to file:** sets `location.hash` to `diff-<sha256(path)>`, which is GitHub's per-file anchor, and leaves the scrolling to GitHub. If the tab isn't on Files changed, it navigates to `/pull/n/files#diff-…`.
 
 ## Development
@@ -151,7 +176,7 @@ flowchart LR
 ```bash
 npm ci
 npm run typecheck     # tsc --noEmit
-npm test              # vitest (classifier, import parsing per language, resolution, layering, token validation, API client)
+npm test              # vitest: engine, token validation, API client, widget drag/snap/persistence/toggle (pure + happy-dom DOM tests)
 npm run build         # esbuild -> dist/
 npm run package       # typecheck + test + build + /workspace/pr-stacks-extension.zip
 npm run analyze-pr -- go-gitea/gitea#39426   # run the engine on a real PR via `gh api` (read-only)
@@ -165,8 +190,7 @@ Settings are in `config/extension.config.json`: content-fetch limits, the API ve
 config/extension.config.json   build-time settings
 public/manifest.json, icons/   MV3 manifest + icons
 src/background/                sw.ts (messages, analysis pipeline), github.ts (GET-only client), auth.ts (PAT), cache.ts (IndexedDB)
-src/content/content.ts         PR detection, Layers button, jump-to-file
-src/panel/                     side panel (plain TS, no framework)
+src/content/                   content.ts (mount/unmount on soft nav), widget.ts (shadow-DOM UI, drag), widget-logic.ts (pure snap/clamp/placement/toggle), widget.css.ts
 src/options/                   onboarding / options page
 src/shared/                    messages, PR URL + anchor, token-validation (pure, tested)
 src/engine/                    classify, patch, glob(.gitattributes), imports/{js,vue,go,python}, resolve, graph (SCC/depth), analyze (layers + reasons)
@@ -177,10 +201,16 @@ docs/samples/                  engine output for real public PRs
 
 ## Known limitations (Week 1)
 
-- **Not tested on live github.com UI yet.** The engine and API client are tested against real PR data and mocks. The side panel, the content script and the `#diff-…` jump still need a manual check in Chrome. Opening the side panel from the in-page button relies on the click counting as a user gesture through the message to the service worker. If it doesn't, use the toolbar icon, which always works.
+- **Not yet tested in a real browser.** The engine and API client are tested against real PR data and mocks. The widget is tested in happy-dom. Still to check by hand on github.com:
+  - mounting across Turbo navigation;
+  - real pointer/trackpad drags;
+  - the `#diff-…` jump on GitHub's current Files-changed UI;
+  - the toolbar click and shortcut in Arc/Edge/Brave;
+  - `storage.local.setAccessLevel` support in each browser. If it's missing, the content script still never reads storage, but it no longer can't.
 - **File-level only.** A file whose hunks belong in different layers is placed whole. Splitting by hunk is planned for Week 2.
 - **Partial view for modified files beyond the cap.** Full contents are fetched for up to 150 modified code files. Others are parsed from the diff, so imports outside the changed hunks are missed (a warning is shown).
 - **Alias resolution:** only `@/` and `~/` → `src/` for now. `tsconfig` `paths`, Vite aliases and workspace package names (`@scope/pkg` in monorepos) aren't resolved yet, so cross-package edges are missing.
+- The panel can cover part of the diff while open; drag it to the other edge or close it with Esc.
 - Reviewed ticks are per layer and per head SHA, and stored locally only. Nothing syncs with GitHub's "Viewed" checkboxes.
 - github.com only (no GHES). PRs beyond 3000 files are truncated by GitHub's API.
 - Heuristic categories can be wrong for unusual layouts (e.g. a `schema/` folder that isn't a schema). Reasons make that visible. Overrides are planned for Week 2.

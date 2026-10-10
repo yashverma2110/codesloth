@@ -1,24 +1,55 @@
 {
   "manifest_version": 3,
   "name": "PR Layers",
-  "version": "0.1.0",
-  "description": "Review big GitHub pull requests layer by layer: contracts → core → callers → tests → config → generated. Read-only, local, no AI.",
-  "minimum_chrome_version": "116",
-  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
-  "action": { "default_title": "PR Layers", "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png" } },
-  "background": { "service_worker": "background.js", "type": "module" },
-  "side_panel": { "default_path": "panel.html" },
+  "version": "0.2.0",
+  "description": "Review big GitHub pull requests layer by layer: contracts \u2192 core \u2192 callers \u2192 tests \u2192 config \u2192 generated. Read-only, local, no AI.",
+  "minimum_chrome_version": "110",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "PR Layers",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "options_page": "onboarding.html",
-  "permissions": ["storage", "sidePanel"],
-  "host_permissions": ["https://api.github.com/*", "https://github.com/*"],
+  "permissions": [
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://github.com/*"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://github.com/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://github.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://api.github.com"
+  },
+  "commands": {
+    "toggle-widget": {
+      "suggested_key": {
+        "default": "Alt+Shift+L",
+        "mac": "Alt+Shift+L"
+      },
+      "description": "Toggle the PR Layers widget on the current pull request"
+    }
   }
 }

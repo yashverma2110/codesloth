@@ -1,85 +1,71 @@
 /**
- * Content script on github.com. Detects PR pages (GitHub is a SPA, so we watch URL changes),
- * mounts a small "Layers" button that opens the side panel, and handles "jump to file" requests
- * from the panel using GitHub's URL anchors (#diff-<sha256(path)>) rather than DOM selectors.
- * It never calls api.github.com; all API traffic goes through the service worker.
+ * Content script on github.com. Mounts the floating PR Layers widget (shadow DOM) on PR pages only,
+ * following GitHub's soft (Turbo) navigation, and removes it elsewhere. It never touches the token
+ * or chrome.storage; all data comes from the background worker via messages.
  */
-import { diffAnchor, parsePrUrl } from "../shared/pr-url";
+import { parsePrUrl } from "../shared/pr-url";
 import type { TabMessage } from "../shared/messages";
+import { HOST_ID, Widget } from "./widget";
 
-const BTN_ID = "pr-layers-open-btn";
-let lastUrl = "";
-
-function ensureButton() {
-  const pr = parsePrUrl(location.href);
-  const existing = document.getElementById(BTN_ID);
-  if (!pr) {
-    existing?.remove();
-    return;
+declare global {
+  interface Window {
+    __prLayersLoaded?: boolean;
   }
-  if (existing) return;
-  const b = document.createElement("button");
-  b.id = BTN_ID;
-  b.type = "button";
-  b.textContent = "☰ Layers";
-  b.title = "Open PR Layers side panel";
-  Object.assign(b.style, {
-    position: "fixed",
-    right: "16px",
-    bottom: "16px",
-    zIndex: "2147483000",
-    padding: "6px 12px",
-    borderRadius: "16px",
-    border: "1px solid rgba(31,35,40,.15)",
-    background: "#1f883d",
-    color: "#fff",
-    font: "600 12px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
-    cursor: "pointer",
-    boxShadow: "0 1px 3px rgba(0,0,0,.2)",
-  } satisfies Partial<CSSStyleDeclaration>);
-  b.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "openPanel" }).catch(() => {});
-  });
-  document.body.appendChild(b);
 }
 
-function onUrlMaybeChanged() {
-  if (location.href === lastUrl) return;
-  lastUrl = location.href;
-  ensureButton();
-  chrome.runtime.sendMessage({ type: "pr:changed", pr: parsePrUrl(location.href), url: location.href }).catch(() => {});
-}
+if (!window.__prLayersLoaded) {
+  window.__prLayersLoaded = true;
+  let widget: Widget | null = null;
+  let mounting: Promise<void> | null = null;
+  let lastUrl = "";
 
-async function jumpTo(path: string): Promise<boolean> {
-  const anchor = await diffAnchor(path);
-  const pr = parsePrUrl(location.href);
-  if (!pr) return false;
-  const onFiles = /\/pull\/\d+\/(files|changes)(\/|$)/.test(location.pathname);
-  if (!onFiles) {
-    location.href = `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}/files#${anchor}`;
-    return true;
-  }
-  // Setting the hash lets GitHub's own router expand/scroll to the file (works with virtualized diffs).
-  if (location.hash === `#${anchor}`) history.replaceState(null, "", location.pathname + location.search);
-  location.hash = anchor;
-  const el = document.getElementById(anchor) ?? document.querySelector(`[data-tagsearch-path="${CSS.escape(path)}"]`);
-  el?.scrollIntoView({ block: "start" });
-  return true;
-}
+  const sync = async () => {
+    const pr = parsePrUrl(location.href);
+    if (!pr) {
+      if (widget) {
+        widget.toggle("leave-pr");
+        widget.unmount();
+        widget = null;
+      }
+      document.getElementById(HOST_ID)?.remove();
+      return;
+    }
+    if (!widget) {
+      widget = new Widget();
+      mounting = widget.mount();
+      await mounting;
+    } else if (!widget.isMounted()) {
+      widget.remount();
+    }
+    widget.setPr(pr);
+  };
 
-chrome.runtime.onMessage.addListener((msg: TabMessage, _sender, sendResponse) => {
-  if (msg?.type === "jump") {
-    jumpTo(msg.path).then(sendResponse, () => sendResponse(false));
-    return true;
-  }
-  if (msg?.type === "whereAmI") {
-    sendResponse({ url: location.href, pr: parsePrUrl(location.href) });
+  const check = () => {
+    if (location.href !== lastUrl || (widget && !widget.isMounted())) {
+      lastUrl = location.href;
+      void sync();
+    }
+  };
+
+  chrome.runtime.onMessage.addListener((msg: TabMessage, _sender, sendResponse) => {
+    if (msg?.type === "widget:toggle") {
+      void (async () => {
+        await sync();
+        await mounting;
+        widget?.toggle(msg.source);
+      })();
+      sendResponse(true);
+      return false;
+    }
+    if (msg?.type === "progress") widget?.progress(msg.pr, msg.text);
+    if (msg?.type === "auth:changed") widget?.onAuthChanged();
+    if (msg?.type === "ping") sendResponse(true);
     return false;
-  }
-  return false;
-});
+  });
 
-document.addEventListener("turbo:load", onUrlMaybeChanged);
-window.addEventListener("popstate", onUrlMaybeChanged);
-setInterval(onUrlMaybeChanged, 1000);
-onUrlMaybeChanged();
+  document.addEventListener("turbo:load", check);
+  document.addEventListener("turbo:render", check);
+  window.addEventListener("popstate", check);
+  setInterval(check, 800);
+  check();
+}

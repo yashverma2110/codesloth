@@ -1,7 +1,9 @@
 import config from "../../config/extension.config.json";
 import { analyze, ENGINE_VERSION, filesNeedingContents } from "../engine/analyze";
 import type { LayerPlan, PRFile } from "../engine/types";
-import type { AnalyzeResult, Broadcast, PRMeta, PRRef, Request, Response } from "../shared/messages";
+import type { AnalyzeResult, PRMeta, PRRef, Request, Response, TabMessage } from "../shared/messages";
+import { isAllowedSender } from "../shared/messages";
+import { parsePrUrl } from "../shared/pr-url";
 import { clearToken, getStatus, getToken, saveToken, validateToken } from "./auth";
 import { analysisKey, cacheClear, cacheGet, cachePut } from "./cache";
 import { GitHubClient, GitHubError, pool } from "./github";
@@ -9,19 +11,70 @@ import { GitHubClient, GitHubError, pool } from "./github";
 const client = new GitHubClient(getToken);
 const ONBOARDING = "onboarding.html";
 
-// Open the side panel when the toolbar icon is clicked.
-chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
+// Keep the token (and everything else in storage.local) out of content scripts entirely.
+// Content scripts reach position / reviewed state through messages instead.
+try {
+  void chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" as chrome.storage.AccessLevel })?.catch?.(() => {});
+} catch {
+  /* older browsers: content scripts still never read storage */
+}
+
+const POSITION_KEY = "widget.position";
+const REVIEWED_PREFIX = "reviewed:";
+
+/** Open the onboarding/options page; openOptionsPage can be missing or fail in some Chromium forks. */
+async function openOnboarding() {
+  try {
+    if (chrome.runtime.openOptionsPage) {
+      await chrome.runtime.openOptionsPage();
+      return;
+    }
+  } catch {
+    /* fall through */
+  }
+  await chrome.tabs.create({ url: chrome.runtime.getURL(ONBOARDING) });
+}
+
+/** Ask the content script in a tab to toggle the widget, injecting it first if the tab predates install. */
+async function toggleInTab(tab: chrome.tabs.Tab | undefined, source: "toolbar" | "shortcut") {
+  if ((await getStatus()).method === "none") return openOnboarding();
+  if (!tab?.id || !parsePrUrl(tab.url)) {
+    await chrome.action.setBadgeText({ tabId: tab?.id, text: "PR?" }).catch(() => {});
+    setTimeout(() => chrome.action.setBadgeText({ tabId: tab?.id, text: "" }).catch(() => {}), 2000);
+    return;
+  }
+  const msg: TabMessage = { type: "widget:toggle", source };
+  try {
+    await chrome.tabs.sendMessage(tab.id, msg);
+  } catch {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+      await chrome.tabs.sendMessage(tab.id, msg);
+    } catch {
+      /* page not scriptable */
+    }
+  }
+}
+
+chrome.action.onClicked.addListener((tab) => void toggleInTab(tab, "toolbar"));
+chrome.commands?.onCommand.addListener(async (command, tab) => {
+  if (command !== "toggle-widget") return;
+  const t = tab ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+  await toggleInTab(t, "shortcut");
+});
+
+async function notifyGitHubTabs(msg: TabMessage) {
+  const tabs = await chrome.tabs.query({ url: "https://github.com/*" });
+  await Promise.all(tabs.map((t) => (t.id ? chrome.tabs.sendMessage(t.id, msg).catch(() => {}) : undefined)));
+}
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   await refreshBadge();
   if (details.reason === "install" || (await getStatus()).method === "none") {
-    chrome.tabs.create({ url: chrome.runtime.getURL(ONBOARDING) });
+    await openOnboarding();
   }
 });
 chrome.runtime.onStartup.addListener(refreshBadge);
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && "auth.pat" in changes) refreshBadge();
-});
 
 async function refreshBadge() {
   const s = await getStatus();
@@ -30,9 +83,6 @@ async function refreshBadge() {
   await chrome.action.setTitle({ title: s.method === "none" ? "PR Layers: set up a read-only token" : `PR Layers (@${s.login ?? "token set"})` });
 }
 
-function broadcast(msg: Broadcast) {
-  chrome.runtime.sendMessage(msg).catch(() => {}); // panel may be closed
-}
 
 interface CachedAnalysis {
   meta: PRMeta;
@@ -55,9 +105,11 @@ async function getRawCached(pr: PRRef, path: string, ref: string, blobSha?: stri
   return text;
 }
 
-async function runAnalysis(pr: PRRef, force = false): Promise<AnalyzeResult> {
+async function runAnalysis(pr: PRRef, force = false, tabId?: number): Promise<AnalyzeResult> {
   if (!(await getToken())) throw new GitHubError("No token set. Open setup to add a read-only token.", 401, "no_token");
-  const progress = (text: string) => broadcast({ type: "progress", pr, text });
+  const progress = (text: string) => {
+    if (tabId !== undefined) chrome.tabs.sendMessage(tabId, { type: "progress", pr, text } satisfies TabMessage).catch(() => {});
+  };
 
   progress("Fetching PR…");
   const etagKey = `pr:${pr.owner}/${pr.repo}/${pr.number}`;
@@ -112,27 +164,45 @@ async function runAnalysis(pr: PRRef, force = false): Promise<AnalyzeResult> {
 }
 
 async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promise<unknown> {
+  const fromContent = !!sender.tab && !sender.url?.startsWith(chrome.runtime.getURL(""));
   switch (msg.type) {
-    case "auth:status":
-      return getStatus();
+    case "auth:status": {
+      const s = await getStatus();
+      // Content scripts get only what the UI needs: never the token or its hint.
+      return fromContent ? { method: s.method, login: s.login } : s;
+    }
     case "auth:validate":
       return validateToken(msg.token, msg.testRepo);
-    case "auth:save":
-      return saveToken(msg.token, msg.testRepo, msg.attested);
+    case "auth:save": {
+      const r = await saveToken(msg.token, msg.testRepo, msg.attested);
+      if (r.saved) {
+        await refreshBadge();
+        await notifyGitHubTabs({ type: "auth:changed" });
+      }
+      return r;
+    }
     case "auth:clear":
       await clearToken();
+      await refreshBadge();
+      await notifyGitHubTabs({ type: "auth:changed" });
       return true;
     case "openOnboarding":
-      await chrome.tabs.create({ url: chrome.runtime.getURL(ONBOARDING) });
+      await openOnboarding();
       return true;
     case "analyze":
-      return runAnalysis(msg.pr, msg.force);
-    case "openPanel": {
-      const tabId = sender.tab?.id;
-      if (tabId === undefined) throw new Error("No tab");
-      await chrome.sidePanel.open({ tabId });
+      return runAnalysis(msg.pr, msg.force, sender.tab?.id);
+    case "widget:getPosition":
+      return (await chrome.storage.local.get(POSITION_KEY))[POSITION_KEY] ?? null;
+    case "widget:setPosition":
+      await chrome.storage.local.set({ [POSITION_KEY]: msg.position });
       return true;
+    case "reviewed:get": {
+      const k = REVIEWED_PREFIX + msg.key;
+      return (await chrome.storage.local.get(k))[k] ?? {};
     }
+    case "reviewed:set":
+      await chrome.storage.local.set({ [REVIEWED_PREFIX + msg.key]: msg.value });
+      return true;
     case "cache:clear":
       await cacheClear();
       return true;
@@ -141,9 +211,11 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
 
 chrome.runtime.onMessage.addListener((msg: Request, sender, sendResponse) => {
   if (!msg || typeof msg !== "object" || !("type" in msg)) return false;
-  if (["progress", "pr:changed"].includes((msg as { type: string }).type)) return false;
-  // Only accept messages from our own extension pages / content scripts.
-  if (sender.id !== chrome.runtime.id) return false;
+  // Only our own extension pages may use the full API; our content scripts get a small allow-list.
+  if (!isAllowedSender(msg, sender, chrome.runtime.id, chrome.runtime.getURL(""))) {
+    sendResponse({ ok: false, error: "Not allowed", code: "forbidden_sender" } satisfies Response);
+    return false;
+  }
   handle(msg, sender).then(
     (data) => sendResponse({ ok: true, data } satisfies Response),
     (e: unknown) => {

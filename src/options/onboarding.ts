@@ -31,7 +31,7 @@ function renderResult(r: TokenValidationResponse, saving: boolean) {
   const title = r.result.ok
     ? saving
       ? r.saved
-        ? "✓ Token saved. Open any pull request on github.com and click the PR Layers icon."
+        ? "✓ Token saved. Open any pull request on github.com and click the PR Layers bubble (or press Alt+Shift+L)."
         : "Token not saved."
       : "✓ Token looks good."
     : "✗ Token rejected";

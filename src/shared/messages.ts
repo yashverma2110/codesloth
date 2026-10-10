@@ -31,8 +31,11 @@ export type Request =
   | { type: "auth:save"; token: string; testRepo?: string; attested: boolean }
   | { type: "auth:clear" }
   | { type: "openOnboarding" }
+  | { type: "widget:getPosition" }
+  | { type: "widget:setPosition"; position: { side: "left" | "right"; top: number } }
+  | { type: "reviewed:get"; key: string }
+  | { type: "reviewed:set"; key: string; value: Record<string, boolean> }
   | { type: "analyze"; pr: PRRef; force?: boolean }
-  | { type: "openPanel" }
   | { type: "cache:clear" };
 
 export type Response<T = unknown> = { ok: true; data: T } | { ok: false; error: string; code?: string };
@@ -56,11 +59,34 @@ export interface TokenValidationResponse {
   saved?: boolean;
 }
 
-/** Messages pushed from the service worker / content script to the panel. */
-export type Broadcast = { type: "progress"; pr: PRRef; text: string } | { type: "pr:changed"; pr: PRRef | null; url: string };
+/** Messages pushed from the service worker to content scripts in GitHub tabs. */
+export type TabMessage =
+  | { type: "progress"; pr: PRRef; text: string }
+  | { type: "widget:toggle"; source: "toolbar" | "shortcut" }
+  | { type: "auth:changed" }
+  | { type: "ping" };
 
-/** Messages from the panel to the content script in the GitHub tab. */
-export type TabMessage = { type: "jump"; path: string } | { type: "whereAmI" };
+/**
+ * Requests a content script (running on github.com) may make. Everything else (token validation,
+ * saving, clearing, cache) is only accepted from the extension's own pages.
+ */
+export const CONTENT_ALLOWED: ReadonlySet<Request["type"]> = new Set([
+  "auth:status",
+  "analyze",
+  "openOnboarding",
+  "widget:getPosition",
+  "widget:setPosition",
+  "reviewed:get",
+  "reviewed:set",
+]);
+
+/** Decide whether a message sender may make a request. Pure for testing. */
+export function isAllowedSender(req: { type: string }, sender: { id?: string; url?: string; tab?: unknown }, extensionId: string, extensionOrigin: string): boolean {
+  if (sender.id !== extensionId) return false;
+  const fromExtensionPage = !!sender.url && sender.url.startsWith(extensionOrigin);
+  if (fromExtensionPage) return true;
+  return CONTENT_ALLOWED.has(req.type as Request["type"]);
+}
 
 export function send<T>(req: Request): Promise<T> {
   return chrome.runtime.sendMessage(req).then((res: Response<T> | undefined) => {

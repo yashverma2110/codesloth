@@ -50,7 +50,7 @@
 
   <section class="muted small">
     <h2>Privacy</h2>
-    <p>The token is stored in <code>chrome.storage.local</code> on this device and sent only as the Authorization header of GET requests to <code>api.github.com</code>. PR code is processed locally and never sent anywhere else.</p>
+    <p>The token is stored in <code>chrome.storage.local</code> on this device (restricted to the extension itself, not readable by github.com pages or the in-page widget) and sent only as the Authorization header of GET requests to <code>api.github.com</code>. PR code is processed locally and never sent anywhere else.</p>
   </section>
 </main>
 <script type="module" src="onboarding.js"></script>
