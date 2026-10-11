@@ -13,6 +13,8 @@ HTMLElement.prototype.attachShadow = function (init) {
   return s;
 };
 const plan = planUrl ? await (await fetch(planUrl)).json() : null;
+const historyUrl = params.get("history");
+const history = historyUrl ? await (await fetch(historyUrl)).json() : null;
 (globalThis as any).chrome = {
   runtime: {
     sendMessage: async (m: any) => {
@@ -25,6 +27,7 @@ const plan = planUrl ? await (await fetch(planUrl)).json() : null;
         "prefs:get": () => prefs[m.key] ?? null,
         "prefs:set": () => ((prefs[m.key] = m.value), true),
         analyze: () => ({ ...plan, fromCache: true }),
+        "history:get": () => history,
       };
       return { ok: true, data: r[m.type]?.() ?? null };
     },

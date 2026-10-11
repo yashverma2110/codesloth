@@ -161,14 +161,14 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
               ...(sel ? { "aria-current": "true" } : {}),
             },
             icon,
-            el("span", { class: "fname" }, f.name),
+            el("span", { class: "fname", title: f.path }, f.name),
             fr === "changed" ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
             unsync ? el("span", { class: "unsync", title: unsync, "aria-hidden": "true" }, "⊘") : "",
             n ? el("span", { class: "cm", title: story!.touches.map((t) => t.commit.message).join("\n") }, commits(n)) : "",
             story?.afterReview ? chip("After review", "A commit that changed this file looks like a review follow-up") : "",
             story?.lateChange ? chip("Late change", "Only changed in the PR's newest commit", "dash") : "",
             el("span", { class: "nums" }, bar, el("span", { class: "add" }, `+${f.additions}`), f.deletions > 0 ? el("span", { class: "del" }, `−${f.deletions}`) : ""),
-            el("span", { class: "reason" }, el("span", { class: "rtext" }, f.reason), latest ? el("span", { class: "latest" }, el("i", {}, "Latest: "), `${latest.message} · ${relTime(latest.date, h.now)}`) : ""),
+            el("span", { class: "reason" }, el("span", { class: "rtext" }, f.reason), latest ? el("span", { class: "latest", title: `Latest: ${latest.message} · ${relTime(latest.date, h.now)}` }, el("i", {}, "Latest: "), `${latest.message} · ${relTime(latest.date, h.now)}`) : ""),
           );
           btn.addEventListener("click", () => h.onSelect(f.path));
           const ft = el("input", { type: "checkbox", class: "ftick", "data-path": f.path, title: fr === "reviewed" ? "Unmark reviewed" : "Mark reviewed", "aria-label": `Mark ${f.name} reviewed` }) as HTMLInputElement;

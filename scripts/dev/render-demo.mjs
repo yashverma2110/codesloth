@@ -67,6 +67,21 @@ async function shot(p, name) {
   await shot(p, "08-graph-tab");
   await p.close();
 }
+// 1c) Commit story with long real commit messages (go-gitea/gitea#39426, 40 commits), light + dark
+for (const theme of ["light", "dark"]) {
+  const p = await open("plan=/test/fixtures/overflow/gitea-39426-plan.json&history=/test/fixtures/overflow/gitea-39426-history.json");
+  if (theme === "dark") await sh(p, () => { document.documentElement.setAttribute("data-color-mode", "dark"); document.body.style.background = "#0d1117"; });
+  await sh(p, () => window.__w.toggle("bubble"));
+  await p.waitForFunction(() => window.__shadow.querySelector(".fbtn .cm"));
+  for (let i = 0; i < 2; i++) {
+    await sh(p, () => window.__shadow.querySelector(".step.open .next").click());
+    await sleep(120);
+  }
+  await sh(p, () => window.__w.select("services/gitproxy/server.go", true));
+  await p.mouse.move(5, 5);
+  await shot(p, `10-story-gitea-${theme}`);
+  await p.close();
+}
 // 1b) Review tab after "Mark step reviewed & next", hovering a file (light + dark)
 for (const theme of ["light", "dark"]) {
   const p = await open("");
@@ -80,7 +95,7 @@ for (const theme of ["light", "dark"]) {
     await sh(p, () => window.__shadow.querySelector(".step.open .next").click());
     await sleep(120);
   }
-  await sh(p, () => window.__w.select("tests/test_telemetry/test_runtime.py"));
+  await sh(p, () => window.__w.select("tests/test_telemetry/test_runtime.py", true));
   await sleep(250);
   await p.mouse.move(5, 5);
   await shot(p, `09-review-next-${theme}`);

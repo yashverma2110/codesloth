@@ -108,6 +108,12 @@ How it's fetched (read-only `GET`s only, cached in IndexedDB by owner/repo/numbe
 
 ![Review tab in demo mode (fastapi/fastapi#16403): steps 1–3 done, step 4 "Now the tests" open with "Touched in 3 of 5 commits", each file showing its commit count, and test_runtime.py selected with its 3-commit timeline. Headless render of the real widget code with the bundled sample data](docs/images/review-demo.png)
 
+Long commit messages wrap to at most two lines (full message on hover), the *Latest* line and file names truncate with an ellipsis (full text on hover), and nothing in the panel scrolls sideways at any panel width. `node scripts/dev/check-overflow.mjs` checks that in headless Chrome with real long messages and a stress case; it runs as part of `npm test` when Chrome is available.
+
+![Commit story with long real commit messages: go-gitea/gitea#39426 (40 commits), services/gitproxy/server.go selected with its 13-commit timeline. Headless render of the real widget code](docs/images/commit-story.png)
+
+Dark: [docs/images/commit-story-dark.png](docs/images/commit-story-dark.png).
+
 **First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers steps, why lines, files, the file CTA and the change flag. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **⋯ → Take the tour**.
 
 **Try demo:** **⋯ → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.

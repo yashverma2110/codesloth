@@ -492,6 +492,9 @@ describe("Widget (DOM)", () => {
     expect(link.textContent).toBe("aaaaaaa");
     expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/7/commits/aaaaaaa1");
     expect(items[0].querySelector(".av")!.textContent).toBe("YV");
+    expect(items[1].querySelector(".tmsg")!.getAttribute("title")).toBe("Address review comments");
+    expect(s.querySelector("li.file.sel .latest")!.getAttribute("title")).toMatch(/^Latest: refactor: rename · /);
+    expect(s.querySelector("li.file.sel .fname")!.getAttribute("title")).toBe("src/a.ts");
     // step 2: b.ts only in the newest commit -> Late change
     (s.querySelectorAll(".sh")[1] as HTMLButtonElement).click();
     const b = s.querySelector('.fbtn[data-path="src/ui/b.ts"]')!;

@@ -1,0 +1,1410 @@
+{
+ "version": 1,
+ "totalCommits": 40,
+ "commits": [
+  {
+   "sha": "598d08c14a4caa8186aae410380b705601543dac",
+   "message": "introduce egress package as replacement of hostmatcher",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-22T20:29:59Z"
+  },
+  {
+   "sha": "d69070599bd1229ac13a1cbc97774fe109c4f3a4",
+   "message": "rewire hostmatcher calls to use policies",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-22T20:31:08Z"
+  },
+  {
+   "sha": "771b36f9bb023acc489756af3d5f56cfd9ba33cc",
+   "message": "Add basic auth credentials in roundtrip",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-22T20:33:09Z"
+  },
+  {
+   "sha": "51b0b4fbdad98656f8cfda51597a3b8d13dbbb64",
+   "message": "add git proxy to guard raw git calls from being SSRF vector",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-22T20:34:42Z"
+  },
+  {
+   "sha": "bb7c9061bdd2cdb9a8a2b38e2b639c405b7782ba",
+   "message": "allow loopback in integration tests",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-23T12:42:16Z"
+  },
+  {
+   "sha": "49bd5e3fab71a5bb4c36e9c47dae295f997140bc",
+   "message": "fix migration tests to allow local addresses",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-23T12:42:34Z"
+  },
+  {
+   "sha": "ea306b4ca06eac53a47f88aad27399b6b1865477",
+   "message": "fix proxy bug where it shared sync.Once",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T10:01:33Z"
+  },
+  {
+   "sha": "244e3077b97f960d71250bd9615424dc14621ed3",
+   "message": "make gitproxy use gitea's listeners system",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T17:29:33Z"
+  },
+  {
+   "sha": "224b2d1b2c7aca5fd11bdfe4db1ad875c091f2b7",
+   "message": "fix applying proxies to migrations",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T17:29:47Z"
+  },
+  {
+   "sha": "0c6b6ed9f36f96e1a7c92e1a5c5fce0007d3a288",
+   "message": "restore test and ensure they won't fail due to missing dns entry",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T18:09:45Z"
+  },
+  {
+   "sha": "acd89c3c0a0396b184bcac6b5db7650b48c723fa",
+   "message": "simplify comments",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T18:11:06Z"
+  },
+  {
+   "sha": "cf977f34efb9258847e939439f9d76e845da9f57",
+   "message": "deprecate ALLOW_LOCALNETWORK config",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T18:53:32Z"
+  },
+  {
+   "sha": "17371d0b5925ebc3688c45f3c2fbd23f92b06efe",
+   "message": "add a full list of reserved ranges and check them before moving to the lists",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T19:26:01Z"
+  },
+  {
+   "sha": "31434db29fa52e82d0f25cfa7760545884ca0f42",
+   "message": "drop dead code",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T19:32:44Z"
+  },
+  {
+   "sha": "c1374411e56eca069587789fbbd274816564d8d5",
+   "message": "correct naming of policy",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T19:40:46Z"
+  },
+  {
+   "sha": "cfde6ef4882f5227011af23ec8a4ebbe6404da61",
+   "message": "reword comment",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-24T21:30:02Z"
+  },
+  {
+   "sha": "618023f2f2560c24086178fd9b0c3575c3c6bd22",
+   "message": "guard cgnat addresses",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-25T07:29:47Z"
+  },
+  {
+   "sha": "0d603855c1605fd6302417a873fd13752bb77b35",
+   "message": "only create socks dialer if there's a proxy configured",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-25T07:51:00Z"
+  },
+  {
+   "sha": "541f92a0b19fd8b8bd720e49feb8a03c02e939d6",
+   "message": "add missing copyright headers",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-25T08:10:58Z"
+  },
+  {
+   "sha": "09d80234b5b61f1277683b71a0b5575f3843ae01",
+   "message": "remove bad test",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-25T08:17:44Z"
+  },
+  {
+   "sha": "ba10def83f0a72ba04768044382fa23c2d8f3724",
+   "message": "assert on policy error",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-25T08:18:05Z"
+  },
+  {
+   "sha": "bb994655be3e0e927d66ce48555f703fa3800e3d",
+   "message": "fix bad cherrypick",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-25T11:40:06Z"
+  },
+  {
+   "sha": "41837c5c2ca07975726d5758d118a48a25a43467",
+   "message": "Merge branch 'main' into git-proxy",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-25T14:46:59Z",
+   "merge": true
+  },
+  {
+   "sha": "56260a41e3d54ae85d1014087b1cc542f23f6ac2",
+   "message": "fix: harden egress policies and the git proxy",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-25T17:23:59Z"
+  },
+  {
+   "sha": "efa73fc1d4ce58fac8653bb733073985e0f8ba6d",
+   "message": "fix: route git:// remotes through the git proxy and keep git's proxy choice",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-25T18:17:23Z"
+  },
+  {
+   "sha": "6528360418a29f2026cbf6e2c2cf3e82fa8e2baa",
+   "message": "fix: honor git's upstream proxy options in the git proxy",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-25T18:53:21Z"
+  },
+  {
+   "sha": "b961adae1963de33aca61bf512d210b82a150d66",
+   "message": "Merge branch 'main' into git-proxy",
+   "login": "bircni",
+   "name": "bircni",
+   "initials": "BI",
+   "date": "2026-09-27T18:19:04Z",
+   "merge": true
+  },
+  {
+   "sha": "bbc04b946a1f5f180ba4b2c4fe6b861028f47cd5",
+   "message": "replace hostmatcher with matchlist",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-26T09:37:04Z"
+  },
+  {
+   "sha": "51a4d2fb360372cf4fede22c6e749172f1664316",
+   "message": "add mode setting",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-27T23:24:01Z"
+  },
+  {
+   "sha": "1a45c4cf3c9e5067a7d9dc5cd2983f989d846eaa",
+   "message": "fix test failures",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-28T07:52:38Z"
+  },
+  {
+   "sha": "873cf162794d770bdba5cdd0e79cb19f411bbb44",
+   "message": "default to Lax mode allowing all ports",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-28T10:46:05Z"
+  },
+  {
+   "sha": "9f93f3d54f35d400635d0652ac3994b6630549d2",
+   "message": "correct port examples in docs",
+   "login": "TheFox0x7",
+   "name": "TheFox0x7",
+   "initials": "TH",
+   "date": "2026-09-28T22:29:15Z"
+  },
+  {
+   "sha": "0cb824df8e497565fdb85b6817b2638cb7fbfbb0",
+   "message": "fix: keep existing egress lists effective and report invalid entries",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-29T01:13:42Z"
+  },
+  {
+   "sha": "ddfebfe219d373705456fae225b15d9ae992a486",
+   "message": "Merge branch 'main' into git-proxy",
+   "login": "bircni",
+   "name": "bircni",
+   "initials": "BI",
+   "date": "2026-09-29T11:34:20Z",
+   "merge": true
+  },
+  {
+   "sha": "af8e06480c8d149fe422fdac376f5c44c894fe2b",
+   "message": "clarify realm",
+   "login": "wxiaoguang",
+   "name": "wxiaoguang",
+   "initials": "WX",
+   "date": "2026-09-29T11:48:02Z"
+  },
+  {
+   "sha": "0369fa0734e883849bd28de526ae824efa472687",
+   "message": "Merge branch 'main' into git-proxy",
+   "login": "wxiaoguang",
+   "name": "wxiaoguang",
+   "initials": "WX",
+   "date": "2026-09-29T12:04:07Z",
+   "merge": true
+  },
+  {
+   "sha": "e86d419114142f8dbe1931c3d042f32c0ab899b4",
+   "message": "perf(gitproxy): use larger buffers for proxied http responses",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-29T12:08:56Z"
+  },
+  {
+   "sha": "da9fa0544098baa13bb1f806deb7d6c181b0ddf1",
+   "message": "use \"*1024\" instead of \"<<10\"",
+   "login": "wxiaoguang",
+   "name": "wxiaoguang",
+   "initials": "WX",
+   "date": "2026-09-29T12:18:22Z"
+  },
+  {
+   "sha": "3e2887542057bde5af7e81bb07db569b29f2696d",
+   "message": "fix lint",
+   "login": "wxiaoguang",
+   "name": "wxiaoguang",
+   "initials": "WX",
+   "date": "2026-09-29T12:18:55Z"
+  },
+  {
+   "sha": "95eacbc49d6dbe05f0024d30a1713b961b9ea453",
+   "message": "chore: prefer multiplications over bit shifts for sizes in AGENTS.md",
+   "login": "silverwind",
+   "name": "silverwind",
+   "initials": "SI",
+   "date": "2026-09-29T12:23:26Z"
+  }
+ ],
+ "files": {
+  "modules/egress/policy/matchlist.go": [
+   {
+    "c": 0,
+    "additions": 111,
+    "deletions": 0
+   },
+   {
+    "c": 12,
+    "additions": 30,
+    "deletions": 18
+   },
+   {
+    "c": 18,
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "c": 23,
+    "additions": 48,
+    "deletions": 102
+   },
+   {
+    "c": 24,
+    "additions": 14,
+    "deletions": 4
+   },
+   {
+    "c": 25,
+    "additions": 0,
+    "deletions": 1
+   },
+   {
+    "c": 27,
+    "additions": 468,
+    "deletions": 13
+   },
+   {
+    "c": 30,
+    "additions": 19,
+    "deletions": 19
+   },
+   {
+    "c": 31,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 32,
+    "additions": 18,
+    "deletions": 94
+   }
+  ],
+  "modules/egress/policy/policy.go": [
+   {
+    "c": 0,
+    "additions": 269,
+    "deletions": 0
+   },
+   {
+    "c": 6,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 12,
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "c": 18,
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "c": 23,
+    "additions": 85,
+    "deletions": 177
+   },
+   {
+    "c": 24,
+    "additions": 8,
+    "deletions": 3
+   },
+   {
+    "c": 25,
+    "additions": 9,
+    "deletions": 14
+   },
+   {
+    "c": 27,
+    "additions": 88,
+    "deletions": 29
+   },
+   {
+    "c": 28,
+    "additions": 44,
+    "deletions": 28
+   },
+   {
+    "c": 30,
+    "additions": 7,
+    "deletions": 13
+   }
+  ],
+  "modules/setting/migrations.go": [
+   {
+    "c": 11,
+    "additions": 11,
+    "deletions": 4
+   },
+   {
+    "c": 23,
+    "additions": 13,
+    "deletions": 14
+   },
+   {
+    "c": 24,
+    "additions": 7,
+    "deletions": 4
+   },
+   {
+    "c": 28,
+    "additions": 7,
+    "deletions": 4
+   },
+   {
+    "c": 30,
+    "additions": 3,
+    "deletions": 3
+   },
+   {
+    "c": 32,
+    "additions": 16,
+    "deletions": 2
+   }
+  ],
+  "modules/setting/security.go": [
+   {
+    "c": 28,
+    "additions": 17,
+    "deletions": 1
+   },
+   {
+    "c": 30,
+    "additions": 5,
+    "deletions": 5
+   },
+   {
+    "c": 32,
+    "additions": 17,
+    "deletions": 0
+   }
+  ],
+  "modules/setting/webhook.go": [
+   {
+    "c": 32,
+    "additions": 3,
+    "deletions": 0
+   }
+  ],
+  "modules/git/gitcmd/command.go": [
+   {
+    "c": 3,
+    "additions": 10,
+    "deletions": 2
+   },
+   {
+    "c": 15,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 23,
+    "additions": 7,
+    "deletions": 11
+   },
+   {
+    "c": 24,
+    "additions": 2,
+    "deletions": 2
+   }
+  ],
+  "modules/git/gitcmd/env.go": [
+   {
+    "c": 23,
+    "additions": 13,
+    "deletions": 0
+   },
+   {
+    "c": 24,
+    "additions": 5,
+    "deletions": 10
+   }
+  ],
+  "modules/proxy/proxy.go": [
+   {
+    "c": 1,
+    "additions": 24,
+    "deletions": 15
+   },
+   {
+    "c": 6,
+    "additions": 6,
+    "deletions": 5
+   },
+   {
+    "c": 13,
+    "additions": 0,
+    "deletions": 33
+   },
+   {
+    "c": 23,
+    "additions": 27,
+    "deletions": 40
+   }
+  ],
+  "modules/egress/policies.go": [
+   {
+    "c": 0,
+    "additions": 90,
+    "deletions": 0
+   },
+   {
+    "c": 8,
+    "additions": 1,
+    "deletions": 9
+   },
+   {
+    "c": 11,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 14,
+    "additions": 17,
+    "deletions": 4
+   },
+   {
+    "c": 18,
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "c": 23,
+    "additions": 39,
+    "deletions": 78
+   },
+   {
+    "c": 24,
+    "additions": 56,
+    "deletions": 5
+   },
+   {
+    "c": 25,
+    "additions": 13,
+    "deletions": 14
+   },
+   {
+    "c": 27,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 28,
+    "additions": 9,
+    "deletions": 0
+   },
+   {
+    "c": 30,
+    "additions": 4,
+    "deletions": 5
+   }
+  ],
+  "modules/git/repo.go": [
+   {
+    "c": 3,
+    "additions": 2,
+    "deletions": 13
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 6
+   }
+  ],
+  "cmd/dump_repo.go": [
+   {
+    "c": 23,
+    "additions": 4,
+    "deletions": 0
+   }
+  ],
+  "main.go": [
+   {
+    "c": 24,
+    "additions": 2,
+    "deletions": 0
+   }
+  ],
+  "modules/auth/openid/openid.go": [
+   {
+    "c": 1,
+    "additions": 3,
+    "deletions": 5
+   },
+   {
+    "c": 23,
+    "additions": 2,
+    "deletions": 6
+   }
+  ],
+  "routers/init.go": [
+   {
+    "c": 3,
+    "additions": 2,
+    "deletions": 2
+   }
+  ],
+  "routers/web/auth/oauth.go": [
+   {
+    "c": 1,
+    "additions": 2,
+    "deletions": 14
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "services/gitproxy/server.go": [
+   {
+    "c": 3,
+    "additions": 536,
+    "deletions": 0
+   },
+   {
+    "c": 7,
+    "additions": 187,
+    "deletions": 104
+   },
+   {
+    "c": 10,
+    "additions": 49,
+    "deletions": 80
+   },
+   {
+    "c": 14,
+    "additions": 2,
+    "deletions": 3
+   },
+   {
+    "c": 16,
+    "additions": 0,
+    "deletions": 8
+   },
+   {
+    "c": 17,
+    "additions": 6,
+    "deletions": 6
+   },
+   {
+    "c": 23,
+    "additions": 131,
+    "deletions": 467
+   },
+   {
+    "c": 24,
+    "additions": 99,
+    "deletions": 30
+   },
+   {
+    "c": 25,
+    "additions": 92,
+    "deletions": 15
+   },
+   {
+    "c": 34,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 36,
+    "additions": 8,
+    "deletions": 0
+   },
+   {
+    "c": 37,
+    "additions": 2,
+    "deletions": 2
+   },
+   {
+    "c": 38,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "services/migrations/codebase.go": [
+   {
+    "c": 2,
+    "additions": 13,
+    "deletions": 13
+   },
+   {
+    "c": 21,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 23,
+    "additions": 12,
+    "deletions": 13
+   }
+  ],
+  "services/migrations/gitea_uploader.go": [
+   {
+    "c": 2,
+    "additions": 3,
+    "deletions": 1
+   },
+   {
+    "c": 23,
+    "additions": 0,
+    "deletions": 2
+   }
+  ],
+  "services/migrations/github.go": [
+   {
+    "c": 2,
+    "additions": 1,
+    "deletions": 7
+   }
+  ],
+  "services/migrations/gogs.go": [
+   {
+    "c": 2,
+    "additions": 4,
+    "deletions": 2
+   },
+   {
+    "c": 23,
+    "additions": 3,
+    "deletions": 4
+   }
+  ],
+  "services/migrations/http_client.go": [
+   {
+    "c": 2,
+    "additions": 16,
+    "deletions": 20
+   },
+   {
+    "c": 23,
+    "additions": 4,
+    "deletions": 14
+   }
+  ],
+  "services/migrations/migrate.go": [
+   {
+    "c": 2,
+    "additions": 14,
+    "deletions": 49
+   },
+   {
+    "c": 23,
+    "additions": 2,
+    "deletions": 18
+   },
+   {
+    "c": 27,
+    "additions": 2,
+    "deletions": 7
+   }
+  ],
+  "services/migrations/onedev.go": [
+   {
+    "c": 2,
+    "additions": 3,
+    "deletions": 2
+   },
+   {
+    "c": 5,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 23,
+    "additions": 3,
+    "deletions": 3
+   }
+  ],
+  "services/mirror/mirror_pull.go": [
+   {
+    "c": 3,
+    "additions": 2,
+    "deletions": 4
+   },
+   {
+    "c": 23,
+    "additions": 2,
+    "deletions": 7
+   }
+  ],
+  "services/mirror/mirror_push.go": [
+   {
+    "c": 3,
+    "additions": 0,
+    "deletions": 3
+   }
+  ],
+  "services/webhook/deliver.go": [
+   {
+    "c": 1,
+    "additions": 7,
+    "deletions": 46
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 2
+   }
+  ],
+  "modules/git/redirection.go": [
+   {
+    "c": 23,
+    "additions": 0,
+    "deletions": 15
+   }
+  ],
+  "modules/hostmatcher/hostmatcher.go": [],
+  "modules/hostmatcher/http.go": [
+   {
+    "c": 0,
+    "additions": 0,
+    "deletions": 81
+   }
+  ],
+  "modules/egress/policy/matchlist_test.go": [
+   {
+    "c": 28,
+    "additions": 129,
+    "deletions": 0
+   },
+   {
+    "c": 30,
+    "additions": 15,
+    "deletions": 12
+   },
+   {
+    "c": 32,
+    "additions": 2,
+    "deletions": 0
+   }
+  ],
+  "routers/web/auth/oauth_test.go": [
+   {
+    "c": 1,
+    "additions": 0,
+    "deletions": 14
+   },
+   {
+    "c": 20,
+    "additions": 2,
+    "deletions": 1
+   },
+   {
+    "c": 32,
+    "additions": 0,
+    "deletions": 1
+   }
+  ],
+  "services/gitproxy/server_test.go": [
+   {
+    "c": 3,
+    "additions": 907,
+    "deletions": 0
+   },
+   {
+    "c": 7,
+    "additions": 912,
+    "deletions": 589
+   },
+   {
+    "c": 10,
+    "additions": 20,
+    "deletions": 66
+   },
+   {
+    "c": 16,
+    "additions": 2,
+    "deletions": 4
+   },
+   {
+    "c": 21,
+    "additions": 8,
+    "deletions": 3
+   },
+   {
+    "c": 23,
+    "additions": 293,
+    "deletions": 1078
+   },
+   {
+    "c": 24,
+    "additions": 51,
+    "deletions": 38
+   },
+   {
+    "c": 25,
+    "additions": 50,
+    "deletions": 20
+   },
+   {
+    "c": 29,
+    "additions": 2,
+    "deletions": 2
+   },
+   {
+    "c": 30,
+    "additions": 5,
+    "deletions": 5
+   },
+   {
+    "c": 32,
+    "additions": 0,
+    "deletions": 1
+   }
+  ],
+  "modules/egress/policy/policy_test.go": [
+   {
+    "c": 0,
+    "additions": 180,
+    "deletions": 0
+   },
+   {
+    "c": 16,
+    "additions": 29,
+    "deletions": 2
+   },
+   {
+    "c": 19,
+    "additions": 0,
+    "deletions": 9
+   },
+   {
+    "c": 23,
+    "additions": 75,
+    "deletions": 155
+   },
+   {
+    "c": 24,
+    "additions": 9,
+    "deletions": 7
+   },
+   {
+    "c": 25,
+    "additions": 4,
+    "deletions": 1
+   },
+   {
+    "c": 27,
+    "additions": 21,
+    "deletions": 14
+   },
+   {
+    "c": 28,
+    "additions": 36,
+    "deletions": 15
+   },
+   {
+    "c": 30,
+    "additions": 22,
+    "deletions": 11
+   },
+   {
+    "c": 32,
+    "additions": 2,
+    "deletions": 4
+   }
+  ],
+  "modules/egress/policies_test.go": [
+   {
+    "c": 0,
+    "additions": 22,
+    "deletions": 0
+   },
+   {
+    "c": 18,
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "c": 23,
+    "additions": 55,
+    "deletions": 9
+   },
+   {
+    "c": 24,
+    "additions": 13,
+    "deletions": 0
+   },
+   {
+    "c": 25,
+    "additions": 7,
+    "deletions": 5
+   },
+   {
+    "c": 27,
+    "additions": 17,
+    "deletions": 9
+   },
+   {
+    "c": 28,
+    "additions": 17,
+    "deletions": 8
+   },
+   {
+    "c": 30,
+    "additions": 4,
+    "deletions": 3
+   },
+   {
+    "c": 32,
+    "additions": 2,
+    "deletions": 6
+   }
+  ],
+  "modules/setting/migrations_test.go": [
+   {
+    "c": 23,
+    "additions": 32,
+    "deletions": 0
+   },
+   {
+    "c": 24,
+    "additions": 1,
+    "deletions": 0
+   },
+   {
+    "c": 29,
+    "additions": 2,
+    "deletions": 3
+   },
+   {
+    "c": 32,
+    "additions": 5,
+    "deletions": 4
+   }
+  ],
+  "services/migrations/main_test.go": [
+   {
+    "c": 5,
+    "additions": 3,
+    "deletions": 0
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 2
+   },
+   {
+    "c": 29,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "services/webhook/main_test.go": [
+   {
+    "c": 1,
+    "additions": 4,
+    "deletions": 4
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 4
+   },
+   {
+    "c": 29,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "tests/integration/api_repo_lfs_migrate_test.go": [
+   {
+    "c": 4,
+    "additions": 0,
+    "deletions": 3
+   }
+  ],
+  "tests/integration/api_repo_test.go": [
+   {
+    "c": 4,
+    "additions": 7,
+    "deletions": 16
+   },
+   {
+    "c": 9,
+    "additions": 1,
+    "deletions": 1
+   },
+   {
+    "c": 23,
+    "additions": 10,
+    "deletions": 8
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "tests/integration/dump_restore_test.go": [
+   {
+    "c": 4,
+    "additions": 0,
+    "deletions": 2
+   }
+  ],
+  "modules/setting/security_test.go": [
+   {
+    "c": 28,
+    "additions": 4,
+    "deletions": 1
+   },
+   {
+    "c": 30,
+    "additions": 3,
+    "deletions": 3
+   }
+  ],
+  "services/migrations/migrate_test.go": [
+   {
+    "c": 2,
+    "additions": 47,
+    "deletions": 68
+   },
+   {
+    "c": 23,
+    "additions": 12,
+    "deletions": 65
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "modules/git/repo_test.go": [
+   {
+    "c": 23,
+    "additions": 0,
+    "deletions": 24
+   }
+  ],
+  "tests/integration/api_repo_edit_test.go": [
+   {
+    "c": 21,
+    "additions": 0,
+    "deletions": 7
+   },
+   {
+    "c": 23,
+    "additions": 6,
+    "deletions": 6
+   }
+  ],
+  "tests/integration/migrate_test.go": [
+   {
+    "c": 4,
+    "additions": 4,
+    "deletions": 8
+   },
+   {
+    "c": 21,
+    "additions": 4,
+    "deletions": 4
+   }
+  ],
+  "tests/integration/actions_schedule_test.go": [
+   {
+    "c": 4,
+    "additions": 0,
+    "deletions": 9
+   }
+  ],
+  "tests/integration/mirror_pull_test.go": [
+   {
+    "c": 4,
+    "additions": 2,
+    "deletions": 20
+   },
+   {
+    "c": 9,
+    "additions": 18,
+    "deletions": 2
+   },
+   {
+    "c": 23,
+    "additions": 14,
+    "deletions": 33
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "tests/integration/mirror_push_test.go": [
+   {
+    "c": 4,
+    "additions": 0,
+    "deletions": 16
+   },
+   {
+    "c": 23,
+    "additions": 5,
+    "deletions": 0
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "services/webhook/deliver_test.go": [
+   {
+    "c": 1,
+    "additions": 17,
+    "deletions": 12
+   },
+   {
+    "c": 6,
+    "additions": 3,
+    "deletions": 4
+   },
+   {
+    "c": 23,
+    "additions": 0,
+    "deletions": 68
+   }
+  ],
+  "modules/hostmatcher/hostmatcher_test.go": [],
+  "tests/mssql.ini.tmpl": [
+   {
+    "c": 4,
+    "additions": 6,
+    "deletions": 0
+   },
+   {
+    "c": 9,
+    "additions": 2,
+    "deletions": 2
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 4
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "tests/mysql.ini.tmpl": [
+   {
+    "c": 4,
+    "additions": 6,
+    "deletions": 0
+   },
+   {
+    "c": 9,
+    "additions": 3,
+    "deletions": 2
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 5
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "tests/pgsql.ini.tmpl": [
+   {
+    "c": 4,
+    "additions": 6,
+    "deletions": 0
+   },
+   {
+    "c": 9,
+    "additions": 3,
+    "deletions": 2
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 5
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "tests/sqlite.ini.tmpl": [
+   {
+    "c": 4,
+    "additions": 6,
+    "deletions": 0
+   },
+   {
+    "c": 9,
+    "additions": 3,
+    "deletions": 2
+   },
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 5
+   },
+   {
+    "c": 32,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "AGENTS.md": [
+   {
+    "c": 39,
+    "additions": 1,
+    "deletions": 0
+   }
+  ],
+  "custom/conf/app.example.ini": [
+   {
+    "c": 23,
+    "additions": 8,
+    "deletions": 14
+   },
+   {
+    "c": 24,
+    "additions": 2,
+    "deletions": 0
+   },
+   {
+    "c": 25,
+    "additions": 6,
+    "deletions": 9
+   },
+   {
+    "c": 28,
+    "additions": 18,
+    "deletions": 9
+   },
+   {
+    "c": 30,
+    "additions": 6,
+    "deletions": 6
+   },
+   {
+    "c": 31,
+    "additions": 21,
+    "deletions": 5
+   }
+  ],
+  "options/locale/locale_en-US.json": [
+   {
+    "c": 23,
+    "additions": 1,
+    "deletions": 1
+   }
+  ]
+ },
+ "notes": []
+}

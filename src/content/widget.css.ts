@@ -143,4 +143,23 @@ ol.tl { list-style:none; margin:0; padding:0 0 0 12px; border-left:1.5px solid v
 a.sha { font:10.5px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--accent); text-decoration:none; }
 a.sha:hover { text-decoration:underline; }
 a.sha:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:3px; }
+
+/* ---- v0.5.1: everything respects the panel width (no horizontal overflow) ---- */
+.panel, .panel * { box-sizing:border-box; }
+.body { overflow-x:hidden; overflow-y:auto; }
+li.file { min-width:0; }
+ol.steps, .step, .sbody, ul.files, .fbtn, .reason, .tlwrap, ol.tl, .tc, .tm, .sfoot, .story, .flag, .why { min-width:0; max-width:100%; }
+.fbtn { flex:1 1 0; }
+.fname { flex:1 1 0; min-width:min(11ch, 100%); }
+.cm, .chip, .nums, .chg-ico, .unsync, .sdot { flex:none; }
+.reason { min-width:0; overflow-wrap:anywhere; }
+.reason .latest { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tlwrap { flex:1 1 100%; width:100%; padding:2px 8px 8px 22px; overflow:hidden; }
+.tmsg { white-space:normal; overflow-wrap:anywhere; word-break:break-word; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }
+.tm { flex-wrap:wrap; row-gap:2px; }
+.tm .chip { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+.btn.next { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.sfoot .hint { max-width:100%; }
+.story { overflow-wrap:anywhere; }
+.sdots { flex-wrap:wrap; max-width:100%; }
 `;

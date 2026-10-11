@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PR Layers",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Review big GitHub pull requests layer by layer: contracts \u2192 core \u2192 callers \u2192 tests \u2192 config \u2192 generated. Read-only, local, no AI.",
   "minimum_chrome_version": "110",
   "icons": {

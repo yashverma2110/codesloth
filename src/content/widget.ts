@@ -535,8 +535,9 @@ export class Widget {
   }
 
   /** Scroll only the Review pane (never the panel or page) so `el` is visible. */
-  private reveal(el: HTMLElement) {
+  private reveal(target: HTMLElement) {
     const pane = this.panes.review;
+    const el = (target.closest("li.file") as HTMLElement | null) ?? target; // include the selected file's timeline
     const p = pane.getBoundingClientRect();
     const r = el.getBoundingClientRect();
     if (r.top < p.top) pane.scrollTop -= p.top - r.top + 8;
