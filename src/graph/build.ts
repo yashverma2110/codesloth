@@ -58,6 +58,8 @@ export interface BuildOptions {
   expanded?: ReadonlySet<string>;
   hiddenLayers?: ReadonlySet<string>;
   reviewedLayers?: ReadonlySet<string>;
+  /** Files marked reviewed (a node is dimmed when all its files are). */
+  reviewedPaths?: ReadonlySet<string>;
   changedPaths?: ReadonlySet<string>;
   /** Above this many nodes, files are clustered by directory (default 160). */
   maxNodes?: number;
@@ -201,6 +203,7 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
     neighbors.get(e.from)!.add(e.to);
     neighbors.get(e.to)!.add(e.from);
   }
+  if (opts.reviewedPaths?.size) for (const n of nodes) if (!n.reviewed && n.paths.length && n.paths.every((p) => opts.reviewedPaths!.has(p))) n.reviewed = true;
   return { nodes, edges, layers, neighbors, clusteredFiles, totalFiles: plan.layers.reduce((s, l) => s + l.files.length, 0) };
 }
 

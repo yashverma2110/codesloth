@@ -1,5 +1,5 @@
 # fastapi/fastapi#16403: ✨ Add native OpenTelemetry support
-head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 51 ms
+head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 50 ms
 
 ## Step 1: Start with the core code [Core]  (1 file, +276/-0)
    5 other changed files import this.
@@ -19,7 +19,7 @@ head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched
   - fastapi/telemetry/_runtime.py  [+239/-0]
       Uses _api.py
 
-## Step 3: Then the code built on that [Callers 2]  (1 file, +65/-2)
+## Step 3: Then applications.py [Callers 2]  (1 file, +65/-2)
    This uses routing.py and 2 others from step 2.
   - fastapi/applications.py  [+65/-2]
       Uses routing.py and 2 others

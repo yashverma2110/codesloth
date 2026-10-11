@@ -3,7 +3,7 @@ import type { AnalyzeResult, Request, Response } from "../shared/messages";
 import { prKey } from "../shared/pr-url";
 import { GraphView, GRAPH_VIEW_CSS } from "../graph/view";
 import { GRAPH_CSS } from "../graph/svg";
-import { normalizeReviewState, summarize } from "../content/review-logic";
+import { emptyReview, normalizeReviewState, summarize } from "../content/review-logic";
 import demoData from "../demo/demo-plan.json";
 import { diffAnchor } from "../shared/pr-url";
 
@@ -25,7 +25,7 @@ async function main() {
   const tabId = q.get("tab") ? Number(q.get("tab")) : undefined;
   try {
     const res = demo ? (demoData as unknown as AnalyzeResult) : await rpc<AnalyzeResult>({ type: "graph:getPlan", pr, headSha: q.get("sha") ?? "" });
-    const review = demo ? {} : normalizeReviewState(await rpc({ type: "reviewed:get", key: prKey(res.pr) }).catch(() => ({})));
+    const review = demo ? emptyReview() : normalizeReviewState(await rpc({ type: "reviewed:get", key: prKey(res.pr) }).catch(() => ({})));
     document.getElementById("title")!.textContent = `${res.pr.owner}/${res.pr.repo}#${res.pr.number} · ${res.meta.title}${demo ? " (demo)" : ""}`;
     document.title = `Graph · #${res.pr.number} ${res.meta.title}`;
     const view = new GraphView({
@@ -40,7 +40,7 @@ async function main() {
     status.remove();
     document.getElementById("app")!.append(view.el);
     const s = summarize(res.plan, review);
-    view.setData(res.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+    view.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
   } catch (e) {
     status.textContent = (e as Error).message;
   }

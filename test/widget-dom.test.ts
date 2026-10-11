@@ -176,7 +176,7 @@ describe("Widget (DOM)", () => {
     expect(shadowOf().querySelector("#prl-tab-graph")!.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("stores a per-PR snapshot when a layer is ticked", async () => {
+  it("the step checkbox marks all its files reviewed, with their blob SHAs, per PR", async () => {
     const w = new Widget();
     await w.mount();
     w.setPr({ owner: "o", repo: "r", number: 7 });
@@ -188,8 +188,10 @@ describe("Widget (DOM)", () => {
     cb.dispatchEvent(new Event("change"));
     const set = calls.find((c) => c.type === "reviewed:set") as any;
     expect(set.key).toBe("o/r#7");
-    expect(set.value.core.files).toEqual({ "src/a.ts": "s1" });
-    expect(set.value.core.headSha).toBe("abcdef1234");
+    expect(set.value.v).toBe(2);
+    expect(Object.keys(set.value.files)).toEqual(["src/a.ts"]);
+    expect(set.value.files["src/a.ts"].sha).toBe("s1");
+    expect(set.value.files["src/a.ts"].headSha).toBe("abcdef1234");
   });
 
   it("Try demo works without a token, shows the change flag and runs the 5-step tour once", async () => {
@@ -277,7 +279,7 @@ describe("Widget (DOM)", () => {
     expect(rows[0].querySelector(".dot")!.getAttribute("title")).toBe("Modified");
     expect(rows[0].querySelector(".nums .del")?.textContent).toBe("−3");
     expect(rows[1].querySelector(".nums .del")).toBeNull();
-    expect(rows[0].getAttribute("aria-label")).toContain("Uses a.ts");
+    expect(rows[0].querySelector(".fbtn")!.getAttribute("aria-label")).toContain("Uses a.ts");
     expect(rows[0].querySelector(".reason")?.textContent).toBe("Uses a.ts");
     // technical details live in the ⋯ menu
     (s.querySelector(".hdr .icon") as HTMLButtonElement).click();
@@ -289,27 +291,99 @@ describe("Widget (DOM)", () => {
     expect(menu).toContain("analysed from the diff only");
   });
 
-  it("'Mark step reviewed & next' ticks, collapses, opens the next step; the last step says 'Mark reviewed ✓'", async () => {
+  it("clicking a file selects it (aria-current) and jumps; the file checkbox marks it; the step shows partial state", async () => {
     const w = new Widget();
     await w.mount();
     w.setPr({ owner: "o", repo: "r", number: 7 });
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    const next = s.querySelector(".step.open .next") as HTMLButtonElement;
-    expect(next.textContent).toBe("Mark step reviewed & next →");
-    next.click();
+    (s.querySelectorAll(".sh")[1] as HTMLButtonElement).click();
+    const btn = () => s.querySelector('.fbtn[data-path="src/ui/b.ts"]') as HTMLButtonElement;
+    btn().click();
+    expect(btn().getAttribute("aria-current")).toBe("true");
+    expect(btn().closest("li")!.classList.contains("sel")).toBe(true);
+    expect(s.querySelectorAll('[aria-current="true"]')).toHaveLength(1);
+    const ft = s.querySelector('.ftick[data-path="src/ui/b.ts"]') as HTMLInputElement;
+    ft.checked = true;
+    ft.dispatchEvent(new Event("change"));
+    const row = btn().closest("li")!;
+    expect(row.classList.contains("rev")).toBe(true);
+    expect(row.querySelector(".rev-ico")?.textContent).toBe("✓");
+    expect(row.querySelector(".dot")).toBeNull();
+    const step = s.querySelector('[data-layer="caller1"]')!;
+    expect(step.classList.contains("partial")).toBe(true);
+    expect((step.querySelector(".tick") as HTMLInputElement).indeterminate).toBe(true);
+    expect(step.querySelector(".cnt")?.textContent).toBe("1/2");
+    expect(s.querySelector(".plbl")?.textContent).toBe("Step 1 of 21 of 3 files reviewed");
+    // un-mark via the row checkbox; clicking a reviewed file still selects it
+    btn().click();
+    expect(btn().getAttribute("aria-current")).toBe("true");
+    const ft2 = s.querySelector('.ftick[data-path="src/ui/b.ts"]') as HTMLInputElement;
+    ft2.checked = false;
+    ft2.dispatchEvent(new Event("change"));
+    expect(btn().closest("li")!.classList.contains("rev")).toBe(false);
+    expect(s.querySelector('[data-layer="caller1"]')!.classList.contains("partial")).toBe(false);
+  });
+
+  it("'Mark file as reviewed & next' walks file by file, across steps, to 'All N files reviewed'", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+    expect(cta().textContent).toBe("Mark file as reviewed & next →");
+    cta().click(); // a.ts (no selection: first unreviewed) -> step 1 done, step 2 opens with b.ts selected
     expect(s.querySelector('[data-layer="core"]')!.className).toContain("done");
-    expect(s.querySelector('[data-layer="core"] .num')!.textContent).toBe("✓");
     expect(s.querySelector('[data-layer="core"]')!.classList.contains("open")).toBe(false);
     expect(s.querySelector('[data-layer="caller1"]')!.classList.contains("open")).toBe(true);
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/b.ts");
     expect(s.querySelector(".plbl")?.textContent).toBe("Step 2 of 21 of 3 files reviewed");
-    const set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
-    expect(Object.keys(set.value)).toEqual(["core"]);
-    const last = s.querySelector('[data-layer="caller1"] .next') as HTMLButtonElement;
-    expect(last.textContent).toBe("Mark reviewed ✓");
-    last.click();
-    expect(s.querySelector(".plbl")?.textContent).toBe("All 2 steps reviewed3 of 3 files");
+    let set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
+    expect(Object.keys(set.value.files)).toEqual(["src/a.ts"]);
+    cta().click(); // b.ts -> c.ts selected, same step
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/c.ts");
+    expect(s.querySelector('.fbtn[data-path="src/ui/b.ts"]')!.closest("li")!.classList.contains("rev")).toBe(true);
+    expect(cta().textContent).toBe("Mark file as reviewed ✓");
+    cta().click();
+    expect(s.querySelector(".plbl")?.textContent).toBe("All 3 files reviewed");
+    expect(s.querySelector(".alldone")?.textContent).toContain("All 3 files reviewed");
     expect(s.querySelectorAll(".step.open")).toHaveLength(0);
+    set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
+    expect(Object.keys(set.value.files).sort()).toEqual(["src/a.ts", "src/ui/b.ts", "src/ui/c.ts"]);
+  });
+
+  it("n / j / k work only when focus is in the panel and not in a text field", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    // typing in GitHub's page does nothing
+    const ta = document.createElement("textarea");
+    document.body.append(ta);
+    ta.dispatchEvent(new KeyboardEvent("keydown", { key: "n", bubbles: true, composed: true }));
+    expect(calls.some((c) => c.type === "reviewed:set")).toBe(false);
+    ta.remove();
+    const panel = s.querySelector(".panel") as HTMLElement;
+    const key = (k: string, target: Element = s.querySelector(".sh")!) => target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, composed: true }));
+    key("j");
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/a.ts");
+    key("j");
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/b.ts");
+    key("k");
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/a.ts");
+    key("n");
+    expect(s.querySelector('.fbtn[data-path="src/a.ts"]')).toBeNull(); // step 1 done and collapsed
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/b.ts");
+    // a text input inside the panel (graph search) is ignored
+    const input = document.createElement("input");
+    input.type = "search";
+    panel.append(input);
+    key("n", input);
+    expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/b.ts");
   });
 });

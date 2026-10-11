@@ -1,5 +1,5 @@
 # go-gitea/gitea#39426: fix(git)!: use internal proxy for all git operations
-head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 37 ms
+head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 53 ms
 
 ## Step 1: Start with the core code [Core]  (2 files, +712/-0)
    5 other changed files import these.
@@ -17,7 +17,7 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
   - modules/setting/webhook.go  [+3/-0]
       Imported by cmd/ and 11 others · Kept with the rest of Go package modules/setting/
 
-## Step 3: Then the code built on that [Callers 2]  (3 files, +37/-61)
+## Step 3: Then gitcmd/ and proxy/ [Callers 2]  (3 files, +37/-61)
    These use migrations.go and 2 others from step 2.
   - modules/git/gitcmd/command.go  [+5/-1]
       Imported by modules/git/ and 4 others · Kept with the rest of Go package modules/git/gitcmd/
@@ -26,7 +26,7 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
   - modules/proxy/proxy.go  [+24/-60]
       Uses modules/setting/; imported by modules/egress/
 
-## Step 4: Then the code built on that [Callers 3]  (2 files, +118/-17)
+## Step 4: Then egress/ and git/ [Callers 3]  (2 files, +118/-17)
    These use proxy.go and 2 others from step 3.
   - modules/egress/policies.go  [+117/-0]
       Uses modules/egress/policy/ and 2 others; imported by modules/auth/openid/ and 4 others

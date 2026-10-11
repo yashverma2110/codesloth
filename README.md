@@ -4,7 +4,7 @@ PR Layers is a browser extension (Manifest V3; Chrome, Arc, Edge, Brave) for **h
 
 > mechanical → contracts & schemas → core → callers (by import depth) → standalone → deleted code → tests → config/docs/assets → generated & lockfiles
 
-You can then review bottom-up, one step at a time. The steps show up as a **checklist in a floating, draggable widget** on the PR page. Each step has a short heading and one line on why it comes now (e.g. *"Start with the core code: 5 other changed files import this."*). Hover a file to see how it connects (e.g. *"Uses _api.py; imported by applications.py"*), click it to jump to it in **Files changed**, and use **Mark step reviewed & next →** to move on.
+You can then review bottom-up, one step at a time. The steps show up as a **checklist in a floating, draggable widget** on the PR page. Each step has a short heading and one line on why it comes now (e.g. *"Start with the core code: 5 other changed files import this."*). Hover a file to see how it connects (e.g. *"Uses _api.py; imported by applications.py"*), click it to jump to it in **Files changed**, and use **Mark file as reviewed & next →** (or **n**) to move through the PR file by file.
 
 - **Read-only.** It only sends `GET` requests, using a fine-grained token you create with *Pull requests: Read-only* and *Contents: Read-only*.
 - **Local.** There's no backend. PR code never leaves your browser. Results are cached in IndexedDB.
@@ -49,38 +49,41 @@ v0.3.0 was smoke-tested in **headless Chrome 154 on live github.com** (no token,
 
 ## How to use the Review tab
 
-The Review tab is a **checklist of numbered steps** in reading order. At the top, one line shows where you are, e.g. **Step 2 of 6 · 1 of 36 files reviewed**, with a thin progress bar.
+The Review tab is a **checklist of numbered steps** in reading order. At the top, one line shows where you are, e.g. **Step 2 of 6 · 2 of 36 files reviewed**, with a thin progress bar. Progress counts **files**. When every file is reviewed it reads **All 36 files reviewed**.
 
-1. **Steps.** Each step has a number (✓ once done), a short plain heading and a file count. Only the **current step** is open, meaning the first one that isn't reviewed yet or has changed since. The others are collapsed rows; click one (or press Enter/Space on it) to open it. The open step shows one short why line, worked out from the PR's import graph and file kinds. For fastapi/fastapi#16403 (the bundled demo):
+1. **Steps.** Each step has a number (✓ once all its files are reviewed), a short plain heading (up to two lines) and a file count (*1/5* when partly reviewed). Only the **current step** is open, meaning the first one with a file that isn't reviewed yet or has changed since. The others are collapsed rows; click one (or press Enter/Space on it) to open it. The open step shows one short why line, worked out from the PR's import graph and file kinds. For fastapi/fastapi#16403 (the bundled demo):
 
    | Step | Heading | Why |
    |---|---|---|
    | 1 | Start with the core code | 5 other changed files import this. |
    | 2 | Then the code that uses it | These use the changes you just reviewed. |
-   | 3 | Then the code built on that | This uses routing.py and 2 others from step 2. |
+   | 3 | Then applications.py | This uses routing.py and 2 others from step 2. |
    | 4 | Now the tests | These cover 4 files above; 13 have no direct match. |
    | 5 | Then config and docs | Settings and docs for this change. |
    | 6 | Skim the lockfile last | A lockfile; skim only. |
 
    Other kinds of step:
-   - **Contracts** are named after what changed, e.g. *Start with the types: 27 other changed files build on these.* (excalidraw/excalidraw#12018), or *Start with the schemas*, *…the migrations*, *…the schemas, queries and migrations*.
+   - **Contracts** are named after what changed, e.g. *Start with the types: 27 other changed files build on these.* (excalidraw/excalidraw#12018), or *Start with the schemas*, *…the migrations*, *…the schemas and queries*. With three or more kinds the heading is *Start with the contracts* and the why line lists them (*Schemas, queries and migrations. 12 other changed files build on these.*).
    - **Deleted code** reads *Check what was removed: Nothing changed still imports this code.* That line only appears when no changed file still imports it. Otherwise the step names the files that do. A deleted Go file whose package still exists gets a "check it" line instead, because imports can't tell.
    - **Standalone:** *No imports to or from other changed code.*
+   - **Deeper callers** are named after what's in them: one file (*Then applications.py*), or one or two folders (*Then gitcmd/ and proxy/*). Otherwise they're *Then the code built on that*. If two steps in a row would still get the same heading, they're numbered (*Then the code built on that (1 of 2)*).
    - When a big step is split by package, the why line starts with its folder (*In packages/a/.*).
 2. **Files** are grouped by folder; the shared path is shown once. Each row shows:
-   - a **status dot**: filled = new, hollow = modified, dashed = deleted, square = renamed/copied. Hover for the label; screen readers get it too.
+   - a **status dot**: filled = new, hollow = modified, dashed = deleted, square = renamed/copied. Hover for the label; screen readers get it too. Once a file is reviewed, a green ✓ replaces the dot and the row is muted.
    - the file name;
-   - a small **+N bar**, with **−N** only when lines were removed.
+   - a small **+N bar**, with **−N** only when lines were removed;
+   - a **checkbox** to mark or unmark that one file.
 
-   **Hover or focus** a file to see how it connects (*Imported by routing.py and 3 others*, *Uses _api.py*, *Tests for _api.py*, *Lockfile for the pyproject.toml change*). **Click it** (or press Enter) to jump to its diff in Files changed.
-3. **Mark step reviewed & next →** on the open step ticks it, collapses it, opens the next unreviewed step and jumps to that step's first file. On the last step the button reads **Mark reviewed ✓**. You can also use the checkbox on any step. Ticks are stored in this browser per PR, together with each file's blob SHA.
-4. **⚠ Changed since you reviewed it.** If later pushes change files in a ticked step (new content, new files, or files that moved out), the step shows ⚠ and becomes the current step again. The changed files get a small ⚠ too, so you only re-read what moved. Mark it reviewed again to clear it.
+   **Hover or focus** a file to see how it connects (*Imported by routing.py and 3 others*, *Uses _api.py*, *Tests for _api.py*, *Lockfile for the pyproject.toml change*). **Click it** (or press Enter) to **select** it and jump to its diff in Files changed. The selected file gets an accent left border and background and `aria-current`, and its reason stays visible. Reviewed files can be selected too.
+3. **Mark file as reviewed & next →** on the open step marks the selected file reviewed. If nothing in that step is selected, it marks the step's first unreviewed file. Then it selects the next unreviewed file in the step and jumps to its diff. After the step's last file, it collapses the step, opens the next step that still has unreviewed files, selects that step's first one and jumps there. For the last file in the PR the button reads **Mark file as reviewed ✓**, and the panel then shows **All N files reviewed**. The step checkbox marks all its files reviewed, or unmarks them all; it shows a mixed state when only some are reviewed.
+4. **Keyboard:** everything is a real button or checkbox (Tab, Enter, Space). While focus is in the panel, and not in a text field like the graph search, **n** = mark & next, **j / k** = select the next / previous file (in review order, opening steps as needed). These keys never fire while you're typing in GitHub.
+5. **⚠ Changed since you reviewed it.** Each reviewed file stores its blob SHA. If a later push changes a reviewed file, the file loses its ✓ and gets a ⚠, and its step shows ⚠ and becomes current again, so you only re-read what moved. Review state is stored in this browser per PR. Per-step ticks from v0.3/v0.4 are carried over as per-file ticks with the same SHAs.
 
-**First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers exactly the steps above. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **⋯ → Take the tour**.
+**First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers steps, why lines, files, the file CTA and the change flag. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **⋯ → Take the tour**.
 
 **Try demo:** **⋯ → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.
 
-![Review tab in demo mode (fastapi/fastapi#16403) after "Mark step reviewed & next": step 1 done, step 2 open with files grouped by folder, hovering routing.py shows its reason. Headless render of the real widget code and the bundled sample plan](docs/images/review-demo.png)
+![Review tab in demo mode (fastapi/fastapi#16403) after "Mark file as reviewed & next" twice: step 1 done, step 2 at 1/5 with background.py reviewed (✓) and routing.py selected, showing its reason. Headless render of the real widget code and the bundled sample plan](docs/images/review-demo.png)
 
 Dark theme: [docs/images/review-demo-dark.png](docs/images/review-demo-dark.png).
 
@@ -275,7 +278,7 @@ docs/samples/                  engine output for real public PRs
 - **Partial view for modified files beyond the cap.** Full contents are fetched for up to 150 modified code files. Others are parsed from the diff, so imports outside the changed hunks are missed (a warning is shown).
 - **Alias resolution:** only `@/` and `~/` → `src/` for now. `tsconfig` `paths`, Vite aliases and workspace package names (`@scope/pkg` in monorepos) aren't resolved yet, so cross-package edges are missing.
 - The panel can cover part of the diff while open; drag it to the other edge or close it with Esc.
-- Reviewed ticks are per layer, per PR, and stored locally only. The change flag compares blob SHAs. If a push reshuffles layers (e.g. a file moves from Callers L1 to L2), both layers count as changed. Nothing syncs with GitHub's "Viewed" checkboxes. Ticks from v0.2 (stored per head SHA) aren't migrated.
+- Reviewed state is per file, per PR, and stored locally only. The change flag compares blob SHAs, so a file that moves to another step keeps its ✓. Nothing syncs with GitHub's "Viewed" checkboxes. Ticks from v0.2 (stored per head SHA) aren't migrated.
 - Graph: the small panel graph is a quick overview; use ⤢ Expand for real reading. Positions are recomputed on every filter or expand (no animation).
 - github.com only (no GHES). PRs beyond 3000 files are truncated by GitHub's API.
 - Heuristic categories can be wrong for unusual layouts (e.g. a `schema/` folder that isn't a schema). Reasons make that visible. Overrides are planned for Week 2.
@@ -289,7 +292,6 @@ docs/samples/                  engine output for real public PRs
 - drag-to-move overrides;
 - sync reviewed state with GitHub "Viewed" (would need a write, so opt-in or skipped);
 - live UI test pass on Wayground PRs;
-- per-file (not just per-layer) reviewed ticks.
 
 **Week 3:**
 - author-pinned plan (hidden PR comment, optional write: needs a separate opt-in token);

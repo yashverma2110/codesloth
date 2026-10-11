@@ -1,9 +1,9 @@
 /** Styles live inside a closed shadow root, so GitHub's CSS can't leak in and ours can't leak out. */
 export const WIDGET_CSS = `
 :host { all: initial; }
-.root { --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --bg:#ffffff; --bg2:#f6f8fa; --accent:#0969da; --add:#1a7f37; --del:#d1242f; --warn:#9a6700; --btn:#1f883d; --shadow:0 8px 24px rgba(140,149,159,.25);
+.root { --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --bg:#ffffff; --bg2:#f6f8fa; --accent:#0969da; --sel-bg:#ddf4ff; --add:#1a7f37; --del:#d1242f; --warn:#9a6700; --btn:#1f883d; --shadow:0 8px 24px rgba(140,149,159,.25);
   font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif; color:var(--fg); }
-.root.dark { --fg:#f0f6fc; --muted:#9198a1; --border:#3d444d; --bg:#151b23; --bg2:#212830; --accent:#4493f8; --add:#3fb950; --del:#f85149; --warn:#d29922; --btn:#238636; --shadow:0 8px 24px rgba(1,4,9,.6); }
+.root.dark { --fg:#f0f6fc; --muted:#9198a1; --border:#3d444d; --bg:#151b23; --bg2:#212830; --accent:#4493f8; --sel-bg:rgba(56,139,253,.15); --add:#3fb950; --del:#f85149; --warn:#d29922; --btn:#238636; --shadow:0 8px 24px rgba(1,4,9,.6); }
 * { box-sizing: border-box; }
 .bubble { position:fixed; width:48px; height:48px; border-radius:50%; border:none; background:var(--btn); color:#fff; box-shadow:var(--shadow);
   display:flex; align-items:center; justify-content:center; cursor:grab; touch-action:none; user-select:none; z-index:2147483000; padding:0; transition:left .18s ease, top .18s ease; }
@@ -75,7 +75,7 @@ ol.steps { list-style:none; margin:0; padding:0; }
 .num { flex:none; width:22px; height:22px; border-radius:50%; border:1.5px solid var(--muted); display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; color:var(--fg); }
 .step.current .num { background:var(--fg); color:var(--bg); border-color:var(--fg); }
 .step.done .num { background:var(--add); border-color:var(--add); color:#fff; }
-.sh .h { flex:1; min-width:0; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sh .h { flex:1; min-width:0; font-weight:600; overflow:hidden; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-height:1.3; overflow-wrap:anywhere; }
 .step.done .sh .h { color:var(--muted); font-weight:500; }
 .sh .cnt { font-size:12px; color:var(--muted); white-space:nowrap; }
 .chev { color:var(--muted); transition:transform .15s; display:inline-block; }
@@ -86,9 +86,18 @@ ol.steps { list-style:none; margin:0; padding:0; }
 .why { margin:0 0 8px; color:var(--muted); font-size:12.5px; }
 .folder { font:11.5px ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace; color:var(--muted); padding:4px 0 2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 ul.files { list-style:none; margin:0 0 4px; padding:0; }
-li.file { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:3px 6px 3px 8px; margin-left:-8px; border-radius:6px; cursor:pointer; }
-li.file:hover, li.file:focus-visible { background:var(--bg2); }
+li.file { display:flex; align-items:flex-start; gap:6px; margin-left:-10px; border-radius:6px; border-left:3px solid transparent; }
+li.file:hover { background:var(--bg2); }
 li.file.chg { background:rgba(212,167,44,.10); }
+li.file.sel { background:var(--sel-bg); border-left-color:var(--accent); }
+.fbtn { flex:1; min-width:0; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:4px 4px 4px 7px; border:none; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; border-radius:6px; }
+.fbtn:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+.ftick { flex:none; margin:7px 6px 0 0 !important; width:13px; height:13px; cursor:pointer; opacity:.55; }
+li.file:hover .ftick, .ftick:focus-visible, .ftick:checked, li.file.sel .ftick { opacity:1; }
+li.file.rev .fname, li.file.rev .nums { color:var(--muted); }
+li.file.rev .nums .bar { opacity:.35; }
+li.file.sel .fname { font-weight:600; color:var(--fg); }
+.rev-ico { flex:none; width:12px; height:12px; border-radius:50%; background:var(--add); color:#fff; font-size:9px; line-height:12px; text-align:center; font-weight:700; }
 .dot { flex:none; width:8px; height:8px; border-radius:50%; box-sizing:border-box; }
 .dot.new { background:var(--add); }
 .dot.mod { border:1.5px solid var(--warn); }
@@ -98,7 +107,12 @@ li.file.chg { background:rgba(212,167,44,.10); }
 .nums { display:inline-flex; align-items:center; gap:5px; font-size:11px; white-space:nowrap; }
 .nums .bar { display:inline-block; height:5px; border-radius:2px; background:var(--add); opacity:.7; }
 .reason { display:none; flex-basis:100%; padding:2px 0 3px 16px; font-size:12px; color:var(--muted); }
-li.file:hover .reason, li.file:focus .reason, li.file.peek .reason { display:block; }
+.fbtn:hover .reason, .fbtn:focus .reason, li.file.sel .reason, li.file.peek .reason { display:block; }
 .sfoot { padding-top:8px; }
 .btn.next { width:100%; padding:7px 12px; font-size:13px; font-weight:600; }
+.sfoot .hint { margin-top:5px; font-size:11px; color:var(--muted); text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.step.partial .num { border-color:var(--add); box-shadow:0 0 0 2px rgba(46,160,67,.25); }
+.step.partial.current .num { background:var(--fg); color:var(--bg); }
+.alldone { display:flex; align-items:center; gap:8px; margin:10px 12px 4px; padding:8px 10px; border:1px solid var(--add); border-radius:6px; font-weight:600; outline:none; }
+.alldone .ok { width:18px; height:18px; border-radius:50%; background:var(--add); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
 `;

@@ -62,8 +62,8 @@ describe("layer assembly", () => {
       ["Contracts", "Start with the types", "1 other changed file builds on this."],
       ["Core", "Then the core code", "2 other changed files import this."],
       ["Callers 1", "Then the code that uses it", "This uses the changes you just reviewed."],
-      ["Callers 2", "Then the code built on that", "This uses user.ts from step 4."],
-      ["Callers 3", "Then the code built on that", "This uses UserCard.vue from step 5."],
+      ["Callers 2", "Then UserCard.vue", "This uses user.ts from step 4."],
+      ["Callers 3", "Then Profile.tsx", "This uses UserCard.vue from step 5."],
       ["Standalone", "Then the standalone changes", "No imports to or from other changed code."],
       ["Tests", "Now the tests", "These cover 2 files above."],
       ["Config & docs", "Then config and docs", "Settings and docs for this change."],
@@ -88,8 +88,10 @@ describe("layer assembly", () => {
 
   it("adapts contract wording to what changed", () => {
     const p = analyze({ files: [added("db/schema.sql", "create table t(id int);"), added("api/queries/get.graphql", "query { a }"), added("db/migrations/0001_init.sql", "x")] });
-    expect(p.layers[0].title).toBe("Start with the schemas, queries and migrations");
-    expect(p.layers[0].description).toBe("The rest of the change builds on these.");
+    expect(p.layers[0].title).toBe("Start with the contracts");
+    expect(p.layers[0].description).toBe("Schemas, queries and migrations. The rest of the change builds on these.");
+    const two = analyze({ files: [added("db/schema.sql", "create table t(id int);"), added("api/queries/get.graphql", "query { a }")] });
+    expect(two.layers[0].title).toBe("Start with the schemas and queries");
     const one = analyze({ files: [added("db/schema.sql", "create table t(id int);"), added("src/x.ts", "export const x = 1")] });
     expect(one.layers[0].title).toBe("Start with the schema");
   });

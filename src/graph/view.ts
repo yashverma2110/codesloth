@@ -34,6 +34,7 @@ export interface GraphViewOptions {
 
 interface ReviewInfo {
   reviewedLayers: ReadonlySet<string>;
+  reviewedPaths?: ReadonlySet<string>;
   changedPaths: ReadonlySet<string>;
 }
 
@@ -89,7 +90,7 @@ export class GraphView {
     key.append(
       this.keyItem("import (importer → imported)", false),
       this.keyItem("test → file under test", true),
-      mk("span", {}, "dimmed = layer reviewed · ● changed since reviewed · dashed box = Go package / import cycle"),
+      mk("span", {}, "dimmed = reviewed · ● changed since reviewed · dashed box = Go package / import cycle"),
     );
     this.el.append(bar, this.legend, this.note, this.canvas, key);
 
@@ -115,7 +116,7 @@ export class GraphView {
 
   setData(plan: LayerPlan, info?: Partial<ReviewInfo>) {
     this.plan = plan;
-    this.info = { reviewedLayers: info?.reviewedLayers ?? new Set(), changedPaths: info?.changedPaths ?? new Set() };
+    this.info = { reviewedLayers: info?.reviewedLayers ?? new Set(), reviewedPaths: info?.reviewedPaths, changedPaths: info?.changedPaths ?? new Set() };
     this.render(true);
   }
 
@@ -123,7 +124,7 @@ export class GraphView {
     if (!this.plan) return;
     const width = this.canvas.clientWidth || 380;
     const maxPerRow = this.opts.compact ? 3 : Math.max(4, Math.min(10, Math.floor((width - 40) / 190)));
-    this.graph = buildGraph(this.plan, { hiddenLayers: this.hidden, expanded: this.expanded, reviewedLayers: this.info.reviewedLayers, changedPaths: this.info.changedPaths });
+    this.graph = buildGraph(this.plan, { hiddenLayers: this.hidden, expanded: this.expanded, reviewedLayers: this.info.reviewedLayers, reviewedPaths: this.info.reviewedPaths, changedPaths: this.info.changedPaths });
     this.layout = layoutGraph(this.graph, { maxPerRow });
     this.renderLegend();
     const parts: string[] = [];

@@ -8,9 +8,9 @@ import { extractGoImports, goTopLevelDecls, stripGoComments } from "./imports/go
 import { extractPythonImports } from "./imports/python";
 import { buildResolveContext, dirname, resolveGo, resolveJs, resolvePython } from "./resolve";
 import { computeDepths } from "./graph";
-import { capitalize, contractKind, fileLabel, isLockfile, namesList, plural } from "./copy";
+import { capitalize, contractKind, fileLabel, joinWords, isLockfile, namesList, plural } from "./copy";
 
-export const ENGINE_VERSION = "0.4.0";
+export const ENGINE_VERSION = "0.4.1";
 
 const MAX_CALLER_LEVELS = 4;
 const SPLIT_LAYER_FILES = 25;
@@ -522,12 +522,14 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
       case "contract": {
         const kinds = files.map((f) => contractKind(f.path, f.classification.reason));
         const users = outside(files.flatMap((f) => f.dependents));
+        const distinct = ["schema", "query", "migration", "type", "API contract"].filter((k) => kinds.includes(k as never));
+        const listed = distinct.length > 2 ? `${capitalize(joinWords(distinct.map((k) => CONTRACT_NOUN[k][1].replace(/^the /, ""))))}. ` : "";
         t = {
           title: lead(contractNoun(kinds, n)),
           label: "Contracts",
-          because: users.length
+          because: listed + (users.length
             ? `${plural(users.length, "other changed file")} ${users.length === 1 ? "builds" : "build"} on ${these}.`
-            : `The rest of the change builds on ${these}.`,
+            : `The rest of the change builds on ${these}.`),
         };
         started = true;
         break;
@@ -551,7 +553,7 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
         if (lvl === 1) because = `${area(b)}${subj} the changes you just reviewed.`;
         else if (usesPrev.length && prevStep) because = `${area(b)}${subj} ${namesList(usesPrev, (p) => fileLabel(p))} from step ${prevStep}.`;
         else because = `${area(b)}${n === 1 ? "This builds" : "These build"} on the step before.`;
-        t = { title: lvl === 1 ? "Then the code that uses it" : "Then the code built on that", label: `Callers ${lvl}${b.area ? ` · ${b.area}` : ""}`, because };
+        t = { title: lvl === 1 ? "Then the code that uses it" : callerTitle(b.files), label: `Callers ${lvl}${b.area ? ` · ${b.area}` : ""}`, because };
         started = true;
         break;
       }
@@ -602,7 +604,39 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
     }
     out.push(t);
   });
+  // No two steps in a row with the same heading: number repeats ("… (2 of 3)").
+  for (let i = 0; i < out.length; ) {
+    let j = i;
+    while (j + 1 < out.length && out[j + 1].title === out[i].title) j++;
+    if (j > i) for (let k = i; k <= j; k++) out[k] = { ...out[k], title: `${out[k].title} (${k - i + 1} of ${j - i + 1})` };
+    i = j + 1;
+  }
   return out;
+}
+
+const GENERIC_DIR = new Set(["src", "lib", "app", "pkg", "internal", "cmd", "source", "packages", "apps", "server", "client"]);
+
+/**
+ * Deeper callers are named after what they are: one file ("Then app.py"), one or two folders
+ * ("Then services/", "Then routers/ and models/"); otherwise "Then the code built on that".
+ */
+function callerTitle(files: string[]): string {
+  const fallback = "Then the code built on that";
+  if (files.length === 1) {
+    const name = files[0].slice(files[0].lastIndexOf("/") + 1);
+    return name.length <= 30 ? `Then ${name}` : fallback;
+  }
+  const dirName = (p: string) => {
+    const segs = p.split("/").slice(0, -1);
+    if (!segs.length) return "";
+    let tail = segs.slice(-1);
+    if (GENERIC_DIR.has(tail[0]) && segs.length > 1) tail = segs.slice(-2);
+    return tail.join("/") + "/";
+  };
+  const dirs = [...new Set(files.map(dirName))];
+  if (dirs.includes("") || dirs.length > 2) return fallback;
+  const t = `Then ${dirs.join(" and ")}`;
+  return t.length <= 36 ? t : fallback;
 }
 
 const CONTRACT_NOUN: Record<string, [string, string]> = {
@@ -613,11 +647,11 @@ const CONTRACT_NOUN: Record<string, [string, string]> = {
   "API contract": ["the API contract", "the API contracts"],
 };
 
-/** "the schemas", "the schemas and migrations", "the schemas, queries and migrations". */
+/** "the schemas", "the schemas and migrations"; 3+ kinds -> "the contracts" (the why line lists them). */
 function contractNoun(kinds: string[], n: number): string {
   const order = ["schema", "query", "migration", "type", "API contract"].filter((k) => kinds.includes(k));
   const word = (k: string) => CONTRACT_NOUN[k][kinds.filter((x) => x === k).length > 1 || n > 1 ? 1 : 0];
   if (order.length === 1) return word(order[0]);
-  const ws = order.map((k, i) => (i ? word(k).replace(/^the /, "") : word(k)));
-  return `${ws.slice(0, -1).join(", ")} and ${ws[ws.length - 1]}`;
+  if (order.length === 2) return `${word(order[0])} and ${word(order[1]).replace(/^the /, "")}`;
+  return "the contracts";
 }

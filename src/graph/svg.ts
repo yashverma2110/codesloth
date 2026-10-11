@@ -37,7 +37,7 @@ export interface SvgOptions {
 
 function nodeTree(n: GNode, x: number, y: number, w: number, hh: number): VNode {
   const color = layerColor(n.layerId);
-  const tip = [n.kind === "file" ? n.paths[0] : n.label, `+${n.additions} / −${n.deletions} · Step ${n.layerIndex + 1}: ${n.layerTitle}`, n.reason ?? "", n.reviewed ? "✓ layer reviewed" : "", n.changed ? "⚠ changed since reviewed" : ""]
+  const tip = [n.kind === "file" ? n.paths[0] : n.label, `+${n.additions} / −${n.deletions} · Step ${n.layerIndex + 1}: ${n.layerTitle}`, n.reason ?? "", n.reviewed ? "✓ reviewed" : "", n.changed ? "⚠ changed since reviewed" : ""]
     .filter(Boolean)
     .join("\n");
   const cls = ["g-node", n.kind, n.reviewed ? "reviewed" : ""].filter(Boolean).join(" ");

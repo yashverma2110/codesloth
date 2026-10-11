@@ -140,14 +140,14 @@ export const REVIEW_TOUR_TEXT = {
   },
   jump: {
     title: "Click a file to jump to its diff",
-    body: "Files are grouped by folder. The dot shows if a file is new, modified, renamed or deleted, and the bar shows lines added. Hover or focus a file to see how it connects, e.g. \u201cImported by routing.py and 3 others\u201d. Click it to open its diff.",
+    body: "Files are grouped by folder. The dot shows if a file is new, modified, renamed or deleted, and the bar shows lines added. Hover or focus a file to see how it connects, e.g. \u201cImported by routing.py and 3 others\u201d. Click it to select it and open its diff.",
   },
   check: {
-    title: "Mark step reviewed & next",
-    body: "When you're done with a step, this button ticks it, opens the next step and jumps to that step's first file. You can also tick the box on any step. Ticks are saved only in this browser.",
+    title: "Mark file as reviewed & next",
+    body: "When you've read the selected file, this marks it reviewed (\u2713), selects the next file and jumps to its diff. After the last file in a step, it opens the next step. Shortcuts while the panel has focus: n = mark & next, j / k = next / previous file. Each file and step also has a checkbox. Reviews are saved only in this browser.",
   },
   changed: {
     title: "Changed since you reviewed it",
-    body: "If new commits touch a step you already ticked, it gets a \u26a0 and is reopened, and the changed files are flagged. That way you only re-read what moved. You can reopen this tour from \u22ef \u2192 Take the tour.",
+    body: "If new commits change a file you already reviewed, it gets a \u26a0, loses its \u2713 and its step is reopened. That way you only re-read what moved. You can reopen this tour from \u22ef \u2192 Take the tour.",
   },
 };

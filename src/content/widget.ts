@@ -5,7 +5,8 @@ import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
 import { GRAPH_CSS } from "../graph/svg";
 import { GraphView, GRAPH_VIEW_CSS } from "../graph/view";
 import { toDom } from "../graph/vdom";
-import { currentStep, normalizeReviewState, progress, setReviewed, summarize, type ReviewState } from "./review-logic";
+import { allFiles, ctaTarget, currentStep, emptyReview, firstUnreviewed, layerReview, locate, nextUnreviewed, normalizeReviewState, progress, setFilesReviewed, summarize, type ReviewState } from "./review-logic";
+import type { LayerFile } from "../engine/types";
 import { renderReview } from "./review-view";
 import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
 import demoData from "../demo/demo-plan.json";
@@ -84,7 +85,9 @@ export class Widget {
   private view: View = "review";
   private pr: PRRef | null = null;
   private result: AnalyzeResult | null = null;
-  private review: ReviewState = {};
+  private review: ReviewState = emptyReview();
+  /** Selected file (highlighted; target of "Mark file as reviewed & next"). */
+  private selected: string | null = null;
   private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
@@ -135,6 +138,7 @@ export class Widget {
     });
     closeBtn.addEventListener("click", () => this.toggle("close"));
     this.menuBtn.addEventListener("click", () => this.toggleMenu());
+    this.panel.addEventListener("keydown", (e) => this.onPanelKey(e));
     for (const v of ["review", "graph"] as View[]) this.tabs[v].addEventListener("click", () => this.setView(v, true));
     tablist.addEventListener("keydown", (e) => {
       const order: View[] = ["review", "graph"];
@@ -428,11 +432,10 @@ export class Widget {
     this.demo = true;
     this.result = DEMO;
     const core = DEMO.plan.layers.find((l) => l.id === "core") ?? DEMO.plan.layers[0];
-    let state = setReviewed({}, core, true, "demo-old-head", "2026-10-09T12:00:00Z");
-    // Pretend one file in Core was pushed again after the review.
+    // Pretend the first Core file was reviewed, then pushed again (older blob SHA), to show the change flag.
     const first = core.files[0];
-    if (first) state = { ...state, [core.id]: { ...state[core.id], files: { ...state[core.id].files, [first.path]: "an-older-blob-sha" } } };
-    this.review = state;
+    this.review = first ? setFilesReviewed(emptyReview(), [{ path: first.path, sha: "an-older-blob-sha" }], true, "demo-old-head", "2026-10-09T12:00:00Z") : emptyReview();
+    this.openFor = "";
     this.bannerEl.hidden = false;
     const exit = el("button", { type: "button", class: "btn" }, "Exit demo");
     exit.addEventListener("click", () => this.exitDemo());
@@ -447,7 +450,7 @@ export class Widget {
   exitDemo() {
     this.demo = false;
     this.result = null;
-    this.review = {};
+    this.review = emptyReview();
     this.bannerEl.hidden = true;
     this.panes.review.replaceChildren();
     this.panes.graph.replaceChildren();
@@ -466,6 +469,7 @@ export class Widget {
     if (this.openFor !== key) {
       this.openFor = key;
       this.openSteps = new Set();
+      this.selected = null;
       const cur = currentStep(res.plan, this.review);
       if (cur >= 0) this.openSteps.add(res.plan.layers[cur].id);
     }
@@ -479,51 +483,126 @@ export class Widget {
     this.panes.review.replaceChildren(
       renderReview(res.plan, this.review, {
         open: this.openSteps,
-        onToggle: (l, on) => this.setLayerReviewed(l, on),
-        onJump: (p) => void this.jump(p),
+        selected: this.selected,
+        onSelect: (p) => this.select(p),
+        onToggleFile: (f, on) => this.setFileReviewed(f, on),
+        onToggleStep: (l, on) => this.setStepReviewed(l, on),
         onOpen: (l, open) => {
           if (open) this.openSteps.add(l.id);
           else this.openSteps.delete(l.id);
           this.renderAll();
-          (this.panes.review.querySelector(`[data-layer="${CSS.escape(l.id)}"] .sh`) as HTMLElement | null)?.focus({ preventScroll: true });
+          this.focusIn(`[data-layer="${CSS.escape(l.id)}"] .sh`);
         },
-        onMarkNext: (l) => this.markNext(l),
+        onMarkNext: (l) => this.markNext(l, true),
       }),
     );
     this.panes.review.scrollTop = scroll;
     if (this.view === "graph") this.renderGraph();
-    this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+    this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
   }
 
-  private setLayerReviewed(l: Layer, on: boolean) {
-    if (!this.result) return;
-    this.review = setReviewed(this.review, l, on, this.result.meta.headSha);
-    if (!this.demo) void rpc({ type: "reviewed:set", key: prKey(this.result.pr), value: this.review }).catch(() => {});
+  private focusIn(sel: string) {
+    const e = this.panes.review.querySelector(sel) as HTMLElement | null;
+    e?.focus({ preventScroll: true });
+    e?.scrollIntoView?.({ block: "nearest" });
+  }
+
+  private saveReview() {
+    if (!this.demo && this.result) void rpc({ type: "reviewed:set", key: prKey(this.result.pr), value: this.review }).catch(() => {});
+  }
+
+  /** Step checkbox: tick all of its files, or untick all. */
+  private setStepReviewed(l: Layer, on: boolean) {
+    const res = this.result;
+    if (!res) return;
+    this.review = setFilesReviewed(this.review, l.files, on, res.meta.headSha);
+    this.saveReview();
     if (on) {
       this.openSteps.delete(l.id);
-      const cur = currentStep(this.result.plan, this.review);
-      if (cur >= 0) this.openSteps.add(this.result.plan.layers[cur].id);
+      const cur = currentStep(res.plan, this.review);
+      if (cur >= 0) this.openSteps.add(res.plan.layers[cur].id);
     }
     this.renderAll();
   }
 
-  /** "Mark step reviewed & next →": tick, collapse, open the next unreviewed step and jump to its first file. */
-  markNext(l: Layer) {
+  private setFileReviewed(f: LayerFile, on: boolean) {
+    if (!this.result) return;
+    this.review = setFilesReviewed(this.review, [f], on, this.result.meta.headSha);
+    this.saveReview();
+    this.renderAll();
+    this.focusIn(`.ftick[data-path="${CSS.escape(f.path)}"]`);
+  }
+
+  /** Select a file (opening its step) and jump to its diff. */
+  select(path: string, focus = false) {
     const res = this.result;
     if (!res) return;
-    this.review = setReviewed(this.review, l, true, res.meta.headSha);
-    if (!this.demo) void rpc({ type: "reviewed:set", key: prKey(res.pr), value: this.review }).catch(() => {});
-    this.openSteps.delete(l.id);
-    const i = res.plan.layers.indexOf(l);
-    const s = summarize(res.plan, this.review);
-    const isDone = (x: Layer) => s.reviewedLayers.has(x.id) && !s.changedLayers.has(x.id);
-    const next = res.plan.layers.slice(i + 1).find((x) => !isDone(x)) ?? res.plan.layers.find((x) => !isDone(x));
-    if (next) this.openSteps.add(next.id);
+    const at = locate(res.plan, path);
+    if (!at) return;
+    this.selected = path;
+    this.openSteps.add(res.plan.layers[at.layer].id);
     this.renderAll();
-    const row = next && this.panes.review.querySelector(`[data-layer="${CSS.escape(next.id)}"]`);
-    (row as HTMLElement | null)?.scrollIntoView?.({ block: "nearest" });
-    (row?.querySelector(".sh") as HTMLElement | null)?.focus({ preventScroll: true });
-    if (next?.files[0]) void this.jump(next.files[0].path);
+    if (focus) this.focusIn(`.fbtn[data-path="${CSS.escape(path)}"]`);
+    void this.jump(path);
+  }
+
+  /**
+   * "Mark file as reviewed & next →": marks the selected file (or the step's first unreviewed file), then selects the
+   * next unreviewed file in the step, or opens the next step that has one, and jumps to it.
+   */
+  markNext(l?: Layer, focusCta = false) {
+    const res = this.result;
+    if (!res) return;
+    const li = l ? res.plan.layers.indexOf(l) : (locate(res.plan, this.selected ?? "")?.layer ?? currentStep(res.plan, this.review));
+    if (li < 0) return;
+    const target = ctaTarget(res.plan, this.review, li, this.selected);
+    if (!target) return;
+    const file = res.plan.layers[li].files[target.file];
+    this.review = setFilesReviewed(this.review, [file], true, res.meta.headSha);
+    this.saveReview();
+    const next = nextUnreviewed(res.plan, this.review, target);
+    if (layerReview(res.plan.layers[li], this.review).state === "done") this.openSteps.delete(res.plan.layers[li].id);
+    this.selected = next?.path ?? null;
+    if (next) this.openSteps.add(res.plan.layers[next.layer].id);
+    this.renderAll();
+    if (next) {
+      const step = `[data-layer="${CSS.escape(res.plan.layers[next.layer].id)}"]`;
+      if (focusCta) this.focusIn(`${step} .next`);
+      this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(next.path)}"]`)?.scrollIntoView?.({ block: "nearest" });
+      void this.jump(next.path);
+    } else {
+      this.focusIn(".alldone");
+    }
+  }
+
+  /** j / k: move the selection through files in review order. */
+  private moveSelection(dir: 1 | -1) {
+    const res = this.result;
+    if (!res) return;
+    const all = allFiles(res.plan);
+    if (!all.length) return;
+    const i = this.selected ? all.findIndex((f) => f.path === this.selected) : -1;
+    let to: number;
+    if (i < 0) {
+      const cur = currentStep(res.plan, this.review);
+      const start = cur >= 0 ? firstUnreviewed(res.plan, this.review, cur) : null;
+      to = start ? all.findIndex((f) => f.path === start.path) : dir > 0 ? 0 : all.length - 1;
+    } else to = Math.min(all.length - 1, Math.max(0, i + dir));
+    this.select(all[to].path, true);
+  }
+
+  /** Panel shortcuts (n, j, k). Only when focus is in the panel and not in a text field. */
+  private onPanelKey(e: KeyboardEvent) {
+    if (e.altKey || e.ctrlKey || e.metaKey || this.view !== "review" || this.tour?.isActive()) return;
+    const t = e.composedPath()[0] as HTMLElement | undefined;
+    if (t && (t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.tagName === "INPUT" && !["checkbox", "radio", "button"].includes((t as HTMLInputElement).type)))) return;
+    const k = e.key.toLowerCase();
+    if (k === "n") this.markNext(undefined, false);
+    else if (k === "j") this.moveSelection(1);
+    else if (k === "k") this.moveSelection(-1);
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   private renderGraph() {
@@ -538,7 +617,7 @@ export class Widget {
       this.panes.graph.replaceChildren(this.graphView.el);
     }
     const s = summarize(this.result.plan, this.review);
-    this.graphView.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+    this.graphView.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
   }
 
   private openOverlay() {
@@ -558,7 +637,7 @@ export class Widget {
     });
     this.root.append(this.overlay);
     const s = summarize(this.result.plan, this.review);
-    this.overlayGraph.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+    this.overlayGraph.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
     close.focus();
   }
 
