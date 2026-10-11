@@ -69,7 +69,7 @@ async function shot(p, name) {
 }
 // 1c) Commit story with long real commit messages (go-gitea/gitea#39426, 40 commits), light + dark
 for (const theme of ["light", "dark"]) {
-  const p = await open("plan=/test/fixtures/overflow/gitea-39426-plan.json&history=/test/fixtures/overflow/gitea-39426-history.json");
+  const p = await open("story=1&plan=/test/fixtures/overflow/gitea-39426-plan.json&history=/test/fixtures/overflow/gitea-39426-history.json");
   if (theme === "dark") await sh(p, () => { document.documentElement.setAttribute("data-color-mode", "dark"); document.body.style.background = "#0d1117"; });
   await sh(p, () => window.__w.toggle("bubble"));
   await p.waitForFunction(() => window.__shadow.querySelector(".fbtn .cm"));

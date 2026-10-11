@@ -15,6 +15,12 @@ export interface ReviewHandlers {
   /** Link for a commit on github.com. */
   commitUrl?: (sha: string) => string;
   now?: number;
+  /** Selected file's commit timeline expanded (session pref, default closed). */
+  storyOpen?: boolean;
+  /** Show all of the selected file's commits instead of the latest 3. */
+  storyAll?: boolean;
+  onToggleStory?(open: boolean): void;
+  onToggleStoryAll?(all: boolean): void;
   onSelect(path: string): void;
   onToggleFile(file: LayerFile, reviewed: boolean): void;
   onToggleStep(layer: Layer, reviewed: boolean): void;
@@ -63,11 +69,43 @@ function stepStory(hist: CommitHistory, paths: string[]): HTMLElement {
   return line;
 }
 
-/** Mini timeline of one file's commits, oldest -> newest. */
+/** Commits shown in the timeline before "Show all". */
+export const TIMELINE_LIMIT = 3;
+
+/** Collapsible mini timeline of one file's commits, oldest -> newest (latest 3 unless "Show all"). */
 function timeline(hist: CommitHistory, f: LayerFile & { name: string }, h: ReviewHandlers): HTMLElement {
   const story = fileStory(hist, f.path);
-  const ol = el("ol", { class: "tl", "aria-label": `Commits that changed ${f.name}, oldest first` });
-  for (const t of story.touches) {
+  const n = story.touches.length;
+  const open = !!h.storyOpen;
+  const toggle = el(
+    "button",
+    { class: "tltog", type: "button", "aria-expanded": String(open), "aria-controls": "prl-tl", title: open ? "Hide commit history" : "Show commit history" },
+    el("span", { class: "tlchev", "aria-hidden": "true" }),
+    `Commit history · ${n}`,
+  );
+  toggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    h.onToggleStory?.(!open);
+  });
+  const wrap = el("div", { class: "tlwrap" + (open ? " open" : "") }, toggle);
+  const ol = el("ol", { class: "tl", id: "prl-tl", "aria-label": `Commits that changed ${f.name}, oldest first` });
+  if (!open) {
+    ol.hidden = true;
+    wrap.append(ol);
+    return wrap;
+  }
+  const all = !!h.storyAll || n <= TIMELINE_LIMIT;
+  const shown = all ? story.touches : story.touches.slice(n - TIMELINE_LIMIT);
+  if (n > TIMELINE_LIMIT) {
+    const k = n - TIMELINE_LIMIT;
+    const more = el("button", { class: "tlmore", type: "button", "aria-controls": "prl-tl", "aria-expanded": String(all) }, all ? "Show fewer" : `+ ${k} earlier commit${k === 1 ? "" : "s"} · Show all ${n}`);
+    more.addEventListener("click", (e) => {
+      e.stopPropagation();
+      h.onToggleStoryAll?.(!all);
+    });
+    wrap.append(more);
+  }
+  for (const t of shown) {
     const c = t.commit;
     const who = c.name ?? c.login ?? "unknown author";
     const meta = el(
@@ -85,7 +123,8 @@ function timeline(hist: CommitHistory, f: LayerFile & { name: string }, h: Revie
     if (t.as) meta.append(chip(`as ${t.as.slice(t.as.lastIndexOf("/") + 1)}`, `This file was ${t.as} in this commit`, "plain"));
     ol.append(el("li", { class: "tc" + (t.newest ? " newest" : "") }, el("div", { class: "tmsg", title: c.message }, c.message), meta));
   }
-  return el("div", { class: "tlwrap" }, ol);
+  wrap.append(ol);
+  return wrap;
 }
 
 export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandlers): HTMLElement {

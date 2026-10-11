@@ -47,7 +47,9 @@ export type Request =
   | { type: "cache:clear" };
 
 /** Widget preferences content scripts may read/write (nothing sensitive). */
-export const PREF_KEYS = ["view", "tourDone", "syncViewed"] as const;
+export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen"] as const;
+/** Preferences kept only for the browser session (chrome.storage.session). */
+export const SESSION_PREF_KEYS: readonly string[] = ["storyOpen"];
 export type PrefKey = (typeof PREF_KEYS)[number];
 
 export type Response<T = unknown> = { ok: true; data: T } | { ok: false; error: string; code?: string };

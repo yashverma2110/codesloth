@@ -162,4 +162,14 @@ ol.steps, .step, .sbody, ul.files, .fbtn, .reason, .tlwrap, ol.tl, .tc, .tm, .sf
 .sfoot .hint { max-width:100%; }
 .story { overflow-wrap:anywhere; }
 .sdots { flex-wrap:wrap; max-width:100%; }
+
+/* ---- v0.5.2 collapsible timeline ---- */
+.tltog, .tlmore { display:inline-flex; align-items:center; gap:5px; max-width:100%; border:none; background:transparent; color:var(--muted); font:inherit; font-size:11.5px; padding:2px 4px; margin:0 0 0 -4px; border-radius:4px; cursor:pointer; text-align:left; overflow-wrap:anywhere; }
+.tltog:hover, .tlmore:hover { color:var(--fg); background:var(--bg2); }
+.tltog:focus-visible, .tlmore:focus-visible { outline:2px solid var(--accent); outline-offset:0; }
+.tltog .tlchev { flex:none; display:inline-block; width:6px; height:6px; margin:0 3px 0 1px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(-45deg); transition:transform .12s ease; }
+.tlwrap.open .tltog .tlchev { transform:translateY(-2px) rotate(45deg); }
+.tlmore { color:var(--accent); margin:2px 0 4px -4px; }
+.tlwrap.open ol.tl { margin-top:4px; }
+@media (prefers-reduced-motion: reduce) { .tltog .tlchev { transition:none; } }
 `;

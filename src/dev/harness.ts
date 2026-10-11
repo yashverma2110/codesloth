@@ -5,7 +5,7 @@ export {};
  */
 const params = new URLSearchParams(location.search);
 const planUrl = params.get("plan");
-const prefs: Record<string, unknown> = { tourDone: params.get("tour") !== "1" };
+const prefs: Record<string, unknown> = { tourDone: params.get("tour") !== "1", storyOpen: params.get("story") === "1" };
 const origAttach = HTMLElement.prototype.attachShadow;
 HTMLElement.prototype.attachShadow = function (init) {
   const s = origAttach.call(this, init);

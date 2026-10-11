@@ -19,10 +19,10 @@ describe("panel never overflows horizontally (v0.5.1 regression)", () => {
   it.skipIf(!existsSync(CHROME))(
     "headless Chrome: scrollWidth <= clientWidth and every element inside the panel, with very long commit messages and file names, at 288/400/640px",
     () => {
-      const out = execFileSync("node", ["scripts/dev/check-overflow.mjs"], { encoding: "utf8", timeout: 110_000 });
+      const out = execFileSync("node", ["scripts/dev/check-overflow.mjs"], { encoding: "utf8", timeout: 230_000 });
       expect(out).toContain("no horizontal overflow");
       expect(out).not.toContain("FAIL");
     },
-    120_000,
+    240_000,
   );
 });

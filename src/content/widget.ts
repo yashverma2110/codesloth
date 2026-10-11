@@ -101,6 +101,9 @@ export class Widget {
   private history: CommitHistory | null = null;
   private historyKey = "";
   private historyNote: string | null = null;
+  /** Timeline expanded (session pref, default closed) / showing all commits (this selection only). */
+  private storyOpen = false;
+  private storyAll = false;
   private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
@@ -510,6 +513,19 @@ export class Widget {
         selected: this.selected,
         unsynced: this.unsynced,
         history: this.history,
+        storyOpen: this.storyOpen,
+        storyAll: this.storyAll,
+        onToggleStory: (open) => {
+          this.storyOpen = open;
+          void setPref("storyOpen", open);
+          this.renderAll();
+          this.focusIn("li.file.sel .tltog");
+        },
+        onToggleStoryAll: (all) => {
+          this.storyAll = all;
+          this.renderAll();
+          this.focusIn("li.file.sel .tlmore");
+        },
         commitUrl: (sha) => `https://github.com/${res.pr.owner}/${res.pr.repo}/pull/${res.pr.number}/commits/${sha}`,
         onSelect: (p) => this.select(p),
         onToggleFile: (f, on) => this.setFileReviewed(f, on),
@@ -578,6 +594,7 @@ export class Widget {
     if (!res) return;
     const at = locate(res.plan, path);
     if (!at) return;
+    if (this.selected !== path) this.storyAll = false;
     this.selected = path;
     this.openSteps.add(res.plan.layers[at.layer].id);
     this.renderAll();
@@ -638,6 +655,7 @@ export class Widget {
 
   private async loadSyncPref() {
     this.syncOn = (await getPref<boolean>("syncViewed")) === true;
+    this.storyOpen = (await getPref<boolean>("storyOpen").catch(() => null)) === true;
     if (!this.syncOn && this.unsynced.size) {
       this.unsynced.clear();
       this.renderAll();

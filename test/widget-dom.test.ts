@@ -483,6 +483,20 @@ describe("Widget (DOM)", () => {
     expect(s.querySelectorAll(".step.open .sdots i.on")).toHaveLength(3);
     expect(s.querySelector(".tl")).toBeNull(); // only for the selected file
     (a as HTMLButtonElement).click();
+    // collapsed by default: a toggle row, Latest stays visible, no commits listed
+    const tog = s.querySelector("li.file.sel .tltog") as HTMLButtonElement;
+    expect(tog.textContent).toContain("Commit history · 3");
+    expect(tog.getAttribute("aria-expanded")).toBe("false");
+    expect(tog.getAttribute("aria-controls")).toBe("prl-tl");
+    expect(s.querySelector("#prl-tl")!.hasAttribute("hidden")).toBe(true);
+    expect(s.querySelectorAll(".tl .tc")).toHaveLength(0);
+    expect(s.querySelector("li.file.sel .latest")).not.toBeNull();
+    const jumps = calls.filter((c) => c.type === "graph:jump").length;
+    tog.click();
+    expect(prefs.storyOpen).toBe(true);
+    expect(s.querySelector("li.file.sel .tltog")!.getAttribute("aria-expanded")).toBe("true");
+    expect(s.querySelector(".tlmore")).toBeNull(); // <= 3 commits: no show-all
+    expect(calls.filter((c) => c.type === "graph:jump").length).toBe(jumps);
     const items = [...s.querySelectorAll(".tl .tc")];
     expect(items.map((i) => i.querySelector(".tmsg")!.textContent)).toEqual(["feat: add a", "Address review comments", "refactor: rename"]);
     expect(items[2].classList.contains("newest")).toBe(true);
@@ -541,8 +555,50 @@ describe("Widget (DOM)", () => {
     w.loadDemo(false);
     expect(s.querySelector(".step.open .story")!.textContent).toMatch(/Touched in 1 of 5 commits/);
     w.select("tests/test_telemetry/test_runtime.py");
+    expect(s.querySelectorAll(".tl .tc")).toHaveLength(0); // collapsed by default
+    (s.querySelector("li.file.sel .tltog") as HTMLButtonElement).click();
     expect(s.querySelectorAll(".tl .tc")).toHaveLength(3);
     expect(calls.some((c) => c.type === "history:get")).toBe(false);
     replies["auth:status"] = () => ({ method: "pat", login: "yash" });
+  });
+
+  it("timeline: latest 3 by default when expanded, Show all / Show fewer inline, state kept across files, toggle doesn't navigate or break j/k/n", async () => {
+    const commits = Array.from({ length: 6 }, (_, i) => ({ sha: `sha${i}xxxxx`, message: `commit ${i}`, initials: "YV", date: `2026-10-0${i + 1}T00:00:00Z` }));
+    history = {
+      version: 1, totalCommits: 6, commits,
+      files: { "src/a.ts": commits.map((_, c) => ({ c, additions: 1, deletions: 0 })), "src/ui/b.ts": [{ c: 1, additions: 1, deletions: 0 }, { c: 5, additions: 1, deletions: 0 }], "src/ui/c.ts": [] },
+      notes: [],
+    };
+    prefs.storyOpen = true; // session pref: expanded
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelector(".fbtn .cm")).not.toBeNull());
+    w.select("src/a.ts");
+    const msgs = () => [...s.querySelectorAll(".tl .tc .tmsg")].map((m) => m.textContent);
+    expect(msgs()).toEqual(["commit 3", "commit 4", "commit 5"]);
+    expect(s.querySelector(".tl .tc.newest .tmsg")!.textContent).toBe("commit 5");
+    const more = s.querySelector(".tlmore") as HTMLButtonElement;
+    expect(more.textContent).toBe("+ 3 earlier commits · Show all 6");
+    more.click();
+    expect(msgs()).toEqual(["commit 0", "commit 1", "commit 2", "commit 3", "commit 4", "commit 5"]);
+    expect(s.querySelector(".tlmore")!.textContent).toBe("Show fewer");
+    (s.querySelector(".tlmore") as HTMLButtonElement).click();
+    expect(msgs()).toHaveLength(3);
+    // Enter/Space on the toggle are plain button activations; n/j/k still work from it
+    const tog = s.querySelector("li.file.sel .tltog") as HTMLButtonElement;
+    tog.focus();
+    tog.dispatchEvent(new KeyboardEvent("keydown", { key: "j", bubbles: true, composed: true }));
+    expect(s.querySelector('.fbtn[aria-current="true"]')!.getAttribute("data-path")).toBe("src/ui/b.ts");
+    // still expanded on the next file (global pref), showing its 2 commits without show-all
+    expect(s.querySelector("li.file.sel .tltog")!.getAttribute("aria-expanded")).toBe("true");
+    expect(msgs()).toEqual(["commit 1", "commit 5"]);
+    expect(s.querySelector(".tlmore")).toBeNull();
+    (s.querySelector("li.file.sel .tltog") as HTMLButtonElement).click();
+    expect(prefs.storyOpen).toBe(false);
+    expect(s.querySelectorAll(".tl .tc")).toHaveLength(0);
+    history = ONE;
   });
 });

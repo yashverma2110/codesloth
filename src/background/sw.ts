@@ -2,7 +2,10 @@ import config from "../../config/extension.config.json";
 import { analyze, ENGINE_VERSION, filesNeedingContents } from "../engine/analyze";
 import type { LayerPlan, PRFile } from "../engine/types";
 import type { AnalyzeResult, PRMeta, PRRef, Request, Response, TabMessage } from "../shared/messages";
-import { isAllowedSender, PREF_KEYS } from "../shared/messages";
+import { isAllowedSender, PREF_KEYS, SESSION_PREF_KEYS } from "../shared/messages";
+
+/** Session-scoped prefs (e.g. timeline expanded) live in storage.session; the rest in storage.local. */
+const prefArea = (key: string): chrome.storage.StorageArea => (SESSION_PREF_KEYS.includes(key) && chrome.storage.session ? chrome.storage.session : chrome.storage.local);
 import { diffAnchor } from "../shared/pr-url";
 import { parsePrUrl } from "../shared/pr-url";
 import { clearToken, getStatus, getToken, saveToken, validateToken } from "./auth";
@@ -211,11 +214,11 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
     case "prefs:get": {
       if (!PREF_KEYS.includes(msg.key)) throw new Error("Unknown preference");
       const k = `pref.${msg.key}`;
-      return (await chrome.storage.local.get(k))[k] ?? null;
+      return (await prefArea(msg.key).get(k))[k] ?? null;
     }
     case "prefs:set":
       if (!PREF_KEYS.includes(msg.key)) throw new Error("Unknown preference");
-      await chrome.storage.local.set({ [`pref.${msg.key}`]: msg.value });
+      await prefArea(msg.key).set({ [`pref.${msg.key}`]: msg.value });
       return true;
     case "history:get": {
       const key = `history:${HISTORY_VERSION}:${analysisKey(msg.pr.owner, msg.pr.repo, msg.pr.number, msg.headSha)}`;
