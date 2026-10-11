@@ -36,6 +36,19 @@ export interface ReviewHandlers {
   onToggleStep(layer: Layer, reviewed: boolean): void;
   onOpen(layer: Layer, open: boolean): void;
   onMarkNext(layer: Layer): void;
+  /** "← Previous": undo the last mark-and-next. Shown disabled when there's nothing to undo. */
+  onPrevious?(): void;
+  canPrevious?: boolean;
+  /** File "← Previous" would untick, for its tooltip. */
+  previousPath?: string | null;
+}
+
+function prevButton(h: ReviewHandlers): HTMLElement {
+  const name = h.previousPath ? h.previousPath.slice(h.previousPath.lastIndexOf("/") + 1) : null;
+  const b = el("button", { type: "button", class: "btn prev", "aria-label": name ? `Previous: unmark ${name} and go back to it` : "Previous (nothing to undo)", title: name ? `Unmark ${name} and go back to it (shortcut: p)` : "Previous: nothing to undo yet (shortcut: p)" }, el("span", { class: "pi", "aria-hidden": "true" }, "←"), el("span", { class: "lbl" }, "Previous")) as HTMLButtonElement;
+  if (!h.canPrevious || !h.onPrevious) b.disabled = true;
+  else b.addEventListener("click", () => h.onPrevious!());
+  return b;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]) {
@@ -169,7 +182,9 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
   const sum = summarize(plan, state);
   if (h.stale) root.append(staleBanner(h.stale, h));
   if (sum.totalFiles && sum.reviewedFiles === sum.totalFiles) {
-    root.append(el("div", { class: "alldone", role: "status" }, el("span", { class: "ok", "aria-hidden": "true" }, "✓"), `All ${files(sum.totalFiles)} reviewed`));
+    const done = el("div", { class: "alldone", role: "status", tabindex: "-1" }, el("span", { class: "ok", "aria-hidden": "true" }, "✓"), el("span", { class: "msg" }, `All ${files(sum.totalFiles)} reviewed`));
+    if (h.canPrevious && h.onPrevious) done.append(prevButton(h));
+    root.append(done);
   }
   const wrap = el("ol", { class: "steps", "aria-label": "Review steps" });
   const cur = currentStep(plan, state);
@@ -266,7 +281,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
         const name = target.path.slice(target.path.lastIndexOf("/") + 1);
         const btn = el("button", { type: "button", class: "btn primary next", "data-tour": "next", title: `Marks ${name} reviewed (shortcut: n)` }, last ? "Mark file as reviewed ✓" : "Mark file as reviewed & next →");
         btn.addEventListener("click", () => h.onMarkNext(l));
-        body.append(el("div", { class: "sfoot" }, btn, el("div", { class: "hint" }, `For ${name} · n mark & next · j/k move`)));
+        body.append(el("div", { class: "sfoot" }, el("div", { class: "ctarow" }, prevButton(h), btn), el("div", { class: "hint", title: `For ${name} · n next · p previous · j/k move` }, `For ${name} · n next · p previous · j/k move`)));
       }
       li.append(body);
     }

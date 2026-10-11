@@ -238,4 +238,16 @@ li.file.chg .fname { color:var(--fg); }
 .fp-seg button[aria-checked=true] { background:var(--sel-bg); color:var(--accent); font-weight:600; }
 .fp-chk { display:flex; align-items:center; gap:6px; margin:8px 2px 0; cursor:pointer; min-width:0; }
 .fp-chk input:disabled + span { color:var(--muted); }
+
+/* ---- v0.6.7 "← Previous" (undo last mark & next) ---- */
+.sfoot { container-type:inline-size; }
+.ctarow { display:flex; align-items:stretch; gap:6px; min-width:0; max-width:100%; }
+.ctarow .btn.next { flex:1 1 0; min-width:0; width:auto; }
+.btn.prev { flex:none; display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:5px 9px; font-size:12px; font-weight:500; color:var(--muted); background:transparent; border-color:var(--border); white-space:nowrap; }
+.btn.prev:hover:not(:disabled) { color:var(--fg); background:var(--bg2); }
+.btn.prev:disabled { opacity:.45; cursor:default; }
+.btn.prev .pi { font-size:13px; line-height:1; }
+@container (max-width: 330px) { .btn.prev .lbl { display:none; } .btn.prev { padding:5px 8px; } }
+.alldone .msg { flex:1 1 auto; min-width:0; }
+.alldone .btn.prev { margin-left:auto; }
 `;

@@ -7,7 +7,7 @@ import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
 import { GRAPH_CSS } from "../graph/svg";
 import { GraphView, GRAPH_VIEW_CSS } from "../graph/view";
 import { toDom } from "../graph/vdom";
-import { allFiles, clearReview, ctaTarget, currentStep, dismissStale, emptyReview, firstUnreviewed, keepStale, layerReview, locate, nextUnreviewed, normalizeReviewState, progress, reviewedAtHead, setFilesReviewed, staleBannerVisible, staleFiles, staleSummary, summarize, untickStale, type CompareInfo, type ReviewState } from "./review-logic";
+import { allFiles, clearReview, ctaTarget, currentStep, dismissStale, emptyReview, firstUnreviewed, keepStale, layerReview, locate, nextUnreviewed, normalizeReviewState, popUndo, progress, pruneUndo, pushUndo, rebaseUndo, reviewedAtHead, setFilesReviewed, staleBannerVisible, staleFiles, staleSummary, summarize, untickStale, type CompareInfo, type ReviewState, type UndoEntry } from "./review-logic";
 import type { LayerFile } from "../engine/types";
 import { renderReview } from "./review-view";
 import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
@@ -568,6 +568,7 @@ export class Widget {
     if (bannerOn) this.maybeCompare(res);
     this.menuBtn.classList.toggle("has-warn", res.plan.warnings.length > 0);
     const scroll = this.panes.review.scrollTop;
+    const undoStack = this.undoStack();
     this.panes.review.replaceChildren(
       renderReview(res.plan, this.review, {
         open: this.openSteps,
@@ -598,6 +599,9 @@ export class Widget {
           this.focusIn(`[data-layer="${CSS.escape(l.id)}"] .sh`);
         },
         onMarkNext: (l) => this.markNext(l, true),
+        onPrevious: () => this.previous(true),
+        canPrevious: undoStack.length > 0,
+        previousPath: undoStack[undoStack.length - 1]?.path ?? null,
         stale: bannerOn ? staleSum : null,
         staleCommits: new Map((staleSum?.files ?? []).map((f) => [f.path, f.commits])),
         staleListOpen: this.staleListOpen,
@@ -798,7 +802,9 @@ export class Widget {
     const res = this.result;
     if (!res) return;
     const stale = staleFiles(res.plan, this.review);
+    const before = this.review;
     this.review = keepStale(res.plan, this.review, res.meta.headSha);
+    this.setUndoStack(rebaseUndo(this.undoStack(), before, this.review));
     this.saveReview();
     void this.syncFiles(stale, true);
     this.staleListOpen = false;
@@ -823,12 +829,15 @@ export class Widget {
     const prev = this.review;
     const ticked = allFiles(res.plan).map((r) => res.plan.layers[r.layer].files[r.file]).filter((f) => prev.files[f.path]);
     this.confirmRestart = false;
+    const prevUndo = this.undoStack();
     this.review = clearReview(res.meta.headSha);
+    this.setUndoStack([]);
     this.saveReview();
     void this.syncFiles(ticked, false);
     const n = Object.keys(prev.files).length;
     this.setNotice(`Cleared ${n} tick${n === 1 ? "" : "s"}.`, () => {
       this.review = prev;
+      this.setUndoStack(prevUndo);
       this.saveReview();
       void this.syncFiles(ticked, true);
       this.clearNotice();
@@ -938,6 +947,7 @@ export class Widget {
     if (!target) return;
     const file = res.plan.layers[li].files[target.file];
     this.review = setFilesReviewed(this.review, [file], true, res.meta.headSha);
+    this.setUndoStack(pushUndo(this.undoStack(), { path: file.path, at: this.review.files[file.path].at, viewed: this.syncOn && !this.demo }));
     this.saveReview();
     const next = nextUnreviewed(res.plan, this.review, target);
     if (layerReview(res.plan.layers[li], this.review).state === "done") this.openSteps.delete(res.plan.layers[li].id);
@@ -954,6 +964,57 @@ export class Widget {
     }
     // Tick GitHub's Viewed first (if enabled), let the page settle, then scroll to the next file.
     void this.syncFiles([file], true).then(() => (next ? this.jump(next.path) : undefined));
+  }
+
+  /** Session-only undo stack for "← Previous", per PR (kept in memory across GitHub's soft navigations). */
+  private undoStacks = new Map<string, UndoEntry[]>();
+
+  private undoKey(): string | null {
+    return this.result ? `${this.demo ? "demo:" : ""}${prKey(this.result.pr)}` : null;
+  }
+
+  /** The PR's stack, pruned of entries whose tick is gone (unticked, Restart review, Untick changed files). */
+  undoStack(): UndoEntry[] {
+    const k = this.undoKey();
+    if (!k) return [];
+    const s = pruneUndo(this.undoStacks.get(k) ?? [], this.review);
+    this.undoStacks.set(k, s);
+    return s;
+  }
+
+  private setUndoStack(s: UndoEntry[]) {
+    const k = this.undoKey();
+    if (k) this.undoStacks.set(k, s);
+  }
+
+  /**
+   * "← Previous" (p): undo the last "Mark file as reviewed & next". Unticks that file, re-selects it, reopens its step
+   * and scrolls to its diff. Also unticks GitHub Viewed when CodeSloth ticked it and sync is still on.
+   */
+  previous(focusCta = false) {
+    const res = this.result;
+    if (!res) return;
+    const r = popUndo(this.undoStack(), this.review);
+    if (!r) return;
+    this.review = r.state;
+    this.setUndoStack(r.stack);
+    this.saveReview();
+    const at = locate(res.plan, r.entry.path);
+    const file = at ? res.plan.layers[at.layer].files[at.file] : null;
+    if (!at || !file) {
+      this.renderAll();
+      return;
+    }
+    if (this.selected !== file.path) this.storyAll = false;
+    this.selected = file.path;
+    this.openSteps.add(res.plan.layers[at.layer].id);
+    this.renderAll();
+    const step = `[data-layer="${CSS.escape(res.plan.layers[at.layer].id)}"]`;
+    if (focusCta) this.focusIn(this.undoStack().length ? `${step} .prev` : `${step} .next`);
+    const row = this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(file.path)}"]`);
+    if (row) this.reveal(row as HTMLElement);
+    const unview = r.entry.viewed ? this.syncFiles([file], false) : Promise.resolve();
+    void unview.then(() => this.jump(file.path));
   }
 
   /** Fetch the commit story in the background; the plan is already on screen. Failure just hides it. */
@@ -1035,13 +1096,14 @@ export class Widget {
     this.select(all[to].path, true);
   }
 
-  /** Panel shortcuts (n, j, k). Only when focus is in the panel and not in a text field. */
+  /** Panel shortcuts (n, p, j, k). Only when focus is in the panel and not in a text field. */
   private onPanelKey(e: KeyboardEvent) {
     if (e.altKey || e.ctrlKey || e.metaKey || this.view !== "review" || this.tour?.isActive()) return;
     const t = e.composedPath()[0] as HTMLElement | undefined;
     if (t && (t.isContentEditable || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.tagName === "INPUT" && !["checkbox", "radio", "button"].includes((t as HTMLInputElement).type)))) return;
     const k = e.key.toLowerCase();
     if (k === "n") this.markNext(undefined, false);
+    else if (k === "p") this.previous(false);
     else if (k === "j") this.moveSelection(1);
     else if (k === "k") this.moveSelection(-1);
     else return;

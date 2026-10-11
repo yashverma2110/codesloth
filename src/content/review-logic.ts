@@ -311,3 +311,49 @@ export function staleSummary(plan: LayerPlan, state: ReviewState, history?: Hist
       : `New commits changed ${mf}.`;
   return { files, newCommits, forcePushed, text };
 }
+
+/* ---------------- "← Previous": undo stack for mark-and-next (session only, per PR) ---------------- */
+
+/** One "Mark file as reviewed & next" action, so "← Previous" can take it back. */
+export interface UndoEntry {
+  path: string;
+  /** The fingerprint the tick was made with; if the tick has since changed (re-ticked, kept stale), the entry is dropped. */
+  at: string;
+  /** CodeSloth ticked GitHub's Viewed for this file (sync was on), so undo should untick it too. */
+  viewed: boolean;
+}
+
+export const UNDO_LIMIT = 200;
+
+export function pushUndo(stack: readonly UndoEntry[], e: UndoEntry): UndoEntry[] {
+  const next = stack.filter((x) => x.path !== e.path); // a file appears once: its latest mark
+  next.push(e);
+  return next.length > UNDO_LIMIT ? next.slice(next.length - UNDO_LIMIT) : next;
+}
+
+/** An entry still applies only while that exact tick is in place (not unticked, restarted, stale-unticked or re-made). */
+function live(state: ReviewState, e: UndoEntry): boolean {
+  return state.files[e.path]?.at === e.at;
+}
+
+/** Drop entries whose tick is gone, so the button's enabled state is truthful. */
+export function pruneUndo(stack: readonly UndoEntry[], state: ReviewState): UndoEntry[] {
+  return stack.filter((e) => live(state, e));
+}
+
+export function canUndo(stack: readonly UndoEntry[], state: ReviewState): boolean {
+  return stack.some((e) => live(state, e));
+}
+
+/** Pop the most recent still-valid entry and untick that file. Null when there's nothing to undo. */
+export function popUndo(stack: readonly UndoEntry[], state: ReviewState): { entry: UndoEntry; stack: UndoEntry[]; state: ReviewState } | null {
+  const s = pruneUndo(stack, state);
+  const entry = s.pop();
+  if (!entry) return null;
+  return { entry, stack: s, state: setFilesReviewed(state, [{ path: entry.path, sha: null }], false) };
+}
+
+/** After ticks are rewritten in place (e.g. "Keep my ticks"), keep entries whose file is still ticked pointing at the new tick. */
+export function rebaseUndo(stack: readonly UndoEntry[], before: ReviewState, after: ReviewState): UndoEntry[] {
+  return stack.flatMap((e) => (!live(before, e) ? [] : after.files[e.path] ? [{ ...e, at: after.files[e.path].at }] : []));
+}

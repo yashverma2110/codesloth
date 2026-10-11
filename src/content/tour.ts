@@ -144,7 +144,7 @@ export const REVIEW_TOUR_TEXT = {
   },
   check: {
     title: "Mark file as reviewed & next",
-    body: "When you've read the selected file, this marks it reviewed (\u2713), selects the next file and jumps to its diff. After the last file in a step, it opens the next step. Shortcuts while the panel has focus: n = mark & next, j / k = next / previous file. Each file and step also has a checkbox. Reviews are saved only in this browser.",
+    body: "When you've read the selected file, this marks it reviewed (\u2713), selects the next file and jumps to its diff. After the last file in a step, it opens the next step. ← Previous undoes the last one: it unticks that file and takes you back to it. Shortcuts while the panel has focus: n = mark & next, p = previous (undo), j / k = move the selection. Each file and step also has a checkbox. Reviews are saved only in this browser.",
   },
   changed: {
     title: "Changed since you reviewed it",

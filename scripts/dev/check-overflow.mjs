@@ -154,16 +154,25 @@ for (const c of cases) {
     const zoom = parseFloat(getComputedStyle(s.querySelector(".review")).zoom) || 1;
     const clamp = [...s.querySelectorAll(".tmsg")].every((m) => m.getBoundingClientRect().height <= (2 * parseFloat(getComputedStyle(m).lineHeight || "18") + 2) * zoom && m.title);
     const latest = s.querySelector("li.file.sel .latest");
-    return { state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".step.open .next") };
+    // "← Previous" sits on the CTA's row, to its left; label or icon-only, never wrapping or overflowing.
+    const nx = s.querySelector(".step.open .next");
+    const pv = s.querySelector(".step.open .prev");
+    const prev = !nx ? "n/a" : !pv ? "missing" : (() => {
+      const a = pv.getBoundingClientRect(), b = nx.getBoundingClientRect(), row = pv.parentElement.getBoundingClientRect();
+      const sameRow = Math.abs(a.top - b.top) < 2 && a.right <= b.left + 0.5 && a.left >= row.left - 0.5 && b.right <= row.right + 0.5;
+      const l = pv.querySelector(".lbl");
+      return sameRow ? (getComputedStyle(l).display === "none" ? "icon" : "label") : "broken";
+    })();
+    return { prev, state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".step.open .next") };
   });
   const onGraph = c.extra === "graph-fontpop" || c.extra === "graph";
   const wantTl = c.extra === "confirm" || onGraph ? r.tl : { collapsed: 0, expanded: 3, all: 13 }[c.story];
   const wantMore = c.extra === "confirm" || onGraph ? r.state.more : { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
   const panelW = c.forced ?? Math.min(400, c.vw - 32);
   const extraOk = r.state.restart === (onGraph ? "hidden" : panelW <= 320 ? "icon" : "label") && r.state.fontBtn && fontOk && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm) && (!c.extra?.endsWith("fontpop") || r.state.fontPop) && graphOk === true;
-  const ok = extraOk && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
+  const ok = extraOk && (onGraph || c.extra === "confirm" || r.prev === "label" || r.prev === "icon" || (r.prev === "n/a" && !r.cta)) && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
   if (!ok) failures++;
-  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}${c.ui ? "/ui" : ""}` : ""} restart=${r.state.restart} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}${c.ui ? "/ui" : ""}` : ""} restart=${r.state.restart} prev=${r.prev} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
   if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}${c.ui ? "-ui" : ""}` : ""}.png` });
   await p.close();
 }

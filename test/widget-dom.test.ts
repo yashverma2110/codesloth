@@ -364,6 +364,96 @@ describe("Widget (DOM)", () => {
     expect(Object.keys(set.value.files).sort()).toEqual(["src/a.ts", "src/ui/b.ts", "src/ui/c.ts"]);
   });
 
+  it("'← Previous' undoes mark & next step by step, across steps; disabled when empty; p shortcut", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const prev = () => s.querySelector(".step.open .prev") as HTMLButtonElement;
+    const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+    const sel = () => s.querySelector('.fbtn[aria-current="true"]')?.getAttribute("data-path");
+    expect(prev().disabled).toBe(true);
+    expect(prev().nextElementSibling).toBe(cta()); // same row, Previous on the left
+    expect(s.querySelector(".step.open .hint")!.textContent).toContain("n next · p previous · j/k move");
+    cta().click(); // a.ts -> step 2
+    cta().click(); // b.ts -> c.ts
+    expect(prev().disabled).toBe(false);
+    expect(prev().title).toContain("b.ts");
+    prev().click(); // back to b.ts, unticked
+    expect(sel()).toBe("src/ui/b.ts");
+    expect(s.querySelector('.fbtn[data-path="src/ui/b.ts"]')!.closest("li")!.classList.contains("rev")).toBe(false);
+    prev().click(); // across steps: a.ts unticked, step 1 reopened
+    expect(sel()).toBe("src/a.ts");
+    expect(s.querySelector('.step.open[data-layer="core"]')).not.toBeNull();
+    let set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
+    expect(set.value.files).toEqual({});
+    expect(prev().disabled).toBe(true);
+    // p shortcut (panel focus only)
+    cta().click();
+    const key = (k: string, target: Element = s.querySelector(".sh")!) => target.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, composed: true }));
+    const ta = document.createElement("textarea");
+    document.body.append(ta);
+    ta.dispatchEvent(new KeyboardEvent("keydown", { key: "p", bubbles: true, composed: true }));
+    ta.remove();
+    set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
+    expect(Object.keys(set.value.files)).toEqual(["src/a.ts"]);
+    key("p");
+    expect(sel()).toBe("src/a.ts");
+    set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
+    expect(set.value.files).toEqual({});
+    // done state offers Previous too
+    cta().click();
+    cta().click();
+    cta().click();
+    expect(s.querySelector(".alldone .prev")).not.toBeNull();
+    (s.querySelector(".alldone .prev") as HTMLButtonElement).click();
+    expect(sel()).toBe("src/ui/c.ts");
+    expect(s.querySelector(".alldone")).toBeNull();
+  });
+
+  it("'← Previous' also unticks GitHub Viewed when sync is on and CodeSloth ticked it", async () => {
+    prefs.syncViewed = true;
+    const f = document.createElement("div");
+    f.className = "file";
+    f.setAttribute("data-tagsearch-path", "src/a.ts");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.name = "viewed";
+    f.append(cb);
+    document.body.append(f);
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    (s.querySelector(".step.open .next") as HTMLButtonElement).click(); // a.ts
+    await vi.waitFor(() => expect(cb.checked).toBe(true));
+    expect(w.undoStack()[0]).toMatchObject({ path: "src/a.ts", viewed: true });
+    (s.querySelector(".step.open .prev") as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(cb.checked).toBe(false));
+    f.remove();
+  });
+
+  it("'← Previous' skips files unticked by hand", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+    cta().click(); // a.ts
+    cta().click(); // b.ts
+    const ft = s.querySelector('.ftick[data-path="src/ui/b.ts"]') as HTMLInputElement;
+    ft.checked = false;
+    ft.dispatchEvent(new Event("change"));
+    (s.querySelector(".step.open .prev") as HTMLButtonElement).click();
+    expect(s.querySelector('.fbtn[aria-current="true"]')?.getAttribute("data-path")).toBe("src/a.ts");
+  });
+
   it("n / j / k work only when focus is in the panel and not in a text field", async () => {
     const w = new Widget();
     await w.mount();
@@ -744,6 +834,40 @@ describe("Widget (DOM)", () => {
       // menu entry exists too
       (s.querySelector(".hdr .icon") as HTMLButtonElement).click();
       expect([...s.querySelectorAll(".menu button")].some((b) => /Restart review/.test(b.textContent!))).toBe(true);
+      restore();
+    });
+
+    it("'← Previous' history is cleared by Restart review (and back with its Undo)", async () => {
+      const { s } = await setup();
+      const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+      const prev = () => s.querySelector(".prev") as HTMLButtonElement;
+      (s.querySelector('.stalebar [data-act="untick"]') as HTMLButtonElement).click(); // a.ts unticked + selected
+      cta().click(); // a.ts -> c.ts (b.ts already ticked)
+      cta().click(); // c.ts -> all done
+      expect(s.querySelector(".alldone .prev")).not.toBeNull();
+      (s.querySelector(".tabbar .restart") as HTMLButtonElement).click();
+      (s.querySelector('.restart-note [data-act="clear"]') as HTMLButtonElement).click();
+      expect(prev().disabled).toBe(true);
+      (s.querySelector('.restart-note [data-act="undo"]') as HTMLButtonElement).click();
+      expect(Object.keys(saved.files).sort()).toEqual(["src/a.ts", "src/ui/b.ts", "src/ui/c.ts"]);
+      (s.querySelector(".alldone .prev") as HTMLButtonElement).click();
+      expect(Object.keys(saved.files).sort()).toEqual(["src/a.ts", "src/ui/b.ts"]);
+      expect(s.querySelector('.fbtn[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/c.ts");
+      restore();
+    });
+
+    it("'← Previous' tracks a re-mark after 'Untick changed files' and drops it once unticked", async () => {
+      // a.ts was marked via next in this session, then a push made it stale and the user unticked it
+      const { w, s } = await setup();
+      const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+      (s.querySelector('.stalebar [data-act="untick"]') as HTMLButtonElement).click(); // a.ts unticked, selected
+      cta().click(); // a.ts marked again via next
+      expect(w.undoStack().map((e) => e.path)).toEqual(["src/a.ts"]);
+      w.select("src/a.ts"); // reopen step 1 to reach its checkbox
+      const ft = s.querySelector('.ftick[data-path="src/a.ts"]') as HTMLInputElement;
+      ft.checked = false;
+      ft.dispatchEvent(new Event("change"));
+      expect(w.undoStack()).toEqual([]);
       restore();
     });
 
