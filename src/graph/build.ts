@@ -12,6 +12,8 @@ export interface GNode {
   layerIndex: number;
   layerId: string;
   layerTitle: string;
+  /** Short layer name, e.g. "Core". */
+  layerLabel: string;
   additions: number;
   deletions: number;
   status?: LayerFile["status"];
@@ -34,6 +36,7 @@ export interface GLayer {
   index: number;
   id: string;
   title: string;
+  label: string;
   files: number;
   hidden: boolean;
 }
@@ -77,7 +80,7 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
   const changed = opts.changedPaths ?? new Set<string>();
   const maxNodes = opts.maxNodes ?? 160;
 
-  const layers: GLayer[] = plan.layers.map((l) => ({ index: l.index, id: l.id, title: l.title, files: l.files.length, hidden: hidden.has(l.id) }));
+  const layers: GLayer[] = plan.layers.map((l) => ({ index: l.index, id: l.id, title: l.title, label: l.label ?? l.title, files: l.files.length, hidden: hidden.has(l.id) }));
   const visible = plan.layers.filter((l) => !hidden.has(l.id));
   const nodeOf = new Map<string, string>(); // path -> node id
   const nodes: GNode[] = [];
@@ -90,6 +93,7 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
     layerIndex: l.index,
     layerId: l.id,
     layerTitle: l.title,
+    layerLabel: l.label ?? l.title,
     additions: f.additions,
     deletions: f.deletions,
     status: f.status,
@@ -122,14 +126,15 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
       const n: GNode = {
         id: GENERATED_NODE,
         kind: "generated",
-        label: `${l.files.length} generated / lockfile${l.files.length === 1 ? "" : "s"}`,
+        label: l.files.length === 1 ? "1 generated file / lockfile" : `${l.files.length} generated files / lockfiles`,
         paths: l.files.map((f) => f.path),
         layerIndex: l.index,
         layerId: l.id,
         layerTitle: l.title,
+    layerLabel: l.label ?? l.title,
         additions: l.stats.additions,
         deletions: l.stats.deletions,
-        reason: "Collapsed by default; click to expand.",
+        reason: `${l.description}. Collapsed by default; click to expand.`,
         reviewed: reviewed.has(l.id),
         changed: l.files.some((f) => changed.has(f.path)),
       };
@@ -167,9 +172,10 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
         layerIndex: l.index,
         layerId: l.id,
         layerTitle: l.title,
+    layerLabel: l.label ?? l.title,
         additions: fs.reduce((s, f) => s + f.additions, 0),
         deletions: fs.reduce((s, f) => s + f.deletions, 0),
-        reason: `${fs.length} files in ${d || "(root)"}/ clustered because the PR is large; click to expand.`,
+        reason: `${fs.length} files in ${d || "(root)"}/, grouped because the PR is large; click to expand.`,
         reviewed: reviewed.has(l.id),
         changed: fs.some((f) => changed.has(f.path)),
       });

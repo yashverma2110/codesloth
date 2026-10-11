@@ -6,7 +6,7 @@ import type { LayerPlan, LayerFile } from "../src/engine/types";
 import { readFileSync } from "node:fs";
 
 const f = (path: string, extra: Partial<LayerFile> = {}): LayerFile => ({ path, status: "modified", additions: 1, deletions: 0, category: "source", reason: "r", ...extra });
-const layer = (id: string, index: number, files: LayerFile[]) => ({ id, index, title: id, description: "", files, stats: { files: files.length, additions: files.length, deletions: 0 } });
+const layer = (id: string, index: number, files: LayerFile[]) => ({ id, index, title: id, label: id, description: "", files, stats: { files: files.length, additions: files.length, deletions: 0 } });
 
 const plan: LayerPlan = {
   version: 1,

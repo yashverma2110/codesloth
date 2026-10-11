@@ -19,7 +19,7 @@ const replies: Record<string, (m: any) => unknown> = {
     fromCache: false,
     plan: {
       version: 1, engineVersion: "t", warnings: [], stats: { files: 2, additions: 3, deletions: 1, edges: 1, contentsUsed: 0 },
-      layers: [{ id: "core", index: 0, title: "Core", description: "d", stats: { files: 1, additions: 2, deletions: 0 }, files: [{ path: "src/a.ts", sha: "s1", status: "added", additions: 2, deletions: 0, category: "source", reason: "used by b" }] }],
+      layers: [{ id: "core", index: 0, title: "Review this first", label: "Core", description: "As this file is imported by 1 other changed file", stats: { files: 1, additions: 2, deletions: 0 }, files: [{ path: "src/a.ts", sha: "s1", status: "added", additions: 2, deletions: 0, category: "source", reason: "used by b" }] }],
       edges: [],
     },
   }),
@@ -71,7 +71,9 @@ describe("Widget (DOM)", () => {
     expect(panel.hidden).toBe(false);
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
     expect(calls.some((c) => c.type === "analyze")).toBe(true);
-    expect(s.querySelector(".ltitle")?.textContent).toBe("Core");
+    expect(s.querySelector(".ltitle")?.textContent).toBe("Review this first Core");
+    expect(s.querySelector(".lkind")?.textContent).toBe("Core");
+    expect(s.querySelector(".desc")?.textContent).toBe("As this file is imported by 1 other changed file");
     bubble.click();
     expect(panel.hidden).toBe(true);
   });

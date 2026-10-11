@@ -131,23 +131,23 @@ export class Tour {
 
 export const REVIEW_TOUR_TEXT = {
   layers: {
-    title: "Layers: review bottom-up",
-    body: "The PR's files are grouped into layers in review order: contracts and core code first, then the code that uses them, then tests, config and generated files. Start at L0 and work down.",
+    title: "Review in this order",
+    body: "Each layer starts with when to read it (\u201cReview this first\u201d, \u201cThen review these\u201d, \u201cNow the tests\u201d, \u201cSkim last\u201d) and a because-line worked out from this PR, e.g. \u201cAs this file is imported by 5 other changed files\u201d. Go from top to bottom.",
   },
   reasons: {
-    title: "Why each file is here",
-    body: "Every file has a one-line reason, e.g. which changed files it imports or is used by, or why it counts as generated. If a reason looks wrong, that's a hint the layering needs a second look.",
+    title: "How each file connects",
+    body: "Every file says how it fits in: \u201cImported by routing.py and 3 others\u201d, \u201cUses _api.py\u201d, \u201cTests for _api.py\u201d, \u201cLockfile for the pyproject.toml change\u201d. If a line looks wrong, look at that file more closely.",
   },
   jump: {
     title: "Click a file to jump to its diff",
-    body: "Clicking a file (or pressing Enter on it) scrolls GitHub's Files changed view to that file's diff, so you can read it in layer order.",
+    body: "Click a file (or press Enter on it) to scroll GitHub's Files changed view to that file's diff, so you can read in this order.",
   },
   check: {
-    title: "Tick a layer when you've reviewed it",
-    body: "Ticking a layer marks it reviewed and collapses it. The tick is stored only in this browser, for this PR.",
+    title: "Tick a layer when you're done",
+    body: "Ticking a layer marks it reviewed and collapses it. Ticks are saved only in this browser, for this PR.",
   },
   changed: {
     title: "Changed since you reviewed it",
-    body: "If someone pushes new commits that touch a layer you already ticked, the layer gets a ⚠ flag and the changed files are badged, so you only re-check what moved.",
+    body: "If new commits change a layer you've already ticked, it gets a \u26a0 flag and the changed files get a badge, so you only re-read what moved.",
   },
 };

@@ -4,7 +4,7 @@ PR Layers is a browser extension (Manifest V3; Chrome, Arc, Edge, Brave) for **h
 
 > mechanical → contracts & schemas → core → callers (by import depth) → standalone → deleted code → tests → config/docs/assets → generated & lockfiles
 
-You can then review bottom-up, one layer at a time. The layers show up in a **floating, draggable widget** on the PR page. Each file comes with a one-line reason for its placement (e.g. *"imports lib/db.ts [Core]; used by pages/Profile.tsx"*), and clicking it jumps to that file in **Files changed**.
+You can then review bottom-up, one layer at a time. The layers show up in a **floating, draggable widget** on the PR page. Each layer tells you **when** to review it and **why** (e.g. *"Review this first: As this file is imported by 5 other changed files"*). Each file says how it connects (e.g. *"Uses _api.py; imported by applications.py"*), and clicking a file jumps to it in **Files changed**.
 
 - **Read-only.** It only sends `GET` requests, using a fine-grained token you create with *Pull requests: Read-only* and *Contents: Read-only*.
 - **Local.** There's no backend. PR code never leaves your browser. Results are cached in IndexedDB.
@@ -50,8 +50,19 @@ v0.3.0 was smoke-tested in **headless Chrome 154 on live github.com** (no token,
 
 ## How to use the Review tab
 
-1. Open a PR and click the bubble. Layers are listed in review order, starting with **L0**. Read them top to bottom: contracts and core code first, then the code that uses them, then tests, config and generated files.
-2. Each file shows **why it's in that layer**, e.g. *"imports telemetry/_api.py [Core]; used by fastapi/applications.py"*. If a reason looks wrong, take a closer look at that file.
+1. Open a PR and click the bubble. Each layer starts with **when** to review it and a **because** line worked out from the PR's own import graph and file kinds. Read from top to bottom. This is fastapi/fastapi#16403 (the bundled demo):
+
+   | Layer | Heading | Because |
+   |---|---|---|
+   | L0 Core | Review this first | As this file is imported by 5 other changed files |
+   | L1 Callers 1 | Then review these | As these use the changes you just reviewed |
+   | L2 Callers 2 | Review these after that | As this file uses routing.py and 2 others from the step before |
+   | L3 Tests | Now the tests | As these cover the 4 files above (13 test files have no matching changed file) |
+   | L4 Config & docs | Then config and docs | As these are settings and docs for this change |
+   | L5 Generated | Skim last | As this is a lockfile |
+
+   Other layers follow the same pattern. **Contracts** adapt to what changed. Schema, query, migration, type and API contract are detected per file, e.g. *Review this first: As these are type updates that 27 other changed files build on* (excalidraw/excalidraw#12018). **Deleted code** says *Then check what was removed: As this code was deleted and nothing changed still depends on it*, but only when no changed file still imports it. Otherwise it names the files that do. For a Go file whose package still exists it says that can't be checked from imports. **Standalone** layers say *As these files don't import, and aren't imported by, other changed code*. Deeper caller levels read *Then review these → Review these after that → Then these → And finally these*. When a big layer is split by package, each part keeps its heading and names its area in the because line. Counts are pluralized correctly (1 file / 3 files).
+2. Each file says **how it connects**: *Imported by routing.py and 3 others*, *Uses _api.py*, *Uses _api.py; imported by applications.py*, *Tests for _api.py*, *Lockfile for the pyproject.toml change*, *Deleted; no changed file imports it*. If a line looks wrong, take a closer look at that file.
 3. **Click a file** (or focus it and press Enter) to jump to its diff in Files changed.
 4. **Tick a layer** when you've reviewed it. It collapses and counts toward *n/m reviewed*. Ticks are stored in this browser per PR, together with each file's blob SHA.
 5. **⚠ Changed since you reviewed it.** If later pushes change a ticked layer's files (new content, new files, or files that moved out), the layer gets a ⚠ flag and those files get a *changed* badge, so you only re-read what changed. Tick it again to clear the flag.
@@ -60,15 +71,15 @@ v0.3.0 was smoke-tested in **headless Chrome 154 on live github.com** (no token,
 
 **Try demo:** **? → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.
 
-![Review tab with the first tour step: headless render of the real widget code and the bundled fastapi sample plan](docs/images/review-demo.png)
+![Review tab in demo mode (fastapi/fastapi#16403): order headings, because-lines and per-file reasons. Headless render of the real widget code and the bundled sample plan](docs/images/review-demo.png)
 
 ## Graph view
 
 The **Graph** tab draws the PR's changed files as a layered dependency graph:
 
-- **Nodes** are changed files: file name, +/−, and status. Hover for the full path, layer and reason. They're colored by layer, with a legend that doubles as a **layer filter** (click a chip to hide or show that layer).
+- **Nodes** are changed files: file name, +/−, and status. Hover for the full path, the layer with its heading (e.g. *L0 Core: Review this first*) and the file's reason. They're colored by layer, with a legend that doubles as a **layer filter** (click a chip to hide or show that layer).
 - **Edges** go importer → imported, using the import graph the engine already builds. Dashed green edges link a test to the file it tests.
-- **Layout:** one band per layer, top to bottom in review order, so contracts and core are at the top. Within a band, nodes are ordered by where their neighbors sit, to cut down on crossings. Multi-file **Go packages** and **import cycles** get a dashed box.
+- **Layout:** one band per layer, top to bottom in review order, labeled like *L0 · Review this first · Core*. Contracts and core are at the top. Within a band, nodes are ordered by where their neighbors sit, to cut down on crossings. Multi-file **Go packages** and **import cycles** get a dashed box.
 - **Generated files and lockfiles** are collapsed into one node; click it to expand. For big PRs (more than 160 nodes), files are **clustered by directory**, coarsening until they fit. Click a cluster to expand it. Repeated edges between clusters are merged and drawn thicker.
 - **Interactions:** drag to pan, wheel or ± to zoom, **Fit**. Hovering or focusing a node highlights it and its neighbors. **Search** fades out non-matching files; Enter centers the first match. Click a node (or press Enter) to jump to its diff. Files in reviewed layers are dimmed with a ✓. A ● marks files changed since review.
 - **⤢ Expand** opens a near-full-screen overlay inside the same shadow root (Esc or ✕ closes it). **↗ Tab** opens a full extension page (`graph.html`). That page asks the service worker for the cached plan; it gets no token and makes no network calls. Clicking a node there focuses the PR tab and jumps.
@@ -155,11 +166,11 @@ PR Layers needs read access only, so it refuses tokens it can tell are write-cap
    - Go files in the same package are also linked when they use each other's new top-level identifiers. A Go package is kept in one layer.
 5. **Graph:** Tarjan SCCs keep import cycles together. Depth is the longest import path down to code that depends on no other changed code.
    - *Core* = depth 0 with dependents.
-   - *Callers · level k* = depth k (capped at 4+).
+   - *Callers k* = depth k (capped at 4+).
    - *Standalone* = no links to other changed files.
    - Layers with more than 25 files are split by package directory.
 6. **Tests** are paired with their subject: first by imports and name, then name only, then Go same-package. They're ordered to follow their subject's layer.
-7. **Reasons:** every file gets a sentence explaining its placement.
+7. **Copy:** every layer gets a heading saying when to review it and a because line built from real counts (dependents, covered files, kinds of contract change, lockfile vs. generated). Every file gets a line saying how it connects. Deleted code is only called safe to remove if no changed file still imports it. See [How to use the Review tab](#how-to-use-the-review-tab).
 
 ### Sample output (real public PRs)
 

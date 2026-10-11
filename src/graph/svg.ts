@@ -37,7 +37,7 @@ export interface SvgOptions {
 
 function nodeTree(n: GNode, x: number, y: number, w: number, hh: number): VNode {
   const color = layerColor(n.layerId);
-  const tip = [n.kind === "file" ? n.paths[0] : n.label, `+${n.additions} / −${n.deletions} · ${n.layerTitle}`, n.reason ?? "", n.reviewed ? "✓ layer reviewed" : "", n.changed ? "⚠ changed since reviewed" : ""]
+  const tip = [n.kind === "file" ? n.paths[0] : n.label, `+${n.additions} / −${n.deletions} · L${n.layerIndex} ${n.layerLabel}: ${n.layerTitle}`, n.reason ?? "", n.reviewed ? "✓ layer reviewed" : "", n.changed ? "⚠ changed since reviewed" : ""]
     .filter(Boolean)
     .join("\n");
   const cls = ["g-node", n.kind, n.reviewed ? "reviewed" : ""].filter(Boolean).join(" ");
@@ -84,7 +84,7 @@ export function graphTree(g: Graph, L: Layout, o: SvgOptions = {}): VNode {
   }
   const vp: (VNode | false)[] = [];
   for (const b of L.bands) {
-    vp.push(h("g", { class: "g-band" }, h("rect", { x: 0, y: b.y, width: L.width, height: b.h, rx: 10, fill: layerColor(b.layerId) }), h("text", { x: 10, y: b.y + 17 }, `L${b.layerIndex} · ${b.title}`)));
+    vp.push(h("g", { class: "g-band" }, h("rect", { x: 0, y: b.y, width: L.width, height: b.h, rx: 10, fill: layerColor(b.layerId) }), h("text", { x: 10, y: b.y + 17 }, `L${b.layerIndex} · ${b.title} · ${b.label}`)));
   }
   for (const gr of L.groups) vp.push(h("g", { class: "g-group" }, h("rect", { x: gr.x, y: gr.y, width: gr.w, height: gr.h }), h("text", { x: gr.x + gr.w - 4, y: gr.y - 3, "text-anchor": "end" }, gr.label)));
   for (const e of g.edges) {

@@ -26,6 +26,7 @@ export interface Band {
   layerIndex: number;
   layerId: string;
   title: string;
+  label: string;
   y: number;
   h: number;
 }
@@ -136,7 +137,7 @@ export function layoutGraph(g: Graph, o: LayoutOptions = {}): Layout {
       y += nodeH + gapY;
     }
     y += bandPad / 2 - gapY;
-    bands.push({ layerIndex: li, layerId: ns[0].layerId, title: ns[0].layerTitle, y: bandTop, h: y - bandTop });
+    bands.push({ layerIndex: li, layerId: ns[0].layerId, title: ns[0].layerTitle, label: ns[0].layerLabel, y: bandTop, h: y - bandTop });
     y += bandGap;
   }
   return { pos, bands, groups, width: labelW + rowW, height: Math.max(0, y - bandGap), nodeW, nodeH };

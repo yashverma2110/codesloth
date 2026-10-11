@@ -6,7 +6,8 @@ import type { Layer, LayerPlan } from "../src/engine/types";
 const L = (files: [string, string | null][]): Layer => ({
   id: "core",
   index: 0,
-  title: "Core",
+  title: "Review this first",
+  label: "Core",
   description: "",
   stats: { files: files.length, additions: 0, deletions: 0 },
   files: files.map(([path, sha]) => ({ path, sha, status: "modified", additions: 1, deletions: 0, category: "source", reason: "" })),

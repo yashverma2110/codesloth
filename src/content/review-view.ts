@@ -29,7 +29,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
       d.setAttribute("open", "");
       firstUnreviewedOpen++;
     }
-    const cb = el("input", { type: "checkbox", title: "Mark layer reviewed", "aria-label": `Mark ${l.title} reviewed` }) as HTMLInputElement;
+    const cb = el("input", { type: "checkbox", title: "Mark layer reviewed", "aria-label": `Mark L${i} ${l.label ?? l.title} reviewed` }) as HTMLInputElement;
     cb.checked = !!snap;
     if (!snap && !wrap.querySelector('[data-tour="check"]')) cb.setAttribute("data-tour", "check");
     cb.addEventListener("click", (e) => e.stopPropagation());
@@ -39,12 +39,12 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
       {},
       cb,
       el("span", { class: "idx" }, `L${i}`),
-      el("span", { class: "ltitle" }, l.title),
+      el("span", { class: "ltitle" }, l.title, " ", el("span", { class: "lkind" }, l.label ?? "")),
       el("span", { class: "stats" }, `${l.stats.files} · `, el("span", { class: "add" }, `+${l.stats.additions}`), " ", el("span", { class: "del" }, `−${l.stats.deletions}`)),
     );
     d.append(summary, el("div", { class: "desc" }, l.description));
     if (changed.length) {
-      const flag = el("div", { class: "flag", role: "status", "data-tour": "changed" }, `⚠ Changed since you reviewed it: ${changed.length} file${changed.length > 1 ? "s" : ""}. Re-check them, then tick the box again.`);
+      const flag = el("div", { class: "flag", role: "status", "data-tour": "changed" }, changed.length === 1 ? "⚠ Changed since you reviewed it: 1 file. Re-check it, then tick the box again." : `⚠ Changed since you reviewed it: ${changed.length} files. Re-check them, then tick the box again.`);
       d.append(flag);
     }
     const ul = el("ul", { class: "files" });

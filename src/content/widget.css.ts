@@ -71,4 +71,8 @@ li.file.chg { background:rgba(212,167,44,.08); }
 .overlay { position:fixed; inset:0; z-index:2147483001; background:rgba(1,4,9,.45); display:flex; align-items:center; justify-content:center; }
 .ov-box { width:calc(100vw - 48px); height:calc(100vh - 48px); background:var(--bg); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; }
 .ov-box .gv { flex:1; min-height:0; }
+
+.lkind { font:500 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; padding:1px 7px; margin-left:4px; border-radius:999px; border:1px solid var(--border); color:var(--muted); white-space:nowrap; vertical-align:1px; }
+details.layer.done .lkind { text-decoration:none; }
+.desc { font-style:normal; }
 `;

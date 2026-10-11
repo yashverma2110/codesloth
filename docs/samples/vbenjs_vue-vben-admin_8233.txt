@@ -1,102 +1,95 @@
 # vbenjs/vue-vben-admin#8233: feat(@vben-core/popup-ui)!: add typed popup data contracts
-head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched for 26 files · engine 22 ms
+head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched for 26 files · engine 23 ms
 
-## L0 Core  (15 files, +192/-46)
+## L0 Review this first [Core]  (15 files, +192/-46)
+   As these files are imported by 18 other changed files
   - packages/@core/ui-kit/popup-ui/src/drawer/drawer-api.ts  [+6/-6]
-      imports drawer/drawer.ts [Core]; used by drawer/drawer.ts, drawer/use-drawer.ts · in an import cycle with drawer/drawer.ts (kept together)
+      Uses drawer.ts; imported by drawer.ts and use-drawer.ts · In an import cycle with drawer.ts, so kept together
   - packages/@core/ui-kit/popup-ui/src/drawer/drawer.ts  [+20/-7]
-      imports drawer/drawer-api.ts [Core]; used by drawer/drawer-api.ts, drawer/index.ts, drawer/use-drawer.ts · in an import cycle with drawer/drawer-api.ts (kept together)
+      Uses drawer-api.ts; imported by drawer-api.ts and 2 others · In an import cycle with drawer-api.ts, so kept together
   - packages/@core/ui-kit/popup-ui/src/modal/modal-api.ts  [+6/-6]
-      imports modal/modal.ts [Core]; used by modal/modal.ts, modal/use-modal.ts · in an import cycle with modal/modal.ts (kept together)
+      Uses modal.ts; imported by modal.ts and use-modal.ts · In an import cycle with modal.ts, so kept together
   - packages/@core/ui-kit/popup-ui/src/modal/modal.ts  [+20/-7]
-      imports modal/modal-api.ts [Core]; used by modal/index.ts, modal/modal-api.ts, modal/use-modal.ts · in an import cycle with modal/modal-api.ts (kept together)
+      Uses modal-api.ts; imported by modal/index.ts and 2 others · In an import cycle with modal-api.ts, so kept together
   - playground/src/views/examples/drawer/form-drawer-demo.vue  [+12/-4]
-      used by drawer/index.vue
+      Imported by drawer/index.vue
   - playground/src/views/examples/drawer/shared-data-demo.vue  [+10/-3]
-      used by drawer/index.vue
+      Imported by drawer/index.vue
   - playground/src/views/examples/drawer/typed-data-auto-demo.vue  [+29/-0]
-      used by drawer/index.vue
+      Imported by drawer/index.vue
   - playground/src/views/examples/drawer/typed-data-contract.ts  [+13/-0]
-      used by drawer/index.vue, drawer/typed-data-explicit-demo.vue, drawer/typed-data-factory-demo.vue
-  - playground/src/views/examples/modal/form-modal-demo.vue  [+10/-4]
-      used by modal/index.vue
-  - playground/src/views/examples/modal/shared-data-demo.vue  [+10/-3]
-      used by modal/index.vue
-  - playground/src/views/examples/modal/typed-data-auto-demo.vue  [+29/-0]
-      used by modal/index.vue
-  - playground/src/views/examples/modal/typed-data-contract.ts  [+13/-0]
-      used by modal/index.vue, modal/typed-data-explicit-demo.vue, modal/typed-data-factory-demo.vue
-  - playground/src/views/system/role/modules/form.vue  [+5/-2]
-      used by role/list.vue
-  - playground/src/views/system/user/modules/detail.vue  [+4/-2]
-      used by user/list.vue
-  - playground/src/views/system/user/modules/form.vue  [+5/-2]
-      used by user/list.vue
+      Imported by drawer/index.vue and 2 others
+  … 7 more
 
-## L1 Callers · level 1  (8 files, +206/-26)
+## L1 Then review these [Callers 1]  (8 files, +206/-26)
+   As these use the changes you just reviewed
   - packages/@core/ui-kit/popup-ui/src/drawer/use-drawer.ts  [+51/-11]
-      imports drawer/drawer.ts [Core], drawer/drawer-api.ts [Core]; used by drawer/index.ts
+      Uses drawer.ts and drawer-api.ts; imported by drawer/index.ts
   - packages/@core/ui-kit/popup-ui/src/modal/use-modal.ts  [+57/-13]
-      imports modal/modal.ts [Core], modal/modal-api.ts [Core]; used by modal/index.ts
+      Uses modal.ts and modal-api.ts; imported by modal/index.ts
   - playground/src/views/examples/drawer/typed-data-explicit-demo.vue  [+24/-0]
-      imports drawer/typed-data-contract.ts [Core]; used by drawer/index.vue
+      Uses drawer/typed-data-contract.ts; imported by drawer/index.vue
   - playground/src/views/examples/drawer/typed-data-factory-demo.vue  [+24/-0]
-      imports drawer/typed-data-contract.ts [Core]; used by drawer/index.vue
+      Uses drawer/typed-data-contract.ts; imported by drawer/index.vue
   - playground/src/views/examples/modal/typed-data-explicit-demo.vue  [+24/-0]
-      imports modal/typed-data-contract.ts [Core]; used by modal/index.vue
+      Uses modal/typed-data-contract.ts; imported by modal/index.vue
   - playground/src/views/examples/modal/typed-data-factory-demo.vue  [+24/-0]
-      imports modal/typed-data-contract.ts [Core]; used by modal/index.vue
+      Uses modal/typed-data-contract.ts; imported by modal/index.vue
   - playground/src/views/system/role/list.vue  [+1/-1]
-      imports modules/form.vue [Core]
+      Uses modules/form.vue
   - playground/src/views/system/user/list.vue  [+1/-1]
-      imports modules/detail.vue [Core], modules/form.vue [Core]
+      Uses detail.vue and modules/form.vue
 
-## L2 Callers · level 2  (4 files, +160/-2)
+## L2 Review these after that [Callers 2]  (4 files, +160/-2)
+   As these files use use-drawer.ts and 3 others from the step before
   - packages/@core/ui-kit/popup-ui/src/drawer/index.ts  [+5/-1]
-      imports drawer/drawer.ts [Core], drawer/use-drawer.ts [Callers · level 1]
+      Uses drawer.ts and use-drawer.ts
   - packages/@core/ui-kit/popup-ui/src/modal/index.ts  [+5/-1]
-      imports modal/modal.ts [Core], modal/use-modal.ts [Callers · level 1]
+      Uses modal.ts and use-modal.ts
   - playground/src/views/examples/drawer/index.vue  [+74/-0]
-      imports drawer/typed-data-contract.ts [Core], drawer/form-drawer-demo.vue [Core], drawer/shared-data-demo.vue [Core] +3 more
+      Uses drawer/typed-data-contract.ts and 5 others
   - playground/src/views/examples/modal/index.vue  [+76/-0]
-      imports modal/typed-data-contract.ts [Core], modal/form-modal-demo.vue [Core], modal/shared-data-demo.vue [Core] +3 more
+      Uses modal/typed-data-contract.ts and 5 others
 
-## L3 Standalone changes  (3 files, +38/-14)
+## L3 Then review these on their own [Standalone]  (3 files, +38/-14)
+   As these files don't import, and aren't imported by, other changed code
   - apps/web-naive/src/views/demos/form/modal.vue  [+10/-4]
-      no import links to other changed source files
+      No imports to or from other changed code
   - playground/src/views/system/dept/modules/form.vue  [+18/-7]
-      no import links to other changed source files
+      No imports to or from other changed code
   - playground/src/views/system/menu/modules/form.vue  [+10/-3]
-      no import links to other changed source files
+      No imports to or from other changed code
 
-## L4 Tests  (8 files, +182/-0)
+## L4 Now the tests [Tests]  (8 files, +182/-0)
+   As these cover the 6 files above
   - packages/@core/ui-kit/popup-ui/src/drawer/__tests__/drawer-api.test.ts  [+10/-0]
-      tests drawer/drawer-api.ts (Core): imports and is named after drawer/drawer-api.ts
+      Tests for drawer-api.ts
   - packages/@core/ui-kit/popup-ui/src/drawer/__tests__/drawer-types.test.ts  [+59/-0]
-      tests drawer/drawer.ts (Core): imports drawer/drawer.ts, drawer/use-drawer.ts
+      Tests for drawer.ts
   - packages/@core/ui-kit/popup-ui/src/modal/__tests__/modal-api.test.ts  [+10/-0]
-      tests modal/modal-api.ts (Core): imports and is named after modal/modal-api.ts
+      Tests for modal-api.ts
   - packages/@core/ui-kit/popup-ui/src/modal/__tests__/modal-types.test.ts  [+59/-0]
-      tests modal/modal.ts (Core): imports modal/modal.ts, modal/use-modal.ts
+      Tests for modal.ts
   - packages/@core/ui-kit/popup-ui/src/drawer/__tests__/fixtures/typed-drawer.vue  [+16/-0]
-      tests drawer/use-drawer.ts (Callers · level 1): imports drawer/use-drawer.ts
+      Tests for use-drawer.ts
   - packages/@core/ui-kit/popup-ui/src/drawer/__tests__/use-drawer.test.ts  [+6/-0]
-      tests drawer/use-drawer.ts (Callers · level 1): imports and is named after drawer/use-drawer.ts
+      Tests for use-drawer.ts
   - packages/@core/ui-kit/popup-ui/src/modal/__tests__/fixtures/typed-modal.vue  [+16/-0]
-      tests modal/use-modal.ts (Callers · level 1): imports modal/use-modal.ts
+      Tests for use-modal.ts
   - packages/@core/ui-kit/popup-ui/src/modal/__tests__/use-modal.test.ts  [+6/-0]
-      tests modal/use-modal.ts (Callers · level 1): imports and is named after modal/use-modal.ts
+      Tests for use-modal.ts
 
-## L5 Config, docs & assets  (6 files, +120/-14)
+## L5 Then the docs [Docs]  (6 files, +120/-14)
+   As these are docs for this change
   - docs/src/components/common-ui/vben-drawer.md  [+25/-2]
-      documentation
+      Documentation
   - docs/src/components/common-ui/vben-modal.md  [+25/-2]
-      documentation
+      Documentation
   - docs/src/demos/vben-drawer/shared-data/drawer.vue  [+10/-3]
-      inside docs/
+      Inside docs/
   - docs/src/demos/vben-modal/shared-data/modal.vue  [+10/-3]
-      inside docs/
+      Inside docs/
   - docs/src/en/components/common-ui/vben-drawer.md  [+25/-2]
-      documentation
+      Documentation
   - docs/src/en/components/common-ui/vben-modal.md  [+25/-2]
-      documentation
+      Documentation

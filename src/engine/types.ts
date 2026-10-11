@@ -74,7 +74,11 @@ export interface PlanEdge {
 export interface Layer {
   id: string;
   index: number;
+  /** When to review it, e.g. "Review this first", "Then review these", "Skim last". */
   title: string;
+  /** Short name of the layer kind, e.g. "Contracts", "Core", "Callers 2", "Tests". */
+  label: string;
+  /** Why, from real plan data, e.g. "As these files are imported by 5 other changed files". */
   description: string;
   files: LayerFile[];
   stats: { files: number; additions: number; deletions: number };

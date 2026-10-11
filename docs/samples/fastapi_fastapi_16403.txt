@@ -1,87 +1,69 @@
-gh: Not Found (HTTP 404)
 # fastapi/fastapi#16403: ✨ Add native OpenTelemetry support
-head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 48 ms
+head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 49 ms
 
-## L0 Core  (1 files, +276/-0)
+## L0 Review this first [Core]  (1 file, +276/-0)
+   As this file is imported by 5 other changed files
   - fastapi/telemetry/_api.py  [+276/-0]
-      used by fastapi/background.py, fastapi/routing.py, telemetry/__init__.py +2 more
+      Imported by background.py and 4 others
 
-## L1 Callers · level 1  (5 files, +802/-32)
+## L1 Then review these [Callers 1]  (5 files, +802/-32)
+   As these use the changes you just reviewed
   - fastapi/background.py  [+6/-0]
-      imports telemetry/_api.py [Core]
+      Uses _api.py
   - fastapi/routing.py  [+108/-32]
-      imports telemetry/_api.py [Core]; used by fastapi/applications.py
+      Uses _api.py; imported by applications.py
   - fastapi/telemetry/__init__.py  [+3/-0]
-      imports telemetry/_api.py [Core]; used by fastapi/applications.py
+      Uses _api.py; imported by applications.py
   - fastapi/telemetry/_asgi.py  [+446/-0]
-      imports telemetry/_api.py [Core]; used by fastapi/applications.py
+      Uses _api.py; imported by applications.py
   - fastapi/telemetry/_runtime.py  [+239/-0]
-      imports telemetry/_api.py [Core]
+      Uses _api.py
 
-## L2 Callers · level 2  (1 files, +65/-2)
+## L2 Review these after that [Callers 2]  (1 file, +65/-2)
+   As this file uses routing.py and 2 others from the step before
   - fastapi/applications.py  [+65/-2]
-      imports fastapi/routing.py [Callers · level 1], telemetry/__init__.py [Callers · level 1], telemetry/_asgi.py [Callers · level 1]
+      Uses routing.py and 2 others
 
-## L3 Tests  (20 files, +3792/-0)
+## L3 Now the tests [Tests]  (20 files, +3792/-0)
+   As these cover the 4 files above (13 test files have no matching changed file)
   - tests/test_telemetry/test_native_integrations.py  [+316/-0]
-      tests fastapi/routing.py (Callers · level 1): imports fastapi/routing.py, telemetry/__init__.py
+      Tests for routing.py
   - tests/test_telemetry/test_background.py  [+276/-0]
-      tests telemetry/__init__.py (Callers · level 1): imports telemetry/__init__.py
+      Tests for telemetry/__init__.py
   - tests/test_telemetry/test_data.py  [+286/-0]
-      tests telemetry/__init__.py (Callers · level 1): imports telemetry/__init__.py
+      Tests for telemetry/__init__.py
   - tests/test_telemetry/test_environment_integrations.py  [+244/-0]
-      tests telemetry/__init__.py (Callers · level 1): imports telemetry/__init__.py, telemetry/_runtime.py
+      Tests for telemetry/__init__.py
   - tests/test_telemetry/test_websockets.py  [+292/-0]
-      tests telemetry/__init__.py (Callers · level 1): imports telemetry/__init__.py
+      Tests for telemetry/__init__.py
   - tests/test_telemetry/test_http.py  [+695/-0]
-      tests telemetry/_asgi.py (Callers · level 1): imports telemetry/_asgi.py
+      Tests for _asgi.py
   - tests/test_telemetry/test_runtime.py  [+613/-0]
-      tests telemetry/_runtime.py (Callers · level 1): imports and is named after telemetry/_runtime.py
+      Tests for _runtime.py
   - tests/test_telemetry/__init__.py  [+0/-0]
-      inside a tests/ directory; no changed subject found
-  - tests/test_telemetry/_otlp.py  [+36/-0]
-      inside a tests/ directory; no changed subject found
-  - tests/test_telemetry/_subprocess.py  [+43/-0]
-      inside a tests/ directory; no changed subject found
-  - tests/test_telemetry/conftest.py  [+69/-0]
-      pytest conftest; no changed subject found
-  - tests/test_telemetry/test_exceptions.py  [+249/-0]
-      Python test file (test_*.py); no changed subject found
-  - tests/test_telemetry/test_integrations.py  [+351/-0]
-      Python test file (test_*.py); no changed subject found
-  - tests/test_telemetry/test_operations.py  [+93/-0]
-      Python test file (test_*.py); no changed subject found
-  - tests/test_telemetry/test_semantic_conventions.py  [+163/-0]
-      Python test file (test_*.py); no changed subject found
-  - tests/test_tutorial/test_opentelemetry/__init__.py  [+0/-0]
-      inside a tests/ directory; no changed subject found
-  - tests/test_tutorial/test_opentelemetry/conftest.py  [+8/-0]
-      pytest conftest; no changed subject found
-  - tests/test_tutorial/test_opentelemetry/test_tutorial001.py  [+8/-0]
-      Python test file (test_*.py); no changed subject found
-  - tests/test_tutorial/test_opentelemetry/test_tutorial002.py  [+28/-0]
-      Python test file (test_*.py); no changed subject found
-  - tests/test_tutorial/test_opentelemetry/test_tutorial003.py  [+22/-0]
-      Python test file (test_*.py); no changed subject found
+      Inside a tests/ directory, with no matching changed file
+  … 12 more
 
-## L4 Config, docs & assets  (8 files, +220/-0)
+## L4 Then config and docs [Config & docs]  (8 files, +220/-0)
+   As these are settings and docs for this change
   - docs_src/opentelemetry/tutorial001_py310.py  [+8/-0]
-      example/documentation code (top-level examples dir)
+      Example/documentation code (top-level examples dir)
   - docs_src/opentelemetry/tutorial002_py310.py  [+13/-0]
-      example/documentation code (top-level examples dir)
+      Example/documentation code (top-level examples dir)
   - docs_src/opentelemetry/tutorial003_py310.py  [+8/-0]
-      example/documentation code (top-level examples dir)
+      Example/documentation code (top-level examples dir)
   - docs/en/docs/advanced/opentelemetry.md  [+161/-0]
-      documentation
+      Documentation
   - docs/en/docs/img/tutorial/opentelemetry/image01.png  [+0/-0]
-      inside docs/
+      Inside docs/
   - docs/en/mkdocs.yml  [+1/-0]
-      configuration file
+      Configuration file
   - fastapi/.agents/skills/fastapi/SKILL.md  [+11/-0]
-      documentation
+      Documentation
   - pyproject.toml  [+18/-0]
       Python packaging/config
 
-## L5 Generated & lockfiles  (1 files, +96/-12)
+## L5 Skim last [Generated]  (1 file, +96/-12)
+   As this is a lockfile
   - uv.lock  [+96/-12]
-      dependency lockfile (uv.lock); goes with the pyproject.toml change
+      Lockfile for the pyproject.toml change
