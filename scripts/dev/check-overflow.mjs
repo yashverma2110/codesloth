@@ -2,7 +2,7 @@
 // even with very long commit messages and file names. Exit code 1 on any overflow.
 // Usage: node scripts/dev/check-overflow.mjs [--shots <dir>]
 import { build } from "esbuild";
-import puppeteer from "puppeteer-core";
+import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, mkdirSync, existsSync } from "node:fs";
 
@@ -47,7 +47,7 @@ const srv = createServer((req, res) => {
   }
 }).listen(0);
 const port = srv.address().port;
-const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let failures = 0;
@@ -67,21 +67,20 @@ for (const font of ["default", "jetbrains", "fira", "iosevka"])
   for (const size of ["small", "default", "large"])
     for (const vw of [320, 1280]) for (const data of ["real", "stress"]) cases.push({ data, vw, forced: null, theme: "light", story: "expanded", font, size });
 for (const c of cases) {
-  const p = await browser.newPage();
-  await p.setViewport({ width: c.vw, height: 900, deviceScaleFactor: 1 });
+  const p = await browser.newPage({ viewport: { width: c.vw, height: 900 }, deviceScaleFactor: 1 });
   p.on("pageerror", (e) => (console.error("pageerror", e.message), failures++));
   const pre = c.data === "stress" ? "stress-" : "";
   await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}${c.extra === "banner" ? "&stale=1" : ""}${c.font ? `&font=${c.font}&size=${c.size}` : ""}`);
   await p.waitForFunction(() => window.__ready);
   if (c.theme === "dark") await p.evaluate(() => document.documentElement.setAttribute("data-color-mode", "dark"));
   await p.evaluate(() => window.__w.toggle("bubble"));
-  await p.waitForFunction(() => window.__shadow.querySelector(".tl, .fbtn .cm"), { timeout: 5000 });
+  await p.waitForFunction(() => window.__shadow.querySelector(".tl, .fbtn .cm"), undefined, { timeout: 5000 });
   if (c.forced) await p.evaluate((w) => (window.__shadow.querySelector(".panel").style.width = w + "px"), c.forced);
   const path = c.data === "stress" ? longPath : target;
   await p.evaluate((path) => window.__w.select(path, true), path);
   if (c.story === "all") await p.evaluate(() => window.__shadow.querySelector(".tlmore").click());
   if (c.extra === "banner") {
-    await p.waitForFunction(() => window.__shadow.querySelector(".stalebar"), { timeout: 5000 });
+    await p.waitForFunction(() => window.__shadow.querySelector(".stalebar"), undefined, { timeout: 5000 });
     await p.evaluate(() => window.__shadow.querySelector('.stalebar [data-act="show"]').click());
   }
   if (c.extra === "confirm") {
@@ -93,7 +92,7 @@ for (const c of cases) {
     if (c.extra === "graph-fontpop") await p.evaluate(() => window.__shadow.querySelector("#prl-tab-graph").click());
     await p.evaluate(() => window.__shadow.querySelector(".tabbar .fontbtn").click());
   }
-  await p.evaluate(() => document.fonts.ready);
+  await p.evaluate(() => document.fonts.ready.then(() => true));
   await sleep(150);
   const fontOk = await p.evaluate((font) => {
     const fam = { jetbrains: "CodeSloth JetBrains Mono", fira: "CodeSloth Fira Code", iosevka: "CodeSloth Iosevka" }[font];

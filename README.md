@@ -300,6 +300,8 @@ flowchart LR
 
 ## Development
 
+Needs Node 20.19+ or 22.12+ and npm 10+. Debian/Ubuntu's packaged npm 9.2 crashes on install with `Cannot read properties of null (reading 'edgesOut')`; use `npx npm@10 ci` there. All dependencies are dev-only build/test tools: the extension bundle has no runtime npm dependencies (`npm audit --omit=dev` is empty), and `npm audit` reports 0 vulnerabilities as of v0.6.4.
+
 ```bash
 npm ci
 npm run typecheck     # tsc --noEmit
@@ -308,7 +310,8 @@ npm run build         # esbuild -> dist/
 npm run package       # typecheck + test + build + /workspace/codesloth.zip
 npm run analyze-pr -- go-gitea/gitea#39426   # run the engine on a real PR via `gh api` (read-only)
 npx tsx scripts/make-demo-plan.ts fastapi/fastapi#16403 src/demo/demo-plan.json   # regenerate the bundled demo plan (needs analyze-pr's .tmp cache)
-node scripts/dev/render-demo.mjs .tmp/render   # headless renders of the real widget (needs Chrome + puppeteer-core)
+node scripts/dev/render-demo.mjs .tmp/render   # headless renders of the real widget (needs Chrome + playwright-core)
+node scripts/dev/check-overflow.mjs           # headless overflow regression check (needs Chrome)
 ```
 
 Settings are in `config/extension.config.json`: content-fetch limits, the API version, and `defaultTokenOwner` to pre-fill the org on the setup page. Rebuild after editing it.

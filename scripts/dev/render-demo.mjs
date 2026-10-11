@@ -1,7 +1,7 @@
 // Render the real widget headlessly (mocked chrome.runtime, real sample plans) to PNG frames.
 // Usage: node scripts/dev/render-demo.mjs <outdir>
 import { build } from "esbuild";
-import puppeteer from "puppeteer-core";
+import { chromium } from "playwright-core";
 import { createServer } from "node:http";
 import { readFileSync, mkdirSync } from "node:fs";
 import { extname } from "node:path";
@@ -22,11 +22,10 @@ const srv = createServer((req, res) => {
   }
 }).listen(0);
 const port = srv.address().port;
-const browser = await puppeteer.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--no-sandbox", "--hide-scrollbars"] });
+const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--no-sandbox", "--hide-scrollbars"] });
 
 async function open(q, size = { width: 1280, height: 860 }) {
-  const p = await browser.newPage();
-  await p.setViewport({ ...size, deviceScaleFactor: 2 });
+  const p = await browser.newPage({ viewport: size, deviceScaleFactor: 2 });
   p.on("pageerror", (e) => console.error("pageerror", e.message));
   await p.goto(`http://localhost:${port}/?${q}`);
   await p.waitForFunction(() => window.__ready);
@@ -106,11 +105,11 @@ for (const theme of ["light", "dark"]) {
     await sleep(120);
   }
   await sh(p, () => window.__w.select("services/gitproxy/server.go", true));
-  await sh(p, () => document.fonts.ready);
+  await sh(p, () => document.fonts.ready.then(() => true));
   await p.mouse.move(5, 5);
   await shot(p, `12-font-jetbrains-${theme}`);
   await sh(p, () => window.__shadow.querySelector(".tabbar .fontbtn").click());
-  await sh(p, () => document.fonts.ready);
+  await sh(p, () => document.fonts.ready.then(() => true));
   await shot(p, `13-font-options-${theme}`);
   await p.close();
 }
