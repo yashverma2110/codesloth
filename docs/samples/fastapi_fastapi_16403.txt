@@ -1,5 +1,5 @@
 # fastapi/fastapi#16403: ✨ Add native OpenTelemetry support
-head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 50 ms
+head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 49 ms
 
 ## Step 1: Start with the core code [Core]  (1 file, +276/-0)
    5 other changed files import this.

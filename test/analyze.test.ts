@@ -62,7 +62,7 @@ describe("layer assembly", () => {
       ["Contracts", "Start with the types", "1 other changed file builds on this."],
       ["Core", "Then the core code", "2 other changed files import this."],
       ["Callers 1", "Then the code that uses it", "This uses the changes you just reviewed."],
-      ["Callers 2", "Then UserCard.vue", "This uses user.ts from step 4."],
+      ["Callers 2", "Then UserCard.vue", "This uses services/user.ts from step 4."],
       ["Callers 3", "Then Profile.tsx", "This uses UserCard.vue from step 5."],
       ["Standalone", "Then the standalone changes", "No imports to or from other changed code."],
       ["Tests", "Now the tests", "These cover 2 files above."],
@@ -126,6 +126,25 @@ describe("layer assembly", () => {
     expect(L("store/a.go").index).toBeLessThan(L("api/h.go").index);
     expect(L("api/h_test.go").files.find((f) => f.path === "api/h_test.go")!.reason).toBe("Tests for h.go (matched by name)");
     expect(L("store/a.go").description).toBe("1 other changed file imports these.");
+  });
+
+  it("names deeper steps by file, adding the folder when the file name repeats, without '(1 of 2)'", () => {
+    const p = analyze({
+      files: [
+        added("src/domain/quota.ts", "export const q = 1"),
+        added("src/repo/store.ts", "import { q } from '../domain/quota'\nexport const s = q"),
+        added("src/services/quota_allocation.ts", "import { s } from '../repo/store'\nexport const svc = s"),
+        added("src/controllers/quota_allocation.ts", "import { svc } from '../services/quota_allocation'\nexport const ctl = svc"),
+        added("src/app/http.ts", "import { ctl } from '../controllers/quota_allocation'\nexport default ctl"),
+      ],
+    });
+    const titles = p.layers.map((l) => l.title);
+    expect(titles).toContain("Then services/quota_allocation.ts");
+    expect(titles).toContain("Then controllers/quota_allocation.ts");
+    expect(titles).toContain("Then http.ts");
+    expect(titles.join("|")).not.toMatch(/of 2\)/);
+    const ctl = p.layers.find((l) => l.title === "Then controllers/quota_allocation.ts")!;
+    expect(ctl.description).toBe("This uses services/quota_allocation.ts from step 3.");
   });
 
   it("splits oversized layers by package directory", () => {

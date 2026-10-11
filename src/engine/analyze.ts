@@ -10,7 +10,7 @@ import { buildResolveContext, dirname, resolveGo, resolveJs, resolvePython } fro
 import { computeDepths } from "./graph";
 import { capitalize, contractKind, fileLabel, joinWords, isLockfile, namesList, plural } from "./copy";
 
-export const ENGINE_VERSION = "0.4.1";
+export const ENGINE_VERSION = "0.5.0";
 
 const MAX_CALLER_LEVELS = 4;
 const SPLIT_LAYER_FILES = 25;
@@ -502,6 +502,7 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
     if (!stepOfLevel.has(lv)) stepOfLevel.set(lv, i + 1);
   });
   const out: LayerCopy[] = [];
+  const allPaths = [...c.nodes.keys()];
   const area = (b: { area?: string }) => (b.area ? `In ${b.area}/. ` : "");
   const lead = (rest: string) => (started ? `Then ${rest}` : `Start with ${rest}`);
   buckets.forEach((b) => {
@@ -551,9 +552,9 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
         let because: string;
         const subj = n === 1 ? "This uses" : "These use";
         if (lvl === 1) because = `${area(b)}${subj} the changes you just reviewed.`;
-        else if (usesPrev.length && prevStep) because = `${area(b)}${subj} ${namesList(usesPrev, (p) => fileLabel(p))} from step ${prevStep}.`;
+        else if (usesPrev.length && prevStep) because = `${area(b)}${subj} ${namesList(usesPrev, (p) => fileLabel(p, allPaths))} from step ${prevStep}.`;
         else because = `${area(b)}${n === 1 ? "This builds" : "These build"} on the step before.`;
-        t = { title: lvl === 1 ? "Then the code that uses it" : callerTitle(b.files), label: `Callers ${lvl}${b.area ? ` · ${b.area}` : ""}`, because };
+        t = { title: lvl === 1 ? "Then the code that uses it" : callerTitle(b.files, allPaths), label: `Callers ${lvl}${b.area ? ` · ${b.area}` : ""}`, because };
         started = true;
         break;
       }
@@ -569,7 +570,7 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
         const still = [...new Set(b.files.flatMap((p) => [...(c.removedUsers.get(p) ?? [])]))];
         const unknown = b.files.filter((p) => c.removedUnverifiable.has(p)).length;
         let because: string;
-        if (still.length) because = `Still imported by ${namesList(still, (p) => fileLabel(p))}; check ${still.length === 1 ? "it" : "them"}.`;
+        if (still.length) because = `Still imported by ${namesList(still, (p) => fileLabel(p, allPaths))}; check ${still.length === 1 ? "it" : "them"}.`;
         else if (!unknown) because = "Nothing changed still imports this code.";
         else if (unknown === n) because = n === 1 ? "Its Go package still exists, so check nothing still uses it." : "Their Go packages still exist, so check nothing still uses them.";
         else because = `Nothing changed imports this code, but ${plural(unknown, "file")} came from ${unknown === 1 ? "a Go package that still exists" : "Go packages that still exist"}.`;
@@ -604,7 +605,15 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
     }
     out.push(t);
   });
-  // No two steps in a row with the same heading: number repeats ("… (2 of 3)").
+  // Same heading twice: first try longer folder names, then number repeats ("… (2 of 3)").
+  const callers = buckets.map((b) => b.kind === "caller" && (b.level ?? 1) > 1);
+  for (let i = 0; i < out.length; i++) {
+    if (!callers[i]) continue;
+    const clash = out.some((o, j) => j !== i && o.title === out[i].title);
+    if (!clash) continue;
+    const longer = callerTitle(buckets[i].files, allPaths, true);
+    if (longer !== "Then the code built on that" && !out.some((o, j) => j !== i && o.title === longer)) out[i] = { ...out[i], title: longer };
+  }
   for (let i = 0; i < out.length; ) {
     let j = i;
     while (j + 1 < out.length && out[j + 1].title === out[i].title) j++;
@@ -620,17 +629,18 @@ const GENERIC_DIR = new Set(["src", "lib", "app", "pkg", "internal", "cmd", "sou
  * Deeper callers are named after what they are: one file ("Then app.py"), one or two folders
  * ("Then services/", "Then routers/ and models/"); otherwise "Then the code built on that".
  */
-function callerTitle(files: string[]): string {
+function callerTitle(files: string[], allPaths: readonly string[] = [], deeper = false): string {
   const fallback = "Then the code built on that";
   if (files.length === 1) {
-    const name = files[0].slice(files[0].lastIndexOf("/") + 1);
-    return name.length <= 30 ? `Then ${name}` : fallback;
+    // A file name that exists elsewhere in the PR gets its folder: "Then services/quota_allocation.go".
+    const name = deeper ? files[0].split("/").slice(-3).join("/") : fileLabel(files[0], allPaths);
+    return name.length <= 40 ? `Then ${name}` : fallback;
   }
   const dirName = (p: string) => {
     const segs = p.split("/").slice(0, -1);
     if (!segs.length) return "";
-    let tail = segs.slice(-1);
-    if (GENERIC_DIR.has(tail[0]) && segs.length > 1) tail = segs.slice(-2);
+    let tail = segs.slice(deeper ? -2 : -1);
+    if (GENERIC_DIR.has(tail[0]) && segs.length > tail.length) tail = segs.slice(-(tail.length + 1));
     return tail.join("/") + "/";
   };
   const dirs = [...new Set(files.map(dirName))];

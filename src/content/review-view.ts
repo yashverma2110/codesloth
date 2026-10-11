@@ -1,5 +1,6 @@
 /** The Review tab as a checklist of numbered steps with per-file review (see docs/images/review-demo.png). */
 import type { Layer, LayerFile, LayerPlan } from "../engine/types";
+import { authored, fileStory, relTime, stepCommits, storyActive, type CommitHistory } from "../shared/history";
 import { ctaTarget, currentStep, fileReview, groupByFolder, isLastUnreviewed, layerReview, summarize, type ReviewState } from "./review-logic";
 
 export interface ReviewHandlers {
@@ -9,6 +10,11 @@ export interface ReviewHandlers {
   selected: string | null;
   /** Files whose GitHub "Viewed" sync failed: path -> tooltip. */
   unsynced?: ReadonlyMap<string, string>;
+  /** Commit story (null while loading / unavailable / demo without data). */
+  history?: CommitHistory | null;
+  /** Link for a commit on github.com. */
+  commitUrl?: (sha: string) => string;
+  now?: number;
   onSelect(path: string): void;
   onToggleFile(file: LayerFile, reviewed: boolean): void;
   onToggleStep(layer: Layer, reviewed: boolean): void;
@@ -35,8 +41,56 @@ export const STATUS_LABEL: Record<string, string> = {
 const statusClass = (s: LayerFile["status"]) => (s === "added" ? "new" : s === "removed" ? "del" : s === "renamed" || s === "copied" ? "ren" : "mod");
 const files = (n: number) => `${n} file${n === 1 ? "" : "s"}`;
 
+const commits = (n: number) => `${n} commit${n === 1 ? "" : "s"}`;
+
+function chip(text: string, title: string, cls = "") {
+  return el("span", { class: `chip ${cls}`.trim(), title }, text);
+}
+
+/** "Touched in X of Y commits" with one dot per commit. */
+function stepStory(hist: CommitHistory, paths: string[]): HTMLElement {
+  const own = authored(hist);
+  const hit = new Set(stepCommits(hist, paths));
+  const x = own.filter((i) => hit.has(i)).length;
+  const capped = hist.commits.length < hist.totalCommits;
+  const text = capped ? `Touched in ${x} of the latest ${own.length} commits (PR has ${hist.totalCommits})` : `Touched in ${x} of ${commits(own.length)}`;
+  const line = el("p", { class: "story", title: hist.notes[0] ?? text }, el("span", { class: "ico", "aria-hidden": "true" }, "⎇"), text);
+  if (own.length <= 20) {
+    const dots = el("span", { class: "sdots", "aria-hidden": "true" });
+    for (const i of own) dots.append(el("i", { class: hit.has(i) ? "on" : "", title: hist.commits[i].message }));
+    line.append(dots);
+  }
+  return line;
+}
+
+/** Mini timeline of one file's commits, oldest -> newest. */
+function timeline(hist: CommitHistory, f: LayerFile & { name: string }, h: ReviewHandlers): HTMLElement {
+  const story = fileStory(hist, f.path);
+  const ol = el("ol", { class: "tl", "aria-label": `Commits that changed ${f.name}, oldest first` });
+  for (const t of story.touches) {
+    const c = t.commit;
+    const who = c.name ?? c.login ?? "unknown author";
+    const meta = el(
+      "div",
+      { class: "tm" },
+      el("span", { class: "av", title: c.login && c.name ? `${c.name} (@${c.login})` : who, "aria-label": who }, c.initials),
+      el("span", {}, relTime(c.date, h.now)),
+      el("span", { class: "add" }, `+${t.additions}`),
+      el("span", { class: "del" }, `−${t.deletions}`),
+    );
+    if (h.commitUrl) meta.append(el("a", { class: "sha", href: h.commitUrl(c.sha), target: "_blank", rel: "noopener", title: "Open this commit on GitHub" }, c.sha.slice(0, 7)));
+    else meta.append(el("span", { class: "sha" }, c.sha.slice(0, 7)));
+    if (t.newest) meta.append(chip("newest", "The PR's newest commit", "plain"));
+    if (t.afterReview) meta.append(chip("After review", "This commit message looks like a review follow-up (fixup!, address comments, review feedback, nit…)"));
+    if (t.as) meta.append(chip(`as ${t.as.slice(t.as.lastIndexOf("/") + 1)}`, `This file was ${t.as} in this commit`, "plain"));
+    ol.append(el("li", { class: "tc" + (t.newest ? " newest" : "") }, el("div", { class: "tmsg", title: c.message }, c.message), meta));
+  }
+  return el("div", { class: "tlwrap" }, ol);
+}
+
 export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandlers): HTMLElement {
   const root = el("div", { class: "review" });
+  const hist = storyActive(h.history) ? h.history : null;
   const sum = summarize(plan, state);
   if (sum.totalFiles && sum.reviewedFiles === sum.totalFiles) {
     root.append(el("div", { class: "alldone", role: "status" }, el("span", { class: "ok", "aria-hidden": "true" }, "✓"), `All ${files(sum.totalFiles)} reviewed`));
@@ -77,6 +131,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
       if (lr.changed.length) {
         body.append(el("p", { class: "flag", role: "status", "data-tour": "changed" }, `⚠ ${lr.changed.length === 1 ? "1 file changed" : `${lr.changed.length} files changed`} since you reviewed it.`));
       }
+      if (hist) body.append(stepStory(hist, l.files.map((f) => f.path)));
       const max = Math.max(1, ...l.files.map((f) => f.additions));
       for (const g of groupByFolder(l.files)) {
         if (g.dir) body.append(el("div", { class: "folder", title: g.dir }, g.dir));
@@ -85,6 +140,9 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
           const fr = fileReview(state, f);
           const sel = h.selected === f.path;
           const unsync = h.unsynced?.get(f.path);
+          const story = hist ? fileStory(hist, f.path) : null;
+          const n = story?.touches.length ?? 0;
+          const latest = n ? story!.touches[n - 1].commit : null;
           const st = STATUS_LABEL[f.status] ?? "Modified";
           const stTitle = f.previousPath ? `${st} from ${f.previousPath}` : st;
           const bar = el("span", { class: "bar", "aria-hidden": "true" });
@@ -99,21 +157,25 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
               type: "button",
               class: "fbtn",
               "data-path": f.path,
-              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? ", changed since reviewed" : ""}${unsync ? ", not synced with GitHub Viewed" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}`,
+              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? ", changed since reviewed" : ""}${unsync ? ", not synced with GitHub Viewed" : ""}${n ? `, ${commits(n)}` : ""}${story?.afterReview ? ", after review" : ""}${story?.lateChange ? ", late change" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}${latest ? `. Latest commit: ${latest.message}, ${relTime(latest.date, h.now)}` : ""}`,
               ...(sel ? { "aria-current": "true" } : {}),
             },
             icon,
             el("span", { class: "fname" }, f.name),
             fr === "changed" ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
             unsync ? el("span", { class: "unsync", title: unsync, "aria-hidden": "true" }, "⊘") : "",
+            n ? el("span", { class: "cm", title: story!.touches.map((t) => t.commit.message).join("\n") }, commits(n)) : "",
+            story?.afterReview ? chip("After review", "A commit that changed this file looks like a review follow-up") : "",
+            story?.lateChange ? chip("Late change", "Only changed in the PR's newest commit", "dash") : "",
             el("span", { class: "nums" }, bar, el("span", { class: "add" }, `+${f.additions}`), f.deletions > 0 ? el("span", { class: "del" }, `−${f.deletions}`) : ""),
-            el("span", { class: "reason" }, f.reason),
+            el("span", { class: "reason" }, el("span", { class: "rtext" }, f.reason), latest ? el("span", { class: "latest" }, el("i", {}, "Latest: "), `${latest.message} · ${relTime(latest.date, h.now)}`) : ""),
           );
           btn.addEventListener("click", () => h.onSelect(f.path));
           const ft = el("input", { type: "checkbox", class: "ftick", "data-path": f.path, title: fr === "reviewed" ? "Unmark reviewed" : "Mark reviewed", "aria-label": `Mark ${f.name} reviewed` }) as HTMLInputElement;
           ft.checked = fr === "reviewed";
           ft.addEventListener("change", () => h.onToggleFile(f, ft.checked));
           const row = el("li", { class: ["file", sel ? "sel" : "", fr === "reviewed" ? "rev" : "", fr === "changed" ? "chg" : ""].filter(Boolean).join(" ") }, btn, ft);
+          if (sel && hist && n) row.append(timeline(hist, f, h));
           if (!root.querySelector('[data-tour="file"]') && !body.querySelector('[data-tour="file"]')) row.setAttribute("data-tour", "file");
           ul.append(row);
         }

@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const calls: { type: string; [k: string]: unknown }[] = [];
 let stored: unknown = null;
 let prefs: Record<string, unknown> = {};
+const ONE = { version: 1, totalCommits: 1, commits: [{ sha: "c0", message: "only", initials: "YV", date: "2026-10-09T11:19:00Z" }], files: { "src/a.ts": [{ c: 0, additions: 2, deletions: 0 }] }, notes: [] };
+let history: unknown = ONE;
 const replies: Record<string, (m: any) => unknown> = {
   "auth:status": () => ({ method: "pat", login: "yash" }),
   "widget:getPosition": () => stored,
@@ -13,6 +15,7 @@ const replies: Record<string, (m: any) => unknown> = {
   "prefs:get": (m) => prefs[m.key] ?? null,
   "prefs:set": (m) => ((prefs[m.key] = m.value), true),
   "graph:openTab": () => true,
+  "history:get": () => history,
   analyze: () => ({
     pr: { owner: "o", repo: "r", number: 7 },
     meta: { title: "Big change", headSha: "abcdef1234", baseSha: "b", changedFiles: 2, additions: 3, deletions: 1, htmlUrl: "", state: "open" },
@@ -420,7 +423,7 @@ describe("Widget (DOM)", () => {
     await vi.waitFor(() => expect(s.querySelector('.fbtn[data-path="src/ui/b.ts"] .unsync')).not.toBeNull(), { timeout: 6000 });
     expect(s.querySelector('.fbtn[data-path="src/ui/b.ts"] .unsync')!.getAttribute("title")).toMatch(/Not synced/);
     // never any write API from the extension
-    expect(calls.every((c) => ["widget:getPosition", "auth:status", "analyze", "reviewed:get", "reviewed:set", "prefs:get", "prefs:set"].includes(c.type))).toBe(true);
+    expect(calls.every((c) => ["widget:getPosition", "auth:status", "analyze", "history:get", "reviewed:get", "reviewed:set", "prefs:get", "prefs:set"].includes(c.type))).toBe(true);
     f.remove();
     delete prefs.syncViewed;
   }, 10000);
@@ -443,5 +446,100 @@ describe("Widget (DOM)", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(cb.checked).toBe(false);
     f.remove();
+  });
+
+  it("commit story: counts, latest line, chips, step line and a timeline for the selected file; loaded after the plan", async () => {
+    history = {
+      version: 1,
+      totalCommits: 3,
+      commits: [
+        { sha: "aaaaaaa1", message: "feat: add a", login: "yv", name: "Yash Verma", initials: "YV", date: "2026-10-09T11:19:00Z" },
+        { sha: "bbbbbbb2", message: "Address review comments", login: "yv", name: "Yash Verma", initials: "YV", date: "2026-10-10T11:19:00Z" },
+        { sha: "ccccccc3", message: "refactor: rename", login: "yv", name: "Yash Verma", initials: "YV", date: "2026-10-11T10:11:29Z" },
+      ],
+      files: {
+        "src/a.ts": [{ c: 0, additions: 2, deletions: 0 }, { c: 1, additions: 1, deletions: 1 }, { c: 2, additions: 3, deletions: 3 }],
+        "src/ui/b.ts": [{ c: 2, additions: 1, deletions: 3 }],
+        "src/ui/c.ts": [{ c: 0, additions: 0, deletions: 4 }],
+      },
+      notes: [],
+    };
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelector(".fbtn .cm")).not.toBeNull());
+    const hc = calls.find((c) => c.type === "history:get") as any;
+    expect(hc.headSha).toBe("abcdef1234");
+    expect(hc.paths).toEqual(["src/a.ts", "src/ui/b.ts", "src/ui/c.ts"]);
+    expect(calls.findIndex((c) => c.type === "history:get")).toBeGreaterThan(calls.findIndex((c) => c.type === "analyze"));
+    const a = s.querySelector('.fbtn[data-path="src/a.ts"]')!;
+    expect(a.querySelector(".cm")!.textContent).toBe("3 commits");
+    expect([...a.querySelectorAll(".chip")].map((c) => c.textContent)).toEqual(["After review"]);
+    expect(a.querySelector(".latest")!.textContent).toMatch(/^Latest: refactor: rename · /);
+    expect(a.getAttribute("aria-label")).toContain("3 commits");
+    expect(s.querySelector(".step.open .story")!.textContent).toMatch(/Touched in 3 of 3 commits/);
+    expect(s.querySelectorAll(".step.open .sdots i.on")).toHaveLength(3);
+    expect(s.querySelector(".tl")).toBeNull(); // only for the selected file
+    (a as HTMLButtonElement).click();
+    const items = [...s.querySelectorAll(".tl .tc")];
+    expect(items.map((i) => i.querySelector(".tmsg")!.textContent)).toEqual(["feat: add a", "Address review comments", "refactor: rename"]);
+    expect(items[2].classList.contains("newest")).toBe(true);
+    expect(items[2].textContent).toContain("newest");
+    expect(items[1].textContent).toContain("After review");
+    const link = items[0].querySelector("a.sha") as HTMLAnchorElement;
+    expect(link.textContent).toBe("aaaaaaa");
+    expect(link.getAttribute("href")).toBe("https://github.com/o/r/pull/7/commits/aaaaaaa1");
+    expect(items[0].querySelector(".av")!.textContent).toBe("YV");
+    // step 2: b.ts only in the newest commit -> Late change
+    (s.querySelectorAll(".sh")[1] as HTMLButtonElement).click();
+    const b = s.querySelector('.fbtn[data-path="src/ui/b.ts"]')!;
+    expect(b.querySelector(".cm")!.textContent).toBe("1 commit");
+    expect([...b.querySelectorAll(".chip")].map((c) => c.textContent)).toEqual(["Late change"]);
+    history = ONE;
+  });
+
+  it("single-commit PRs hide the commit story; a failure only shows a note in the ⋯ menu", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(calls.some((c) => c.type === "history:get")).toBe(true));
+    (s.querySelector('.fbtn[data-path="src/a.ts"]') as HTMLButtonElement).click();
+    expect(s.querySelector(".cm, .story, .tl, .latest")).toBeNull();
+    w.unmount();
+    document.getElementById("pr-layers-widget-host")?.remove();
+    replies["history:get"] = () => {
+      throw new Error("rate limited");
+    };
+    const w2 = new Widget();
+    await w2.mount();
+    w2.setPr({ owner: "o", repo: "r", number: 8 });
+    w2.toggle("bubble");
+    const s2 = shadowOf();
+    await vi.waitFor(() => expect(s2.querySelectorAll("li.file").length).toBeGreaterThan(0));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(s2.querySelector(".cm, .story, .tl")).toBeNull();
+    (s2.querySelector(".hdr .icon") as HTMLButtonElement).click();
+    expect(s2.querySelector(".menu")!.textContent).toContain("Commit story unavailable: rate limited");
+    replies["history:get"] = () => history;
+  });
+
+  it("demo mode bundles a real commit story (fastapi/fastapi#16403)", async () => {
+    replies["auth:status"] = () => ({ method: "none" });
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelector(".setup")).not.toBeNull());
+    w.loadDemo(false);
+    expect(s.querySelector(".step.open .story")!.textContent).toMatch(/Touched in 1 of 5 commits/);
+    w.select("tests/test_telemetry/test_runtime.py");
+    expect(s.querySelectorAll(".tl .tc")).toHaveLength(3);
+    expect(calls.some((c) => c.type === "history:get")).toBe(false);
+    replies["auth:status"] = () => ({ method: "pat", login: "yash" });
   });
 });

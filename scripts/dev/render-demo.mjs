@@ -75,11 +75,13 @@ for (const theme of ["light", "dark"]) {
   await sleep(200);
   await sh(p, () => window.__w.loadDemo(false));
   await sleep(200);
-  // "Mark file as reviewed & next" twice: finishes step 1, then reviews background.py and selects routing.py
-  for (let i = 0; i < 2; i++) {
+  // Steps 1-3 reviewed, then a test file selected mid-step to show its commit story timeline
+  for (let i = 0; i < 7; i++) {
     await sh(p, () => window.__shadow.querySelector(".step.open .next").click());
-    await sleep(200);
+    await sleep(120);
   }
+  await sh(p, () => window.__w.select("tests/test_telemetry/test_runtime.py"));
+  await sleep(250);
   await p.mouse.move(5, 5);
   await shot(p, `09-review-next-${theme}`);
   await p.close();

@@ -1,0 +1,360 @@
+{
+ "version": 1,
+ "totalCommits": 6,
+ "commits": [
+  {
+   "sha": "5e21cbcf13e3d1fbad6dfe417e525478b35fc969",
+   "message": "✨ Add native OpenTelemetry support",
+   "login": "tiangolo",
+   "name": "Sebastián Ramírez",
+   "initials": "SR",
+   "date": "2026-09-26T05:07:26Z"
+  },
+  {
+   "sha": "9a5dc418b781cfd83cc60f343d3752c6f8f1a2fa",
+   "message": "✅ Fix telemetry collector DNS lookups in tests",
+   "login": "tiangolo",
+   "name": "Sebastián Ramírez",
+   "initials": "SR",
+   "date": "2026-09-26T13:24:36Z"
+  },
+  {
+   "sha": "1bbc0339cdf64f752e0d3ab4dcb293327fbf938d",
+   "message": "✅ Complete telemetry test coverage",
+   "login": "tiangolo",
+   "name": "Sebastián Ramírez",
+   "initials": "SR",
+   "date": "2026-09-26T13:35:34Z"
+  },
+  {
+   "sha": "808b698620fa47dc6a7ca138ca247e5ae97f70a2",
+   "message": "Merge branch 'master' into codex/native-opentelemetry-support",
+   "login": "tiangolo",
+   "name": "Sebastián Ramírez",
+   "initials": "SR",
+   "date": "2026-09-29T14:10:33Z",
+   "merge": true
+  },
+  {
+   "sha": "38bd00fdf4ba52df11f7a8e110d2865aebf388ac",
+   "message": "📝 Document native OpenTelemetry in the FastAPI skill",
+   "login": "tiangolo",
+   "name": "Sebastián Ramírez",
+   "initials": "SR",
+   "date": "2026-09-29T16:10:56Z"
+  },
+  {
+   "sha": "daba280d4c82235edc81621ddb869b5bf3879198",
+   "message": "📝 Add FastAPI Cloud metrics screenshot to OpenTelemetry docs",
+   "login": "tiangolo",
+   "name": "Sebastián Ramírez",
+   "initials": "SR",
+   "date": "2026-09-29T17:14:14Z"
+  }
+ ],
+ "files": {
+  "fastapi/telemetry/_api.py": [
+   {
+    "c": 0,
+    "additions": 276,
+    "deletions": 0
+   }
+  ],
+  "fastapi/background.py": [
+   {
+    "c": 0,
+    "additions": 6,
+    "deletions": 0
+   }
+  ],
+  "fastapi/routing.py": [
+   {
+    "c": 0,
+    "additions": 108,
+    "deletions": 32
+   }
+  ],
+  "fastapi/telemetry/__init__.py": [
+   {
+    "c": 0,
+    "additions": 3,
+    "deletions": 0
+   }
+  ],
+  "fastapi/telemetry/_asgi.py": [
+   {
+    "c": 0,
+    "additions": 446,
+    "deletions": 0
+   }
+  ],
+  "fastapi/telemetry/_runtime.py": [
+   {
+    "c": 0,
+    "additions": 239,
+    "deletions": 0
+   }
+  ],
+  "fastapi/applications.py": [
+   {
+    "c": 0,
+    "additions": 65,
+    "deletions": 2
+   }
+  ],
+  "tests/test_telemetry/test_native_integrations.py": [
+   {
+    "c": 0,
+    "additions": 315,
+    "deletions": 0
+   },
+   {
+    "c": 2,
+    "additions": 6,
+    "deletions": 5
+   }
+  ],
+  "tests/test_telemetry/test_background.py": [
+   {
+    "c": 0,
+    "additions": 276,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/test_data.py": [
+   {
+    "c": 0,
+    "additions": 285,
+    "deletions": 0
+   },
+   {
+    "c": 2,
+    "additions": 3,
+    "deletions": 2
+   }
+  ],
+  "tests/test_telemetry/test_environment_integrations.py": [
+   {
+    "c": 0,
+    "additions": 244,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/test_websockets.py": [
+   {
+    "c": 0,
+    "additions": 289,
+    "deletions": 0
+   },
+   {
+    "c": 2,
+    "additions": 8,
+    "deletions": 5
+   }
+  ],
+  "tests/test_telemetry/test_http.py": [
+   {
+    "c": 0,
+    "additions": 695,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/test_runtime.py": [
+   {
+    "c": 0,
+    "additions": 607,
+    "deletions": 0
+   },
+   {
+    "c": 1,
+    "additions": 15,
+    "deletions": 2
+   },
+   {
+    "c": 2,
+    "additions": 12,
+    "deletions": 19
+   }
+  ],
+  "tests/test_telemetry/__init__.py": [
+   {
+    "c": 0,
+    "additions": 0,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/_otlp.py": [
+   {
+    "c": 0,
+    "additions": 28,
+    "deletions": 0
+   },
+   {
+    "c": 1,
+    "additions": 9,
+    "deletions": 1
+   }
+  ],
+  "tests/test_telemetry/_subprocess.py": [
+   {
+    "c": 0,
+    "additions": 43,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/conftest.py": [
+   {
+    "c": 0,
+    "additions": 69,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/test_exceptions.py": [
+   {
+    "c": 0,
+    "additions": 249,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/test_integrations.py": [
+   {
+    "c": 0,
+    "additions": 349,
+    "deletions": 0
+   },
+   {
+    "c": 2,
+    "additions": 5,
+    "deletions": 3
+   }
+  ],
+  "tests/test_telemetry/test_operations.py": [
+   {
+    "c": 0,
+    "additions": 93,
+    "deletions": 0
+   }
+  ],
+  "tests/test_telemetry/test_semantic_conventions.py": [
+   {
+    "c": 0,
+    "additions": 163,
+    "deletions": 0
+   }
+  ],
+  "tests/test_tutorial/test_opentelemetry/__init__.py": [
+   {
+    "c": 0,
+    "additions": 0,
+    "deletions": 0
+   }
+  ],
+  "tests/test_tutorial/test_opentelemetry/conftest.py": [
+   {
+    "c": 0,
+    "additions": 10,
+    "deletions": 0
+   },
+   {
+    "c": 2,
+    "additions": 3,
+    "deletions": 5
+   }
+  ],
+  "tests/test_tutorial/test_opentelemetry/test_tutorial001.py": [
+   {
+    "c": 0,
+    "additions": 8,
+    "deletions": 0
+   }
+  ],
+  "tests/test_tutorial/test_opentelemetry/test_tutorial002.py": [
+   {
+    "c": 0,
+    "additions": 28,
+    "deletions": 0
+   }
+  ],
+  "tests/test_tutorial/test_opentelemetry/test_tutorial003.py": [
+   {
+    "c": 0,
+    "additions": 22,
+    "deletions": 0
+   }
+  ],
+  "docs_src/opentelemetry/tutorial001_py310.py": [
+   {
+    "c": 0,
+    "additions": 8,
+    "deletions": 0
+   }
+  ],
+  "docs_src/opentelemetry/tutorial002_py310.py": [
+   {
+    "c": 0,
+    "additions": 13,
+    "deletions": 0
+   }
+  ],
+  "docs_src/opentelemetry/tutorial003_py310.py": [
+   {
+    "c": 0,
+    "additions": 8,
+    "deletions": 0
+   }
+  ],
+  "docs/en/docs/advanced/opentelemetry.md": [
+   {
+    "c": 0,
+    "additions": 157,
+    "deletions": 0
+   },
+   {
+    "c": 5,
+    "additions": 9,
+    "deletions": 5
+   }
+  ],
+  "docs/en/docs/img/tutorial/opentelemetry/image01.png": [
+   {
+    "c": 5,
+    "additions": 0,
+    "deletions": 0
+   }
+  ],
+  "docs/en/mkdocs.yml": [
+   {
+    "c": 0,
+    "additions": 1,
+    "deletions": 0
+   }
+  ],
+  "fastapi/.agents/skills/fastapi/SKILL.md": [
+   {
+    "c": 4,
+    "additions": 11,
+    "deletions": 0
+   }
+  ],
+  "pyproject.toml": [
+   {
+    "c": 0,
+    "additions": 18,
+    "deletions": 0
+   },
+   {
+    "c": 2,
+    "additions": 1,
+    "deletions": 1
+   }
+  ],
+  "uv.lock": [
+   {
+    "c": 0,
+    "additions": 96,
+    "deletions": 12
+   }
+  ]
+ },
+ "notes": []
+}

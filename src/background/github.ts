@@ -1,6 +1,7 @@
 import config from "../../config/extension.config.json";
 import type { PRFile } from "../engine/types";
 import type { PRMeta, PRRef } from "../shared/messages";
+import { MAX_LISTED_COMMITS, type RawCommit, type RawCommitFile } from "../shared/history";
 
 const API = "https://api.github.com";
 export const MAX_PR_FILES = 3000; // documented cap of GET /pulls/{n}/files
@@ -109,6 +110,7 @@ export class GitHubClient {
         deletions: j.deletions,
         htmlUrl: j.html_url,
         state: j.merged_at ? "merged" : j.state,
+        commits: typeof j.commits === "number" ? j.commits : undefined,
       },
     };
   }
@@ -125,6 +127,31 @@ export class GitHubClient {
       if (!hasNext || batch.length < 100) return { files, truncated: false };
     }
     return { files, truncated: true };
+  }
+
+  /** PR commits, oldest first. GitHub lists at most 250 (100 per page). */
+  async listPrCommits(pr: PRRef): Promise<RawCommit[]> {
+    const out: RawCommit[] = [];
+    for (let page = 1; page <= Math.ceil(MAX_LISTED_COMMITS / 100); page++) {
+      const res = await this.request(`/repos/${pr.owner}/${pr.repo}/pulls/${pr.number}/commits?per_page=100&page=${page}`);
+      const batch = (await res.json()) as RawCommit[];
+      out.push(...batch);
+      if (!/rel="next"/.test(res.headers.get("link") ?? "") || batch.length < 100) break;
+    }
+    return out.slice(0, MAX_LISTED_COMMITS);
+  }
+
+  /** A commit's changed files (paginated; GitHub caps a commit's file list at 3000). */
+  async getCommitFiles(pr: PRRef, sha: string): Promise<RawCommitFile[]> {
+    const out: RawCommitFile[] = [];
+    for (let page = 1; page <= 30; page++) {
+      const res = await this.request(`/repos/${pr.owner}/${pr.repo}/commits/${sha}?per_page=100&page=${page}`);
+      const j = (await res.json()) as { files?: RawCommitFile[] };
+      const batch = j.files ?? [];
+      for (const f of batch) out.push({ filename: f.filename, status: f.status, previous_filename: f.previous_filename, additions: f.additions, deletions: f.deletions });
+      if (!/rel="next"/.test(res.headers.get("link") ?? "") || batch.length === 0) break;
+    }
+    return out;
   }
 
   /** Raw file contents at a ref, or undefined if missing / too large. */

@@ -8,6 +8,10 @@ import { parsePrUrl } from "../shared/pr-url";
 import { clearToken, getStatus, getToken, saveToken, validateToken } from "./auth";
 import { analysisKey, cacheClear, cacheGet, cachePut } from "./cache";
 import { GitHubClient, GitHubError, pool } from "./github";
+import { fetchHistory } from "./history-fetch";
+import type { CommitHistory } from "../shared/history";
+
+const HISTORY_VERSION = 1;
 
 const client = new GitHubClient(getToken);
 const ONBOARDING = "onboarding.html";
@@ -213,6 +217,14 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
       if (!PREF_KEYS.includes(msg.key)) throw new Error("Unknown preference");
       await chrome.storage.local.set({ [`pref.${msg.key}`]: msg.value });
       return true;
+    case "history:get": {
+      const key = `history:${HISTORY_VERSION}:${analysisKey(msg.pr.owner, msg.pr.repo, msg.pr.number, msg.headSha)}`;
+      const hit = await cacheGet<CommitHistory>("analysis", key);
+      if (hit) return hit;
+      const h = await fetchHistory(client, msg.pr, msg.paths, { totalCommits: msg.commits, concurrency: config.contentFetchConcurrency });
+      await cachePut("analysis", key, h);
+      return h;
+    }
     case "graph:openTab": {
       const q = new URLSearchParams({ owner: msg.pr.owner, repo: msg.pr.repo, number: String(msg.pr.number) });
       if (msg.headSha) q.set("sha", msg.headSha);

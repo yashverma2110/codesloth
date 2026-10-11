@@ -15,6 +15,8 @@ export interface PRMeta {
   deletions: number;
   htmlUrl: string;
   state: string;
+  /** Number of commits on the PR (GitHub's count). */
+  commits?: number;
 }
 
 export interface AnalyzeResult {
@@ -34,6 +36,7 @@ export type Request =
   | { type: "widget:getPosition" }
   | { type: "widget:setPosition"; position: { side: "left" | "right"; top: number } }
   | { type: "reviewed:get"; key: string }
+  | { type: "history:get"; pr: PRRef; headSha: string; commits?: number; paths: string[] }
   | { type: "reviewed:set"; key: string; value: unknown }
   | { type: "prefs:get"; key: PrefKey }
   | { type: "prefs:set"; key: PrefKey; value: unknown }
@@ -91,6 +94,7 @@ export const CONTENT_ALLOWED: ReadonlySet<Request["type"]> = new Set([
   "prefs:get",
   "prefs:set",
   "graph:openTab",
+  "history:get",
 ]);
 
 /** Decide whether a message sender may make a request. Pure for testing. */

@@ -1,5 +1,5 @@
 # go-gitea/gitea#39426: fix(git)!: use internal proxy for all git operations
-head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 53 ms
+head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 42 ms
 
 ## Step 1: Start with the core code [Core]  (2 files, +712/-0)
    5 other changed files import these.

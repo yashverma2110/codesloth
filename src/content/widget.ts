@@ -12,6 +12,8 @@ import type { LayerFile } from "../engine/types";
 import { renderReview } from "./review-view";
 import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
 import demoData from "../demo/demo-plan.json";
+import demoHistory from "../demo/demo-history.json";
+import type { CommitHistory } from "../shared/history";
 import {
   BUBBLE,
   bubbleLeft,
@@ -33,6 +35,7 @@ import {
 export const HOST_ID = "pr-layers-widget-host";
 export type View = "review" | "graph";
 const DEMO = demoData as unknown as AnalyzeResult;
+const DEMO_HISTORY = demoHistory as unknown as CommitHistory;
 
 /** Talk to the background worker. The token never comes back to the page side. */
 async function rpc<T>(req: Request): Promise<T> {
@@ -94,6 +97,10 @@ export class Widget {
   private syncOn = false;
   /** Files whose GitHub Viewed state couldn't be synced: path -> tooltip. */
   private unsynced = new Map<string, string>();
+  /** Commit story for the current result; loaded lazily after the plan renders. */
+  private history: CommitHistory | null = null;
+  private historyKey = "";
+  private historyNote: string | null = null;
   private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
@@ -315,6 +322,8 @@ export class Widget {
       if (res.rate) meta.push(el("div", { class: "meta" }, `GitHub API ${fmt(res.rate.remaining)} / ${fmt(res.rate.limit)} left`));
       meta.push(el("div", { class: "meta" }, `${fmt(res.plan.stats.files)} files · +${fmt(res.plan.stats.additions)} / −${fmt(res.plan.stats.deletions)} lines`));
       for (const w of res.plan.warnings) meta.push(el("div", { class: "meta warn" }, "⚠ " + w));
+      if (this.historyNote) meta.push(el("div", { class: "meta" }, this.historyNote));
+      for (const n of this.history?.notes ?? []) meta.push(el("div", { class: "meta" }, `Commit story: ${n}`));
     }
     this.menu.replaceChildren(
       item(this.demo ? "Reload demo" : "Re-analyze", () => (this.demo ? this.loadDemo() : void this.analyze(true))),
@@ -427,6 +436,7 @@ export class Widget {
       this.review = normalizeReviewState(await rpc({ type: "reviewed:get", key: prKey(res.pr) }).catch(() => ({})));
       this.renderAll();
       void this.maybeAutoTour();
+      void this.loadHistory(res);
     } catch (e) {
       const err = e as Error & { code?: string };
       if (err.code === "no_token" || err.code === "unauthorized") this.renderSetup();
@@ -440,6 +450,9 @@ export class Widget {
   loadDemo(withTour = false) {
     this.demo = true;
     this.result = DEMO;
+    this.history = DEMO_HISTORY;
+    this.historyNote = null;
+    this.historyKey = "demo";
     const core = DEMO.plan.layers.find((l) => l.id === "core") ?? DEMO.plan.layers[0];
     // Pretend the first Core file was reviewed, then pushed again (older blob SHA), to show the change flag.
     const first = core.files[0];
@@ -459,6 +472,8 @@ export class Widget {
   exitDemo() {
     this.demo = false;
     this.result = null;
+    this.history = null;
+    this.historyKey = "";
     this.review = emptyReview();
     this.bannerEl.hidden = true;
     this.panes.review.replaceChildren();
@@ -494,6 +509,8 @@ export class Widget {
         open: this.openSteps,
         selected: this.selected,
         unsynced: this.unsynced,
+        history: this.history,
+        commitUrl: (sha) => `https://github.com/${res.pr.owner}/${res.pr.repo}/pull/${res.pr.number}/commits/${sha}`,
         onSelect: (p) => this.select(p),
         onToggleFile: (f, on) => this.setFileReviewed(f, on),
         onToggleStep: (l, on) => this.setStepReviewed(l, on),
@@ -514,7 +531,16 @@ export class Widget {
   private focusIn(sel: string) {
     const e = this.panes.review.querySelector(sel) as HTMLElement | null;
     e?.focus({ preventScroll: true });
-    e?.scrollIntoView?.({ block: "nearest" });
+    if (e) this.reveal(e);
+  }
+
+  /** Scroll only the Review pane (never the panel or page) so `el` is visible. */
+  private reveal(el: HTMLElement) {
+    const pane = this.panes.review;
+    const p = pane.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.top < p.top) pane.scrollTop -= p.top - r.top + 8;
+    else if (r.bottom > p.bottom) pane.scrollTop += Math.min(r.bottom - p.bottom + 8, r.top - p.top - 8);
   }
 
   private saveReview() {
@@ -580,12 +606,33 @@ export class Widget {
     if (next) {
       const step = `[data-layer="${CSS.escape(res.plan.layers[next.layer].id)}"]`;
       if (focusCta) this.focusIn(`${step} .next`);
-      this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(next.path)}"]`)?.scrollIntoView?.({ block: "nearest" });
+      const row = this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(next.path)}"]`);
+      if (row) this.reveal(row as HTMLElement);
     } else {
       this.focusIn(".alldone");
     }
     // Tick GitHub's Viewed first (if enabled), let the page settle, then scroll to the next file.
     void this.syncFiles([file], true).then(() => (next ? this.jump(next.path) : undefined));
+  }
+
+  /** Fetch the commit story in the background; the plan is already on screen. Failure just hides it. */
+  private async loadHistory(res: AnalyzeResult) {
+    const key = `${prKey(res.pr)}@${res.meta.headSha}`;
+    if (this.historyKey === key) return;
+    this.historyKey = key;
+    this.history = null;
+    this.historyNote = "Commit story: loading…";
+    try {
+      const paths = res.plan.layers.flatMap((l) => l.files.map((f) => f.path));
+      const h = await rpc<CommitHistory>({ type: "history:get", pr: res.pr, headSha: res.meta.headSha, commits: res.meta.commits, paths });
+      if (this.historyKey !== key || this.demo) return;
+      this.history = h;
+      this.historyNote = null;
+      this.renderAll();
+    } catch (e) {
+      if (this.historyKey !== key) return;
+      this.historyNote = `Commit story unavailable: ${(e as Error).message}`;
+    }
   }
 
   private async loadSyncPref() {

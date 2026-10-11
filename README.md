@@ -66,7 +66,7 @@ The Review tab is a **checklist of numbered steps** in reading order. At the top
    - **Contracts** are named after what changed, e.g. *Start with the types: 27 other changed files build on these.* (excalidraw/excalidraw#12018), or *Start with the schemas*, *…the migrations*, *…the schemas and queries*. With three or more kinds the heading is *Start with the contracts* and the why line lists them (*Schemas, queries and migrations. 12 other changed files build on these.*).
    - **Deleted code** reads *Check what was removed: Nothing changed still imports this code.* That line only appears when no changed file still imports it. Otherwise the step names the files that do. A deleted Go file whose package still exists gets a "check it" line instead, because imports can't tell.
    - **Standalone:** *No imports to or from other changed code.*
-   - **Deeper callers** are named after what's in them: one file (*Then applications.py*), or one or two folders (*Then gitcmd/ and proxy/*). Otherwise they're *Then the code built on that*. If two steps in a row would still get the same heading, they're numbered (*Then the code built on that (1 of 2)*).
+   - **Deeper callers** are named after what's in them: one file (*Then applications.py*), or one or two folders (*Then gitcmd/ and proxy/*). If that file name also exists elsewhere in the PR, its folder is added (*Then services/quota_allocation.go* and *Then controllers/quota_allocation.go*); if two steps would still share a heading, a longer folder path is tried first. Otherwise they're *Then the code built on that*, and two such steps in a row are numbered (*Then the code built on that (1 of 2)*).
    - When a big step is split by package, the why line starts with its folder (*In packages/a/.*).
 2. **Files** are grouped by folder; the shared path is shown once. Each row shows:
    - a **status dot**: filled = new, hollow = modified, dashed = deleted, square = renamed/copied. Hover for the label; screen readers get it too. Once a file is reviewed, a green ✓ replaces the dot and the row is muted.
@@ -88,11 +88,29 @@ The Review tab is a **checklist of numbered steps** in reading order. At the top
 - If the file isn't rendered yet (virtualized), it waits for it to mount (up to 4 s). If the control can't be found, or GitHub's state doesn't change after the click, nothing breaks: the row shows a small **⊘** with a tooltip saying it wasn't synced. GitHub's Viewed state never flows back into the panel.
 - Demo mode never syncs. Note that in the classic view GitHub collapses a file when you mark it Viewed.
 
+### Commit story
+
+Once the plan is on screen, PR Layers loads the PR's commit history in the background and shows how each file got to its final state:
+
+- **File rows** get a small **N commits** chip (how many of the PR's commits changed that file). Hover, focus or select a file to see **Latest: <message> · <relative time>** under its reason.
+- **The selected file** gets a mini timeline of its commits, oldest → newest: one-line message, author initials (full name on hover), relative time, that commit's +/− for this file, and the short SHA, which links to the commit on github.com. The PR's newest commit is tagged **newest**. If the file had another name in an older commit (renamed later), that entry says *as old_name*.
+- **Each open step** shows **Touched in X of Y commits** with one dot per commit (filled = this step's files changed in it; hover a dot for the message).
+- **Signals:** **After review** when a commit that changed the file has a message that looks like a review follow-up (`fixup!`, `squash!`, `address(ed) (review) comments`, `review feedback`, `PR feedback`, `nit`, case-insensitive). **Late change** when the file changed only in the PR's newest commit. Both are hints from commit messages and order, not facts about the review.
+- **Single-commit PRs** hide all of this. **Merge commits** (e.g. merging the base branch in) count toward the total but not as changing files, since their diff is mostly the base branch's.
+
+How it's fetched (read-only `GET`s only, cached in IndexedDB by owner/repo/number/head SHA):
+
+- `GET /repos/{o}/{r}/pulls/{n}/commits` (100 per page; GitHub lists at most 250 commits for a PR), then `GET /repos/{o}/{r}/commits/{sha}` for each non-merge commit (paginated file list). That's **1–3 + one request per commit**, so about 11 requests for a 10-commit PR. It runs with the same small concurrency as content fetches.
+- **Soft cap:** only the latest 100 commits get file lists. Beyond that the step line says *Touched in X of the latest 100 commits (PR has N)* and the ⋯ menu explains it. For PRs with more than 250 commits, GitHub's endpoint can't list them all; the menu says so.
+- Renames are followed backwards (`previous_filename`), so a file's history survives a move.
+- It never blocks the plan. It skips itself if fewer than ~200 API requests would be left. If it fails for any reason, the feature just doesn't show, and **⋯** shows *Commit story unavailable: <reason>*.
+- **Demo mode** includes a bundled commit story built from the real `fastapi/fastapi#16403` commits (6 commits, one of them a merge), so it works offline too. Relative times are computed from today's date.
+
+![Review tab in demo mode (fastapi/fastapi#16403): steps 1–3 done, step 4 "Now the tests" open with "Touched in 3 of 5 commits", each file showing its commit count, and test_runtime.py selected with its 3-commit timeline. Headless render of the real widget code with the bundled sample data](docs/images/review-demo.png)
+
 **First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers steps, why lines, files, the file CTA and the change flag. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **⋯ → Take the tour**.
 
 **Try demo:** **⋯ → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.
-
-![Review tab in demo mode (fastapi/fastapi#16403) after "Mark file as reviewed & next" twice: step 1 done, step 2 at 1/5 with background.py reviewed (✓) and routing.py selected, showing its reason. Headless render of the real widget code and the bundled sample plan](docs/images/review-demo.png)
 
 Dark theme: [docs/images/review-demo-dark.png](docs/images/review-demo-dark.png).
 
@@ -258,18 +276,18 @@ Settings are in `config/extension.config.json`: content-fetch limits, the API ve
 ```
 config/extension.config.json   build-time settings
 public/manifest.json, icons/   MV3 manifest + icons
-src/background/                sw.ts (messages, analysis pipeline), github.ts (GET-only client), auth.ts (PAT), cache.ts (IndexedDB)
+src/background/                sw.ts (messages, analysis pipeline), github.ts (GET-only client), history-fetch.ts (commit story), auth.ts (PAT), cache.ts (IndexedDB)
 src/content/                   content.ts (mount/unmount on soft nav), widget.ts (shadow-DOM UI, tabs, drag, demo), widget-logic.ts (pure snap/clamp/placement/toggle),
                                review-view.ts + review-logic.ts (Review tab, changed-since-reviewed), tour.ts (coach marks), widget.css.ts
 src/graph/                     build.ts (plan -> nodes/edges, clustering), layout.ts (layered layout), svg.ts + vdom.ts (SVG without innerHTML), view.ts (pan/zoom/search/filter)
 src/graph-page/                full-tab graph page
-src/demo/demo-plan.json        bundled real sample plan (fastapi/fastapi#16403)
+src/demo/demo-plan.json        bundled real sample plan (fastapi/fastapi#16403); demo-history.json = its real commit story
 src/dev/harness.ts             dev-only harness for headless renders (not shipped)
 src/options/                   onboarding / options page
-src/shared/                    messages, PR URL + anchor, token-validation (pure, tested)
+src/shared/                    messages, PR URL + anchor, token-validation, history (commit story building + signals; pure, tested)
 src/engine/                    classify, patch, glob(.gitattributes), imports/{js,vue,go,python}, resolve, graph (SCC/depth), analyze (layers + reasons)
 test/                          vitest suites + fixtures
-scripts/                       build.mjs, zip.py, analyze-pr.ts, make-demo-plan.ts, dev/render-demo.mjs
+scripts/                       build.mjs, zip.py, analyze-pr.ts, make-demo-plan.ts, make-demo-history.ts, dev/render-demo.mjs
 docs/images/                   headless renders (real code + real sample plans)
 docs/samples/                  engine output for real public PRs
 ```
@@ -288,6 +306,7 @@ docs/samples/                  engine output for real public PRs
 - **Alias resolution:** only `@/` and `~/` → `src/` for now. `tsconfig` `paths`, Vite aliases and workspace package names (`@scope/pkg` in monorepos) aren't resolved yet, so cross-package edges are missing.
 - The panel can cover part of the diff while open; drag it to the other edge or close it with Esc.
 - Reviewed state is per file, per PR, and stored locally only. The change flag compares blob SHAs, so a file that moves to another step keeps its ✓. Nothing syncs with GitHub's "Viewed" checkboxes. Ticks from v0.2 (stored per head SHA) aren't migrated.
+- Commit story: not yet checked on a live PR in a real browser (fetching, caching and the timeline are unit/DOM-tested and rendered headlessly from the bundled data). Force-pushed PRs show only the commits GitHub currently lists. Author initials come from the commit's author name, not the GitHub avatar.
 - Graph: the small panel graph is a quick overview; use ⤢ Expand for real reading. Positions are recomputed on every filter or expand (no animation).
 - github.com only (no GHES). PRs beyond 3000 files are truncated by GitHub's API.
 - Heuristic categories can be wrong for unusual layouts (e.g. a `schema/` folder that isn't a schema). Reasons make that visible. Overrides are planned for Week 2.

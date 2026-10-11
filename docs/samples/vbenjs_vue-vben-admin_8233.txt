@@ -1,5 +1,5 @@
 # vbenjs/vue-vben-admin#8233: feat(@vben-core/popup-ui)!: add typed popup data contracts
-head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched for 26 files · engine 24 ms
+head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched for 26 files · engine 23 ms
 
 ## Step 1: Start with the core code [Core]  (15 files, +192/-46)
    18 other changed files import these.
@@ -41,7 +41,7 @@ head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched
       Uses detail.vue and modules/form.vue
 
 ## Step 3: Then drawer/ and modal/ [Callers 2]  (4 files, +160/-2)
-   These use use-drawer.ts and 3 others from step 2.
+   These use use-drawer.ts and 5 others from step 2.
   - packages/@core/ui-kit/popup-ui/src/drawer/index.ts  [+5/-1]
       Uses drawer.ts and use-drawer.ts
   - packages/@core/ui-kit/popup-ui/src/modal/index.ts  [+5/-1]

@@ -116,4 +116,31 @@ li.file.sel .fname { font-weight:600; color:var(--fg); }
 .step.partial.current .num { background:var(--fg); color:var(--bg); }
 .alldone { display:flex; align-items:center; gap:8px; margin:10px 12px 4px; padding:8px 10px; border:1px solid var(--add); border-radius:6px; font-weight:600; outline:none; }
 .alldone .ok { width:18px; height:18px; border-radius:50%; background:var(--add); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:11px; }
+
+/* ---- v0.5 commit story ---- */
+li.file { flex-wrap:wrap; }
+.cm { flex:none; font-size:11px; color:var(--muted); border:1px solid var(--border); border-radius:999px; padding:0 6px; white-space:nowrap; }
+.chip { flex:none; font-size:10.5px; line-height:15px; padding:0 6px; border-radius:999px; border:1px solid var(--warn); color:var(--warn); white-space:nowrap; }
+.chip.dash { border-style:dashed; color:var(--accent); border-color:var(--accent); }
+.chip.plain { border-color:var(--border); color:var(--muted); }
+.reason .rtext, .reason .latest { display:block; }
+.reason .latest { color:var(--fg); margin-top:2px; }
+.reason .latest i { font-style:normal; color:var(--muted); }
+.story { margin:-4px 0 8px; font-size:12px; color:var(--fg); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.story .ico { color:var(--muted); }
+.sdots { display:inline-flex; gap:3px; }
+.sdots i { width:7px; height:7px; border-radius:50%; border:1.5px solid var(--muted); box-sizing:border-box; }
+.sdots i.on { background:var(--muted); }
+.tlwrap { flex-basis:100%; padding:2px 8px 8px 22px; }
+ol.tl { list-style:none; margin:0; padding:0 0 0 12px; border-left:1.5px solid var(--border); }
+.tc { position:relative; padding:0 0 8px 6px; }
+.tc:last-child { padding-bottom:0; }
+.tc::before { content:""; position:absolute; left:-18.5px; top:4px; width:9px; height:9px; border-radius:50%; background:var(--bg); border:1.5px solid var(--muted); box-sizing:border-box; }
+.tc.newest::before { background:var(--accent); border-color:var(--accent); }
+.tmsg { font-size:12px; color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tm { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:11px; color:var(--muted); margin-top:1px; }
+.av { width:16px; height:16px; border-radius:50%; background:var(--bg2); border:1px solid var(--border); color:var(--fg); font:700 8px/14px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; text-align:center; box-sizing:border-box; }
+a.sha { font:10.5px ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--accent); text-decoration:none; }
+a.sha:hover { text-decoration:underline; }
+a.sha:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:3px; }
 `;

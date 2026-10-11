@@ -92,7 +92,7 @@ export class Tour {
     const s = this.steps[this.i];
     s.before?.();
     const t = s.target();
-    (t as HTMLElement | null)?.scrollIntoView?.({ block: "nearest" });
+    revealInScroller(t as HTMLElement | null);
     const mk = (tag: string, cls: string, text: string) => {
       const e = document.createElement(tag);
       if (cls) e.className = cls;
@@ -151,3 +151,15 @@ export const REVIEW_TOUR_TEXT = {
     body: "If new commits change a file you already reviewed, it gets a \u26a0, loses its \u2713 and its step is reopened. That way you only re-read what moved. You can reopen this tour from \u22ef \u2192 Take the tour.",
   },
 };
+
+/** Scroll the nearest scrollable ancestor (inside the panel) so `el` is visible; never the page or panel frame. */
+function revealInScroller(el: HTMLElement | null) {
+  if (!el) return;
+  let sc: HTMLElement | null = el.parentElement;
+  while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+  if (!sc) return;
+  const p = sc.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  if (r.top < p.top) sc.scrollTop -= p.top - r.top + 8;
+  else if (r.bottom > p.bottom) sc.scrollTop += r.bottom - p.bottom + 8;
+}
