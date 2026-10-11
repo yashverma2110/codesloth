@@ -49,13 +49,20 @@ const setPref = (key: PrefKey, value: unknown) => rpc({ type: "prefs:set", key, 
 
 const viewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight });
 
+/** CodeSloth mark (concept 1, assets/icons/icon-tiny.svg) without its tile: the bubble itself is the tile. Built as a vdom tree, so no innerHTML. */
+const E = (attrs: Record<string, string | number>) => ({ tag: "ellipse", attrs, children: [] });
+const P = (attrs: Record<string, string | number>) => ({ tag: "path", attrs, children: [] });
 const ICON = {
   tag: "svg",
-  attrs: { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" },
+  attrs: { viewBox: "20 24 88 84", "aria-hidden": "true", class: "sloth" },
   children: [
-    { tag: "path", attrs: { d: "M12 3 3 7.5l9 4.5 9-4.5L12 3Z" }, children: [] },
-    { tag: "path", attrs: { d: "m3 12 9 4.5 9-4.5" }, children: [] },
-    { tag: "path", attrs: { d: "m3 16.5 9 4.5 9-4.5" }, children: [] },
+    E({ cx: 64, cy: 66, rx: 40, ry: 37, fill: "#B88A5E" }),
+    E({ cx: 64, cy: 69, rx: 33, ry: 28, fill: "#F4E8D2" }),
+    E({ cx: 49, cy: 62, rx: 13.2, ry: 8.16, transform: "rotate(-25 49 62)", fill: "#5A3B26" }),
+    P({ d: "M43 61.5 L55 61.5", stroke: "#F4E8D2", "stroke-width": 3.6, "stroke-linecap": "round" }),
+    E({ cx: 79, cy: 62, rx: 13.2, ry: 8.16, transform: "rotate(25 79 62)", fill: "#5A3B26" }),
+    P({ d: "M73 61.5 L85 61.5", stroke: "#F4E8D2", "stroke-width": 3.6, "stroke-linecap": "round" }),
+    E({ cx: 64, cy: 76, rx: 6, ry: 4.5, fill: "#22160E" }),
   ],
 };
 

@@ -28,7 +28,7 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
    - Arc: `arc://extensions`, or Arc menu → Extensions → Manage extensions
 3. Click **Load unpacked** and select the unzipped folder (or `dist/`).
 4. The **setup page opens automatically** on first install. You can reopen it from the extension's **Details → Extension options**, or with **Set up token** inside the widget.
-5. Open any PR on github.com. A round green **layers bubble** appears at the bottom-right.
+5. Open any PR on github.com. A round teal **CodeSloth bubble** (the sloth face) appears at the bottom-right.
 
 ### Using the widget
 
@@ -285,7 +285,8 @@ Settings are in `config/extension.config.json`: content-fetch limits, the API ve
 
 ```
 config/extension.config.json   build-time settings
-public/manifest.json, icons/   MV3 manifest + icons
+public/manifest.json, icons/   MV3 manifest + CodeSloth icons (16/32/48/128 PNG)
+assets/icons/                  icon SVG sources: icon.svg (128), icon-small.svg (32/48), icon-tiny.svg (16, also the bubble mark)
 src/background/                sw.ts (messages, analysis pipeline), github.ts (GET-only client), history-fetch.ts (commit story), auth.ts (PAT), cache.ts (IndexedDB)
 src/content/                   content.ts (mount/unmount on soft nav), widget.ts (shadow-DOM UI, tabs, drag, demo), widget-logic.ts (pure snap/clamp/placement/toggle),
                                review-view.ts + review-logic.ts (Review tab, changed-since-reviewed), tour.ts (coach marks), widget.css.ts

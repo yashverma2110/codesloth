@@ -172,4 +172,9 @@ ol.steps, .step, .sbody, ul.files, .fbtn, .reason, .tlwrap, ol.tl, .tc, .tm, .sf
 .tlmore { color:var(--accent); margin:2px 0 4px -4px; }
 .tlwrap.open ol.tl { margin-top:4px; }
 @media (prefers-reduced-motion: reduce) { .tltog .tlchev { transition:none; } }
+
+/* ---- v0.6.1 CodeSloth bubble (concept 1 mark on its teal tile) ---- */
+.bubble { background:#1F5F5B; box-shadow:var(--shadow), inset 0 0 0 1.5px rgba(62,138,128,.9); }
+.bubble:hover { background:#24706B; }
+.bubble svg.sloth { width:34px; height:34px; }
 `;
