@@ -52,21 +52,5 @@ export function contractKind(path: string, classifierReason: string): ContractKi
   return "schema";
 }
 
-const KIND_ORDER: ContractKind[] = ["schema", "query", "migration", "type", "API contract"];
-
-/** "schema and query updates", "migration updates". */
-export function contractKindsPhrase(kinds: readonly ContractKind[]): string {
-  const sorted = KIND_ORDER.filter((k) => kinds.includes(k));
-  return `${joinWords(sorted)} updates`;
-}
-
-/** "an API contract update" vs "a schema update". */
-export function aKind(k: ContractKind): string {
-  return `${/^[aeiouAEIOU]/.test(k) ? "an" : "a"} ${k} update`;
-}
-
 const LOCK_RE = /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?|go\.sum|poetry\.lock|uv\.lock|pdm\.lock|pipfile\.lock|cargo\.lock|composer\.lock|gemfile\.lock)$/i;
 export const isLockfile = (p: string) => LOCK_RE.test(p);
-
-/** Ordered headings for successive caller levels. */
-export const CALLER_HEADINGS = ["Then review these", "Review these after that", "Then these", "And finally these"];

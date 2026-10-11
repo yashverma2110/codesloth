@@ -55,8 +55,34 @@ async function shot(p, name) {
     await sh(p, () => [...window.__shadow.querySelectorAll(".tour-card button")].find((b) => /Next|Done/.test(b.textContent)).click());
   }
   await shot(p, "07-review");
+  // hover a file in the open step to show its reason
+  const box = await sh(p, () => {
+    const r = window.__shadow.querySelectorAll(".step.open li.file")[1]?.getBoundingClientRect();
+    return r ? { x: r.x + 40, y: r.y + r.height / 2 } : null;
+  });
+  if (box) await p.mouse.move(box.x, box.y);
+  await shot(p, "07b-review-hover");
+  await p.mouse.move(5, 5);
   await sh(p, () => window.__shadow.querySelector("#prl-tab-graph").click());
   await shot(p, "08-graph-tab");
+  await p.close();
+}
+// 1b) Review tab after "Mark step reviewed & next", hovering a file (light + dark)
+for (const theme of ["light", "dark"]) {
+  const p = await open("");
+  if (theme === "dark") await sh(p, () => { document.documentElement.setAttribute("data-color-mode", "dark"); document.body.style.background = "#0d1117"; });
+  await sh(p, () => window.__w.toggle("bubble"));
+  await sleep(200);
+  await sh(p, () => window.__w.loadDemo(false));
+  await sleep(200);
+  await sh(p, () => window.__shadow.querySelector(".step.open .next").click());
+  await sleep(200);
+  const box = await sh(p, () => {
+    const r = window.__shadow.querySelectorAll(".step.open li.file")[1]?.getBoundingClientRect();
+    return r ? { x: r.x + 40, y: r.y + r.height / 2 } : null;
+  });
+  if (box) await p.mouse.move(box.x, box.y);
+  await shot(p, `09-review-next-${theme}`);
   await p.close();
 }
 // 2) Graph overlay for a bigger real PR (gitea), light + dark.

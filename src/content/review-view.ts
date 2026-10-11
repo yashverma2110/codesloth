@@ -1,10 +1,14 @@
-/** The Review tab: ordered layers with reasons, reviewed checkboxes and change flags. */
-import type { Layer, LayerPlan } from "../engine/types";
-import { changedSinceReviewed, type ReviewState } from "./review-logic";
+/** The Review tab as a checklist of numbered steps (see docs/images/review-demo.png). */
+import type { Layer, LayerFile, LayerPlan } from "../engine/types";
+import { changedSinceReviewed, currentStep, groupByFolder, type ReviewState } from "./review-logic";
 
 export interface ReviewHandlers {
+  /** Step ids the user has expanded (the current step is added by default). */
+  open: ReadonlySet<string>;
   onToggle(layer: Layer, reviewed: boolean): void;
   onJump(path: string): void;
+  onOpen(layer: Layer, open: boolean): void;
+  onMarkNext(layer: Layer): void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]) {
@@ -14,76 +18,92 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return e;
 }
 
-const ST: Record<string, string> = { added: "A", removed: "D", renamed: "R", modified: "M", copied: "C", changed: "M", unchanged: "·" };
+export const STATUS_LABEL: Record<string, string> = {
+  added: "New file",
+  removed: "Deleted",
+  renamed: "Renamed",
+  copied: "Copied",
+  modified: "Modified",
+  changed: "Modified",
+  unchanged: "Unchanged",
+};
+const statusClass = (s: LayerFile["status"]) => (s === "added" ? "new" : s === "removed" ? "del" : s === "renamed" || s === "copied" ? "ren" : "mod");
 
 export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandlers): HTMLElement {
-  const wrap = el("div", { class: "review" });
-  let firstUnreviewedOpen = 0;
+  const wrap = el("ol", { class: "steps", "aria-label": "Review steps" });
+  const cur = currentStep(plan, state);
   plan.layers.forEach((l, i) => {
     const snap = state[l.id];
     const changed = changedSinceReviewed(l, snap);
     const done = !!snap && changed.length === 0;
-    const d = el("details", { class: "layer" + (done ? " done" : "") + (changed.length ? " changed" : ""), "data-layer": l.id });
-    if (i === 0) d.setAttribute("data-tour", "layer");
-    if (!done && (firstUnreviewedOpen < 2 || changed.length)) {
-      d.setAttribute("open", "");
-      firstUnreviewedOpen++;
-    }
-    const cb = el("input", { type: "checkbox", title: "Mark layer reviewed", "aria-label": `Mark L${i} ${l.label ?? l.title} reviewed` }) as HTMLInputElement;
+    const isOpen = h.open.has(l.id);
+    const bodyId = `prl-step-${i}`;
+    const li = el("li", { class: ["step", done ? "done" : "", i === cur ? "current" : "", isOpen ? "open" : "", changed.length ? "changed" : ""].filter(Boolean).join(" "), "data-layer": l.id });
+    if (i === 0) li.setAttribute("data-tour", "step");
+
+    const num = el("span", { class: "num", "aria-hidden": "true" }, done ? "✓" : String(i + 1));
+    const head = el(
+      "button",
+      { type: "button", class: "sh", "aria-expanded": String(isOpen), "aria-controls": bodyId, title: `${l.title}: ${l.description}` },
+      num,
+      el("span", { class: "h" }, el("span", { class: "sr" }, `Step ${i + 1}${done ? ", reviewed" : ""}${changed.length ? ", changed since reviewed" : ""}: `), l.title),
+      changed.length ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
+      el("span", { class: "cnt" }, `${l.files.length} file${l.files.length === 1 ? "" : "s"}`),
+      el("span", { class: "chev", "aria-hidden": "true" }, "›"),
+    );
+    head.addEventListener("click", () => h.onOpen(l, !isOpen));
+    const cb = el("input", { type: "checkbox", class: "tick", title: "Mark step reviewed", "aria-label": `Mark step ${i + 1} reviewed` }) as HTMLInputElement;
     cb.checked = !!snap;
     if (!snap && !wrap.querySelector('[data-tour="check"]')) cb.setAttribute("data-tour", "check");
-    cb.addEventListener("click", (e) => e.stopPropagation());
     cb.addEventListener("change", () => h.onToggle(l, cb.checked));
-    const summary = el(
-      "summary",
-      {},
-      cb,
-      el("span", { class: "idx" }, `L${i}`),
-      el("span", { class: "ltitle" }, l.title, " ", el("span", { class: "lkind" }, l.label ?? "")),
-      el("span", { class: "stats" }, `${l.stats.files} · `, el("span", { class: "add" }, `+${l.stats.additions}`), " ", el("span", { class: "del" }, `−${l.stats.deletions}`)),
-    );
-    d.append(summary, el("div", { class: "desc" }, l.description));
-    if (changed.length) {
-      const flag = el("div", { class: "flag", role: "status", "data-tour": "changed" }, changed.length === 1 ? "⚠ Changed since you reviewed it: 1 file. Re-check it, then tick the box again." : `⚠ Changed since you reviewed it: ${changed.length} files. Re-check them, then tick the box again.`);
-      d.append(flag);
-    }
-    const ul = el("ul", { class: "files" });
-    for (const f of l.files) {
-      const slash = f.path.lastIndexOf("/");
-      const isChanged = changed.includes(f.path);
-      const li = el(
-        "li",
-        { class: "file" + (isChanged ? " chg" : ""), tabindex: "0", title: f.previousPath ? `renamed from ${f.previousPath}` : f.path },
-        el(
-          "div",
-          { class: "path" },
-          el("span", { class: "st" }, ST[f.status] ?? "M"),
-          el("span", { class: "dir" }, slash >= 0 ? f.path.slice(0, slash + 1) : ""),
-          f.path.slice(slash + 1),
-          " ",
-          el("span", { class: "add" }, `+${f.additions}`),
-          " ",
-          el("span", { class: "del" }, `−${f.deletions}`),
-          isChanged ? el("span", { class: "badge" }, "changed") : "",
-        ),
-        el("div", { class: "reason" }, f.reason),
-      );
-      if (!wrap.querySelector('[data-tour="file"]') && i === 0) {
-        li.setAttribute("data-tour", "file");
-        (li.lastChild as HTMLElement).setAttribute("data-tour", "reason");
+    li.append(el("div", { class: "srow" }, head, cb));
+
+    if (isOpen) {
+      const body = el("div", { class: "sbody", id: bodyId });
+      body.append(el("p", { class: "why", ...(i === cur || !wrap.querySelector('[data-tour="why"]') ? { "data-tour": "why" } : {}) }, l.description));
+      if (changed.length) {
+        body.append(el("p", { class: "flag", role: "status", "data-tour": "changed" }, `⚠ ${changed.length === 1 ? "1 file changed" : `${changed.length} files changed`} since you reviewed this step.`));
       }
-      const go = () => h.onJump(f.path);
-      li.addEventListener("click", go);
-      li.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
+      const max = Math.max(1, ...l.files.map((f) => f.additions));
+      for (const g of groupByFolder(l.files)) {
+        if (g.dir) body.append(el("div", { class: "folder", title: g.dir }, g.dir));
+        const ul = el("ul", { class: "files" });
+        for (const f of g.files) {
+          const isChg = changed.includes(f.path);
+          const st = STATUS_LABEL[f.status] ?? "Modified";
+          const bar = el("span", { class: "bar", "aria-hidden": "true" });
+          bar.style.width = `${Math.max(2, Math.round((f.additions / max) * 40))}px`;
+          const row = el(
+            "li",
+            { class: "file" + (isChg ? " chg" : ""), tabindex: "0", role: "button", "aria-label": `${f.path}, ${st.toLowerCase()}, ${f.additions} added, ${f.deletions} removed. ${f.reason}` },
+            el("span", { class: `dot ${statusClass(f.status)}`, title: f.previousPath ? `${st} from ${f.previousPath}` : st, "aria-hidden": "true" }),
+            el("span", { class: "fname" }, f.name),
+            isChg ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
+            el("span", { class: "nums" }, bar, el("span", { class: "add" }, `+${f.additions}`), f.deletions > 0 ? el("span", { class: "del" }, `−${f.deletions}`) : ""),
+            el("span", { class: "reason" }, f.reason),
+          );
+          if (!wrap.querySelector('[data-tour="file"]') && !body.querySelector('[data-tour="file"]')) row.setAttribute("data-tour", "file");
+          const go = () => h.onJump(f.path);
+          row.addEventListener("click", go);
+          row.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              go();
+            }
+          });
+          ul.append(row);
         }
-      });
-      ul.append(li);
+        body.append(ul);
+      }
+      if (!done) {
+        const last = i === plan.layers.length - 1;
+        const btn = el("button", { type: "button", class: "btn primary next", "data-tour": "next" }, last ? "Mark reviewed ✓" : "Mark step reviewed & next →");
+        btn.addEventListener("click", () => h.onMarkNext(l));
+        body.append(el("div", { class: "sfoot" }, btn));
+      }
+      li.append(body);
     }
-    d.append(ul);
-    wrap.append(d);
+    wrap.append(li);
   });
   return wrap;
 }

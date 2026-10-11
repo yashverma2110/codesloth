@@ -17,9 +17,16 @@ const replies: Record<string, (m: any) => unknown> = {
     pr: { owner: "o", repo: "r", number: 7 },
     meta: { title: "Big change", headSha: "abcdef1234", baseSha: "b", changedFiles: 2, additions: 3, deletions: 1, htmlUrl: "", state: "open" },
     fromCache: false,
+    rate: { remaining: 4998, limit: 5000, reset: 0 },
     plan: {
-      version: 1, engineVersion: "t", warnings: [], stats: { files: 2, additions: 3, deletions: 1, edges: 1, contentsUsed: 0 },
-      layers: [{ id: "core", index: 0, title: "Review this first", label: "Core", description: "As this file is imported by 1 other changed file", stats: { files: 1, additions: 2, deletions: 0 }, files: [{ path: "src/a.ts", sha: "s1", status: "added", additions: 2, deletions: 0, category: "source", reason: "used by b" }] }],
+      version: 1, engineVersion: "t", warnings: ["1 file analysed from the diff only"], stats: { files: 3, additions: 11576, deletions: 49, edges: 1, contentsUsed: 0 },
+      layers: [
+        { id: "core", index: 0, title: "Start with the core code", label: "Core", description: "1 other changed file imports this.", stats: { files: 1, additions: 2, deletions: 0 }, files: [{ path: "src/a.ts", sha: "s1", status: "added", additions: 2, deletions: 0, category: "source", reason: "Imported by b.ts" }] },
+        { id: "caller1", index: 1, title: "Then the code that uses it", label: "Callers 1", description: "This uses the changes you just reviewed.", stats: { files: 2, additions: 1, deletions: 3 }, files: [
+          { path: "src/ui/b.ts", sha: "s2", status: "modified", additions: 1, deletions: 3, category: "source", reason: "Uses a.ts" },
+          { path: "src/ui/c.ts", sha: "s3", status: "removed", additions: 0, deletions: 0, category: "source", reason: "Deleted" },
+        ] },
+      ],
       edges: [],
     },
   }),
@@ -71,9 +78,8 @@ describe("Widget (DOM)", () => {
     expect(panel.hidden).toBe(false);
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
     expect(calls.some((c) => c.type === "analyze")).toBe(true);
-    expect(s.querySelector(".ltitle")?.textContent).toBe("Review this first Core");
-    expect(s.querySelector(".lkind")?.textContent).toBe("Core");
-    expect(s.querySelector(".desc")?.textContent).toBe("As this file is imported by 1 other changed file");
+    expect(s.querySelector(".step.open .sh .h")?.textContent).toBe("Step 1: Start with the core code");
+    expect(s.querySelector(".step.open .why")?.textContent).toBe("1 other changed file imports this.");
     bubble.click();
     expect(panel.hidden).toBe(true);
   });
@@ -155,7 +161,7 @@ describe("Widget (DOM)", () => {
     expect((s.querySelector("#prl-pane-graph") as HTMLElement).hidden).toBe(false);
     expect((s.querySelector("#prl-pane-review") as HTMLElement).hidden).toBe(true);
     expect(prefs.view).toBe("graph");
-    expect(s.querySelectorAll("#prl-pane-graph .g-node").length).toBe(1);
+    expect(s.querySelectorAll("#prl-pane-graph .g-node").length).toBe(3);
     list.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
     expect(review.getAttribute("aria-selected")).toBe("true");
     expect(prefs.view).toBe("review");
@@ -177,7 +183,7 @@ describe("Widget (DOM)", () => {
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    const cb = s.querySelector("details.layer input[type=checkbox]") as HTMLInputElement;
+    const cb = s.querySelector(".step .tick") as HTMLInputElement;
     cb.checked = true;
     cb.dispatchEvent(new Event("change"));
     const set = calls.find((c) => c.type === "reviewed:set") as any;
@@ -198,9 +204,10 @@ describe("Widget (DOM)", () => {
     const demoBtn = [...s.querySelectorAll(".setup .btn")].find((b) => b.textContent === "Try demo") as HTMLButtonElement;
     demoBtn.click();
     expect(s.querySelector(".banner")!.textContent).toContain("fastapi/fastapi#16403");
-    expect(s.querySelectorAll("details.layer").length).toBeGreaterThan(3);
+    expect(s.querySelectorAll(".step").length).toBeGreaterThan(3);
     expect(s.querySelector('[data-tour="changed"]')).not.toBeNull();
-    expect(s.querySelector("li.file.chg .badge")?.textContent).toBe("changed");
+    expect(s.querySelector("li.file.chg .chg-ico")).not.toBeNull();
+    expect(s.querySelector(".step.current.changed.open")).not.toBeNull();
     await vi.waitFor(() => expect(s.querySelector(".tour-card")).not.toBeNull());
     const titles: string[] = [];
     for (let i = 0; i < 5; i++) {
@@ -243,5 +250,66 @@ describe("Widget (DOM)", () => {
     expect((s.querySelector(".panel") as HTMLElement).hidden).toBe(false);
     ([...s.querySelectorAll(".gv-bar button")].find((b) => /Tab/.test(b.textContent!)) as HTMLButtonElement).click();
     await vi.waitFor(() => expect(calls.some((c) => c.type === "graph:openTab")).toBe(true));
+  });
+
+  it("renders the checklist: progress line, numbered steps, only the current step open, no codes", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    expect(s.querySelector(".plbl")?.textContent).toBe("Step 1 of 20 of 3 files reviewed");
+    expect(s.querySelector(".pbar")?.getAttribute("aria-valuenow")).toBe("0");
+    expect([...s.querySelectorAll(".num")].map((n) => n.textContent)).toEqual(["1", "2"]);
+    const heads = [...s.querySelectorAll(".sh")] as HTMLButtonElement[];
+    expect(heads.map((x) => x.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
+    expect(s.querySelector(".step:not(.open) .cnt")?.textContent).toBe("2 files");
+    const panelText = (s.querySelector(".panel") as HTMLElement).textContent!;
+    expect(panelText).not.toMatch(/\bL0\b|fresh @|API 4998|\+11576/);
+    // open step 2 manually: folder shown once, status dots instead of letters, −N only when > 0
+    heads[1].click();
+    expect(s.querySelectorAll(".step.open")).toHaveLength(2);
+    expect([...s.querySelectorAll('[data-layer="caller1"] .folder')].map((f) => f.textContent)).toEqual(["src/ui/"]);
+    const rows = [...s.querySelectorAll('[data-layer="caller1"] li.file')];
+    expect(rows.map((r) => r.querySelector(".fname")!.textContent)).toEqual(["b.ts", "c.ts"]);
+    expect(rows.map((r) => r.querySelector(".dot")!.className)).toEqual(["dot mod", "dot del"]);
+    expect(rows[0].querySelector(".dot")!.getAttribute("title")).toBe("Modified");
+    expect(rows[0].querySelector(".nums .del")?.textContent).toBe("−3");
+    expect(rows[1].querySelector(".nums .del")).toBeNull();
+    expect(rows[0].getAttribute("aria-label")).toContain("Uses a.ts");
+    expect(rows[0].querySelector(".reason")?.textContent).toBe("Uses a.ts");
+    // technical details live in the ⋯ menu
+    (s.querySelector(".hdr .icon") as HTMLButtonElement).click();
+    const menu = (s.querySelector(".menu") as HTMLElement).textContent!;
+    expect(menu).toContain("Re-analyze");
+    expect(menu).toContain("Head commit abcdef1 · fresh");
+    expect(menu).toContain("GitHub API 4,998 / 5,000 left");
+    expect(menu).toContain("3 files · +11,576 / −49 lines");
+    expect(menu).toContain("analysed from the diff only");
+  });
+
+  it("'Mark step reviewed & next' ticks, collapses, opens the next step; the last step says 'Mark reviewed ✓'", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const next = s.querySelector(".step.open .next") as HTMLButtonElement;
+    expect(next.textContent).toBe("Mark step reviewed & next →");
+    next.click();
+    expect(s.querySelector('[data-layer="core"]')!.className).toContain("done");
+    expect(s.querySelector('[data-layer="core"] .num')!.textContent).toBe("✓");
+    expect(s.querySelector('[data-layer="core"]')!.classList.contains("open")).toBe(false);
+    expect(s.querySelector('[data-layer="caller1"]')!.classList.contains("open")).toBe(true);
+    expect(s.querySelector(".plbl")?.textContent).toBe("Step 2 of 21 of 3 files reviewed");
+    const set = calls.filter((c) => c.type === "reviewed:set").pop() as any;
+    expect(Object.keys(set.value)).toEqual(["core"]);
+    const last = s.querySelector('[data-layer="caller1"] .next') as HTMLButtonElement;
+    expect(last.textContent).toBe("Mark reviewed ✓");
+    last.click();
+    expect(s.querySelector(".plbl")?.textContent).toBe("All 2 steps reviewed3 of 3 files");
+    expect(s.querySelectorAll(".step.open")).toHaveLength(0);
   });
 });

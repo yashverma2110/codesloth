@@ -1,16 +1,16 @@
 # excalidraw/excalidraw#12018: feat(editor): Host abstraction
-head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetched for 49 files · engine 59 ms
+head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetched for 49 files · engine 58 ms
   ! 1 modified file(s) analysed from the diff only (full contents not fetched); imports outside changed hunks may be missed.
 
-## L0 Review this first [Contracts]  (2 files, +37/-0)
-   As these are type updates that 26 other changed files build on
+## Step 1: Start with the types [Contracts]  (2 files, +37/-0)
+   26 other changed files build on these.
   - packages/excalidraw/scene/types.ts  [+14/-0]
       Type · Imported by data/index.ts and 6 others
   - packages/excalidraw/types.ts  [+23/-0]
       Type · Imported by actionBoundText.tsx and 26 others
 
-## L1 Review this next [Core]  (9 files, +392/-37)
-   As these files are imported by 35 other changed files
+## Step 2: Then the core code [Core]  (9 files, +392/-37)
+   35 other changed files import these.
   - packages/element/src/renderEnvironment.ts  [+119/-0]
       Imported by image.ts and 8 others
   - packages/excalidraw/actions/actionProperties.tsx  [+10/-1]
@@ -29,8 +29,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
       Imported by App.viewport.ts and InteractiveCanvas.tsx
   … 1 more
 
-## L2 Then review these [Callers 1]  (10 files, +510/-115)
-   As these use the changes you just reviewed
+## Step 3: Then the code that uses it [Callers 1]  (10 files, +510/-115)
+   These use the changes you just reviewed.
   - packages/element/src/image.ts  [+5/-1]
       Uses renderEnvironment.ts; imported by src/index.ts
   - packages/element/src/textMeasurements.ts  [+103/-26]
@@ -49,8 +49,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
       Uses Tooltip.tsx and 2 others; imported by App.tsx · In an import cycle with App.tsx, so kept together
   … 2 more
 
-## L3 Review these after that [Callers 2]  (7 files, +109/-42)
-   As these files use textMeasurements.ts and 5 others from the step before
+## Step 4: Then the code built on that [Callers 2]  (7 files, +109/-42)
+   These use textMeasurements.ts and 5 others from step 3.
   - packages/element/src/textWrapping.ts  [+19/-12]
       Uses textMeasurements.ts and renderEnvironment.ts; imported by src/index.ts and 3 others
   - packages/excalidraw/charts/index.ts  [+6/-3]
@@ -66,8 +66,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
   - packages/excalidraw/wysiwyg/textWysiwyg.tsx  [+13/-3]
       Uses actionProperties.tsx and App.tsx
 
-## L4 Then these [Callers 3]  (8 files, +184/-59)
-   As these files use textWrapping.ts and 2 others from the step before
+## Step 5: Then the code built on that [Callers 3]  (8 files, +184/-59)
+   These use textWrapping.ts and 2 others from step 4.
   - packages/element/src/index.ts  [+1/-0]
       Uses image.ts and 8 others; imported by textElement.ts · In an import cycle with newElement.ts and 4 others, so kept together
   - packages/element/src/newElement.ts  [+16/-1]
@@ -85,8 +85,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
   - packages/excalidraw/data/blob.ts  [+3/-1]
       Uses appState.ts and scene/export.ts; imported by PublishLibrary.tsx and 2 others
 
-## L5 And finally these [Callers 4]  (3 files, +23/-3)
-   As these files use blob.ts from the step before
+## Step 6: Then the code built on that [Callers 4]  (3 files, +23/-3)
+   These use blob.ts from step 5.
   - packages/excalidraw/components/PublishLibrary.tsx  [+12/-3]
       Uses blob.ts and App.tsx
   - packages/excalidraw/data/index.ts  [+4/-0]
@@ -94,8 +94,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
   - packages/excalidraw/index.tsx  [+7/-0]
       Uses App.tsx and 3 others
 
-## L6 Then review these on their own [Standalone]  (7 files, +72/-23)
-   As these files don't import, and aren't imported by, other changed code
+## Step 7: Then the standalone changes [Standalone]  (7 files, +72/-23)
+   No imports to or from other changed code.
   - packages/common/src/editorInterface.ts  [+20/-12]
       No imports to or from other changed code
   - packages/common/src/utils.ts  [+8/-7]
@@ -111,8 +111,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
   - vitest.config.node.mts  [+24/-0]
       No imports to or from other changed code
 
-## L7 Now the tests [Tests]  (15 files, +2098/-61)
-   As these cover the 9 files above
+## Step 8: Now the tests [Tests]  (15 files, +2098/-61)
+   These cover 9 files above.
   - packages/element/tests/renderEnvironment.test.ts  [+58/-0]
       Tests for renderEnvironment.ts
   - packages/excalidraw/tests/elementCanvasScale.test.ts  [+191/-0]
@@ -131,8 +131,8 @@ head ab6f203 · 63 files · +3434/-341 · 134 dependency edges · contents fetch
       Tests for staticScene.ts
   … 7 more
 
-## L8 Then the config [Config]  (2 files, +9/-1)
-   As these are settings for this change
+## Step 9: Then the config [Config]  (2 files, +9/-1)
+   Settings for this change.
   - package.json  [+2/-1]
       Package manifest
   - vitest.config.mts  [+7/-0]

@@ -83,7 +83,7 @@ if (asJson) {
   console.log(`head ${head.slice(0, 7)} · ${plan.stats.files} files · +${plan.stats.additions}/-${plan.stats.deletions} · ${plan.stats.edges} dependency edges · contents fetched for ${plan.stats.contentsUsed} files · engine ${ms} ms`);
   for (const w of plan.warnings) console.log(`  ! ${w}`);
   for (const l of plan.layers) {
-    console.log(`\n## L${l.index} ${l.title} [${l.label}]  (${l.stats.files} file${l.stats.files === 1 ? "" : "s"}, +${l.stats.additions}/-${l.stats.deletions})\n   ${l.description}`);
+    console.log(`\n## Step ${l.index + 1}: ${l.title} [${l.label}]  (${l.stats.files} file${l.stats.files === 1 ? "" : "s"}, +${l.stats.additions}/-${l.stats.deletions})\n   ${l.description}`);
     const max = Number(process.env.MAX_FILES ?? 8);
     for (const f of l.files.slice(0, max)) console.log(`  - ${f.path}  [+${f.additions}/-${f.deletions}]\n      ${f.reason}`);
     if (l.files.length > max) console.log(`  … ${l.files.length - max} more`);

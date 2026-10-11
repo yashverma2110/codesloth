@@ -82,7 +82,7 @@ export class GraphView {
       b.addEventListener("click", () => opts.onOpenTab!());
       bar.append(b);
     }
-    this.legend = mk("div", { class: "gv-legend", role: "group", "aria-label": "Filter by layer" });
+    this.legend = mk("div", { class: "gv-legend", role: "group", "aria-label": "Filter by step" });
     this.note = mk("div", { class: "gv-note" });
     this.canvas = mk("div", { class: "gv-canvas" });
     const key = mk("div", { class: "gv-key" });
@@ -153,10 +153,10 @@ export class GraphView {
         b.type = "button";
         b.className = "gv-chip";
         b.setAttribute("aria-pressed", String(!l.hidden));
-        b.title = `${l.hidden ? "Show" : "Hide"} L${l.index} ${l.label}: ${l.title}`;
+        b.title = `${l.hidden ? "Show" : "Hide"} step ${l.index + 1}: ${l.title}`;
         const i = d.createElement("i");
         i.style.background = layerColor(l.id);
-        b.append(i, `L${l.index} ${l.label} · ${l.files}`);
+        b.append(i, `${l.index + 1} ${l.title} · ${l.files}`);
         b.addEventListener("click", () => {
           if (this.hidden.has(l.id)) this.hidden.delete(l.id);
           else this.hidden.add(l.id);

@@ -131,23 +131,23 @@ export class Tour {
 
 export const REVIEW_TOUR_TEXT = {
   layers: {
-    title: "Review in this order",
-    body: "Each layer starts with when to read it (\u201cReview this first\u201d, \u201cThen review these\u201d, \u201cNow the tests\u201d, \u201cSkim last\u201d) and a because-line worked out from this PR, e.g. \u201cAs this file is imported by 5 other changed files\u201d. Go from top to bottom.",
+    title: "Review in numbered steps",
+    body: "The PR is split into steps in reading order, e.g. \u201cStart with the schemas\u201d, then the code that uses them, then the tests. The step you're on is open and the rest are collapsed. Click any step to open it.",
   },
   reasons: {
-    title: "How each file connects",
-    body: "Every file says how it fits in: \u201cImported by routing.py and 3 others\u201d, \u201cUses _api.py\u201d, \u201cTests for _api.py\u201d, \u201cLockfile for the pyproject.toml change\u201d. If a line looks wrong, look at that file more closely.",
+    title: "Why this step comes now",
+    body: "Each step has one line explaining its place, worked out from this PR, e.g. \u201c43 other changed files build on these.\u201d",
   },
   jump: {
     title: "Click a file to jump to its diff",
-    body: "Click a file (or press Enter on it) to scroll GitHub's Files changed view to that file's diff, so you can read in this order.",
+    body: "Files are grouped by folder. The dot shows if a file is new, modified, renamed or deleted, and the bar shows lines added. Hover or focus a file to see how it connects, e.g. \u201cImported by routing.py and 3 others\u201d. Click it to open its diff.",
   },
   check: {
-    title: "Tick a layer when you're done",
-    body: "Ticking a layer marks it reviewed and collapses it. Ticks are saved only in this browser, for this PR.",
+    title: "Mark step reviewed & next",
+    body: "When you're done with a step, this button ticks it, opens the next step and jumps to that step's first file. You can also tick the box on any step. Ticks are saved only in this browser.",
   },
   changed: {
     title: "Changed since you reviewed it",
-    body: "If new commits change a layer you've already ticked, it gets a \u26a0 flag and the changed files get a badge, so you only re-read what moved.",
+    body: "If new commits touch a step you already ticked, it gets a \u26a0 and is reopened, and the changed files are flagged. That way you only re-read what moved. You can reopen this tour from \u22ef \u2192 Take the tour.",
   },
 };

@@ -1,15 +1,15 @@
 # go-gitea/gitea#39426: fix(git)!: use internal proxy for all git operations
-head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 36 ms
+head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetched for 37 files · engine 37 ms
 
-## L0 Review this first [Core]  (2 files, +712/-0)
-   As these files are imported by 5 other changed files
+## Step 1: Start with the core code [Core]  (2 files, +712/-0)
+   5 other changed files import these.
   - modules/egress/policy/matchlist.go  [+460/-0]
       Imported by modules/egress/ and 2 others · Kept with the rest of Go package modules/egress/policy/
   - modules/egress/policy/policy.go  [+252/-0]
       Imported by modules/egress/ and 2 others · Kept with the rest of Go package modules/egress/policy/
 
-## L1 Then review these [Callers 1]  (3 files, +72/-10)
-   As these use the changes you just reviewed
+## Step 2: Then the code that uses it [Callers 1]  (3 files, +72/-10)
+   These use the changes you just reviewed.
   - modules/setting/migrations.go  [+35/-9]
       Imported by cmd/ and 11 others · Kept with the rest of Go package modules/setting/
   - modules/setting/security.go  [+34/-1]
@@ -17,8 +17,8 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
   - modules/setting/webhook.go  [+3/-0]
       Imported by cmd/ and 11 others · Kept with the rest of Go package modules/setting/
 
-## L2 Review these after that [Callers 2]  (3 files, +37/-61)
-   As these files use migrations.go and 2 others from the step before
+## Step 3: Then the code built on that [Callers 2]  (3 files, +37/-61)
+   These use migrations.go and 2 others from step 2.
   - modules/git/gitcmd/command.go  [+5/-1]
       Imported by modules/git/ and 4 others · Kept with the rest of Go package modules/git/gitcmd/
   - modules/git/gitcmd/env.go  [+8/-0]
@@ -26,15 +26,15 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
   - modules/proxy/proxy.go  [+24/-60]
       Uses modules/setting/; imported by modules/egress/
 
-## L3 Then these [Callers 3]  (2 files, +118/-17)
-   As these files use proxy.go and 2 others from the step before
+## Step 4: Then the code built on that [Callers 3]  (2 files, +118/-17)
+   These use proxy.go and 2 others from step 3.
   - modules/egress/policies.go  [+117/-0]
       Uses modules/egress/policy/ and 2 others; imported by modules/auth/openid/ and 4 others
   - modules/git/repo.go  [+1/-17]
       Uses modules/git/gitcmd/ and modules/setting/; imported by cmd/ and 3 others
 
-## L4 And finally these [Callers 4]  (16 files, +446/-186)
-   As these files use repo.go and policies.go from the step before
+## Step 5: Then the code built on that [Callers 4]  (16 files, +446/-186)
+   These use repo.go and policies.go from step 4.
   - cmd/dump_repo.go  [+4/-0]
       Uses modules/git/ and 3 others; imported by the root package
   - main.go  [+2/-0]
@@ -53,8 +53,8 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
       Uses modules/git/ and 2 others; imported by cmd/ and services/mirror/ · Kept with the rest of Go package services/migrations/
   … 8 more
 
-## L5 Then check what was removed [Deleted]  (3 files, +0/-307)
-   As this code was deleted; no changed file imports it, but 1 file came from a Go package that still exists, so check it
+## Step 6: Check what was removed [Deleted]  (3 files, +0/-307)
+   Nothing changed imports this code, but 1 file came from a Go package that still exists.
   - modules/git/redirection.go  [+0/-15]
       Deleted from Go package modules/git/, which still exists; check nothing else in it still uses this code
   - modules/hostmatcher/hostmatcher.go  [+0/-211]
@@ -62,8 +62,8 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
   - modules/hostmatcher/http.go  [+0/-81]
       Deleted; no changed file imports it
 
-## L6 Now the tests [Tests]  (25 files, +927/-500)
-   As these cover the 11 files above (4 test files have no matching changed file)
+## Step 7: Now the tests [Tests]  (25 files, +927/-500)
+   These cover 11 files above; 4 have no direct match.
   - modules/egress/policy/matchlist_test.go  [+134/-0]
       Tests for matchlist.go (matched by name)
   - routers/web/auth/oauth_test.go  [+2/-16]
@@ -82,8 +82,8 @@ head 95eacbc · 57 files · +2352/-1102 · 176 dependency edges · contents fetc
       Tests for migrations.go
   … 17 more
 
-## L7 Then config and docs [Config & docs]  (3 files, +40/-21)
-   As these are settings and docs for this change
+## Step 8: Then config and docs [Config & docs]  (3 files, +40/-21)
+   Settings and docs for this change.
   - AGENTS.md  [+1/-0]
       Documentation
   - custom/conf/app.example.ini  [+38/-20]

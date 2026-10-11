@@ -8,9 +8,9 @@ import { extractGoImports, goTopLevelDecls, stripGoComments } from "./imports/go
 import { extractPythonImports } from "./imports/python";
 import { buildResolveContext, dirname, resolveGo, resolveJs, resolvePython } from "./resolve";
 import { computeDepths } from "./graph";
-import { aKind, CALLER_HEADINGS, capitalize, contractKind, contractKindsPhrase, fileLabel, isLockfile, namesList, plural } from "./copy";
+import { capitalize, contractKind, fileLabel, isLockfile, namesList, plural } from "./copy";
 
-export const ENGINE_VERSION = "0.3.1";
+export const ENGINE_VERSION = "0.4.0";
 
 const MAX_CALLER_LEVELS = 4;
 const SPLIT_LAYER_FILES = 25;
@@ -486,95 +486,99 @@ interface LayerCopy {
   because: string;
 }
 
-/** Headings ("Review this first", "Then review these"...) and "because" lines from real plan data. */
+/**
+ * Step copy: a short, plain heading ("Start with the schemas", "Then the code that uses it")
+ * and one short why line ("43 other changed files build on these."), from real plan data.
+ */
 function layerCopyFor(buckets: { key: string; kind: string; level?: number; area?: string; files: string[] }[], c: CopyCtx): LayerCopy[] {
-  let reviewedSomething = false; // has a layer before this one asked for a real review?
-  // import depth of code layers: core = 0, callers = their level (for "uses X from the step before")
+  let started = false; // has an earlier step asked for a real review?
+  // import depth of code steps (core = 0, callers = level) and the first step number at each depth
   const levelOf = new Map<string, number>();
-  for (const b of buckets) for (const p of b.files) if (b.kind === "core") levelOf.set(p, 0);
-  else if (b.kind === "caller") levelOf.set(p, b.level ?? 1);
+  const stepOfLevel = new Map<number, number>();
+  buckets.forEach((b, i) => {
+    const lv = b.kind === "core" ? 0 : b.kind === "caller" ? b.level ?? 1 : undefined;
+    if (lv === undefined) return;
+    for (const p of b.files) levelOf.set(p, lv);
+    if (!stepOfLevel.has(lv)) stepOfLevel.set(lv, i + 1);
+  });
   const out: LayerCopy[] = [];
-  const these = (n: number) => (n === 1 ? "this file" : "these files");
-  const inArea = (b: { area?: string }) => (b.area ? ` in ${b.area}/` : "");
-  for (const b of buckets) {
+  const area = (b: { area?: string }) => (b.area ? `In ${b.area}/. ` : "");
+  const lead = (rest: string) => (started ? `Then ${rest}` : `Start with ${rest}`);
+  buckets.forEach((b) => {
     const n = b.files.length;
     const files = b.files.map((p) => c.nodes.get(p)!);
     const outside = (paths: string[]) => [...new Set(paths)].filter((p) => !b.files.includes(p));
+    const these = n === 1 ? "this" : "these";
     let t: LayerCopy;
     switch (b.kind) {
       case "mechanical": {
         const renames = files.filter((f) => f.classification.kind === "rename-only" || f.classification.kind === "copy-only").length;
         const fmt = n - renames;
-        const what =
-          n === 1
-            ? renames ? "a pure rename" : "a formatting-only edit"
-            : [renames ? plural(renames, "pure rename") : "", fmt ? plural(fmt, "formatting-only edit") : ""].filter(Boolean).join(" and ");
-        const it = n === 1 ? "this" : "these";
-        t = { title: reviewedSomething ? `Skim ${it}` : `Skim ${it} first`, label: "Mechanical", because: `As ${n === 1 ? "this is" : "these are"} ${what} with no other changes` };
+        const title = !fmt ? (renames === 1 ? "Skim the rename" : "Skim the renames") : !renames ? "Skim the formatting changes" : "Skim the renames and formatting";
+        const what = [renames ? plural(renames, "pure rename") : "", fmt ? plural(fmt, "formatting-only edit") : ""].filter(Boolean).join(", ");
+        t = { title, label: "Mechanical", because: `${capitalize(what)}; nothing else changed.` };
         break;
       }
       case "contract": {
         const kinds = files.map((f) => contractKind(f.path, f.classification.reason));
         const users = outside(files.flatMap((f) => f.dependents));
-        const phrase = n === 1 ? aKind(kinds[0]) : contractKindsPhrase(kinds);
-        const are = n === 1 ? "this is" : "these are";
         t = {
-          title: reviewedSomething ? "Review this next" : "Review this first",
+          title: lead(contractNoun(kinds, n)),
           label: "Contracts",
-          because: users.length ? `As ${are} ${phrase} that ${plural(users.length, "other changed file")} ${users.length === 1 ? "builds" : "build"} on` : `As ${are} ${phrase} everything else builds on`,
+          because: users.length
+            ? `${plural(users.length, "other changed file")} ${users.length === 1 ? "builds" : "build"} on ${these}.`
+            : `The rest of the change builds on ${these}.`,
         };
-        reviewedSomething = true;
+        started = true;
         break;
       }
       case "core": {
         const users = outside(files.flatMap((f) => f.dependents));
         t = {
-          title: reviewedSomething ? "Review this next" : "Review this first",
+          title: lead("the core code"),
           label: b.area ? `Core · ${b.area}` : "Core",
-          because: `As ${these(n)}${inArea(b)} ${n === 1 ? "is" : "are"} imported by ${plural(users.length, "other changed file")}`,
+          because: `${area(b)}${plural(users.length, "other changed file")} ${users.length === 1 ? "imports" : "import"} ${these}.`,
         };
-        reviewedSomething = true;
+        started = true;
         break;
       }
       case "caller": {
         const lvl = b.level ?? 1;
-        const title = CALLER_HEADINGS[Math.min(lvl, CALLER_HEADINGS.length) - 1];
         const usesPrev = outside(files.flatMap((f) => f.dependsOn)).filter((p) => levelOf.get(p) === lvl - 1);
+        const prevStep = stepOfLevel.get(lvl - 1);
         let because: string;
-        if (lvl === 1 && !b.area) because = n === 1 ? "As this uses the changes you just reviewed" : "As these use the changes you just reviewed";
-        else if (lvl === 1) because = `As ${these(n)}${inArea(b)} use${n === 1 ? "s" : ""} the changes you just reviewed`;
-        else if (usesPrev.length) because = `As ${these(n)}${inArea(b)} use${n === 1 ? "s" : ""} ${namesList(usesPrev, (p) => fileLabel(p))} from the step before`;
-        else because = `As ${these(n)}${inArea(b)} build${n === 1 ? "s" : ""} on the step before`;
-        t = { title, label: `Callers ${lvl}${b.area ? ` · ${b.area}` : ""}`, because };
-        reviewedSomething = true;
+        const subj = n === 1 ? "This uses" : "These use";
+        if (lvl === 1) because = `${area(b)}${subj} the changes you just reviewed.`;
+        else if (usesPrev.length && prevStep) because = `${area(b)}${subj} ${namesList(usesPrev, (p) => fileLabel(p))} from step ${prevStep}.`;
+        else because = `${area(b)}${n === 1 ? "This builds" : "These build"} on the step before.`;
+        t = { title: lvl === 1 ? "Then the code that uses it" : "Then the code built on that", label: `Callers ${lvl}${b.area ? ` · ${b.area}` : ""}`, because };
+        started = true;
         break;
       }
       case "standalone":
         t = {
-          title: reviewedSomething ? "Then review these on their own" : "Review these first",
+          title: lead("the standalone changes"),
           label: b.area ? `Standalone · ${b.area}` : "Standalone",
-          because: `As ${these(n)}${inArea(b)} ${n === 1 ? "doesn't" : "don't"} import, and ${n === 1 ? "isn't" : "aren't"} imported by, other changed code`,
+          because: `${area(b)}No imports to or from other changed code.`,
         };
-        reviewedSomething = true;
+        started = true;
         break;
       case "removed": {
         const still = [...new Set(b.files.flatMap((p) => [...(c.removedUsers.get(p) ?? [])]))];
         const unknown = b.files.filter((p) => c.removedUnverifiable.has(p)).length;
         let because: string;
-        if (still.length) because = `As this code was deleted, but ${plural(still.length, "changed file")} still ${still.length === 1 ? "imports" : "import"} it: check ${namesList(still, (p) => fileLabel(p))}`;
-        else if (!unknown) because = "As this code was deleted and nothing changed still depends on it";
-        else if (unknown === n) because = "As this code was deleted from Go packages that still exist, so check nothing still uses it";
-        else because = `As this code was deleted; no changed file imports it, but ${plural(unknown, "file")} came from ${unknown === 1 ? "a Go package that still exists, so check it" : "Go packages that still exist, so check those"}`;
-        t = { title: "Then check what was removed", label: "Deleted", because };
+        if (still.length) because = `Still imported by ${namesList(still, (p) => fileLabel(p))}; check ${still.length === 1 ? "it" : "them"}.`;
+        else if (!unknown) because = "Nothing changed still imports this code.";
+        else if (unknown === n) because = n === 1 ? "Its Go package still exists, so check nothing still uses it." : "Their Go packages still exist, so check nothing still uses them.";
+        else because = `Nothing changed imports this code, but ${plural(unknown, "file")} came from ${unknown === 1 ? "a Go package that still exists" : "Go packages that still exist"}.`;
+        t = { title: "Check what was removed", label: "Deleted", because };
         break;
       }
       case "test": {
         const subjects = new Set(b.files.map((p) => c.testSubjects.get(p)).filter((x): x is string => !!x));
         const orphan = b.files.filter((p) => !c.testSubjects.has(p)).length;
-        let because = subjects.size ? `As these cover the ${plural(subjects.size, "file")} above` : "As these are the tests changed in this PR";
-        if (subjects.size === 1) because = "As these cover the file above";
-        if (subjects.size && orphan) because += ` (${plural(orphan, "test file")} ${orphan === 1 ? "has" : "have"} no matching changed file)`;
-        if (n === 1) because = because.replace(/^As these cover/, "As this covers");
+        let because = subjects.size ? `${n === 1 ? "This covers" : "These cover"} ${plural(subjects.size, "file")} above.` : "Tests changed in this PR.";
+        if (subjects.size && orphan) because = because.replace(/\.$/, `; ${orphan} ${orphan === 1 ? "has" : "have"} no direct match.`);
         t = { title: "Now the tests", label: "Tests", because };
         break;
       }
@@ -583,19 +587,37 @@ function layerCopyFor(buckets: { key: string; kind: string; level?: number; area
         const docs = n - cfg;
         const assets = files.filter((f) => f.classification.kind === "asset").length;
         const docWord = assets && assets === docs ? "assets" : assets ? "docs and assets" : "docs";
-        if (cfg && docs) t = { title: "Then config and docs", label: "Config & docs", because: `As these are settings and ${docWord} for this change` };
-        else if (cfg) t = { title: "Then the config", label: "Config", because: `As ${n === 1 ? "this is a setting" : "these are settings"} for this change` };
-        else t = { title: `Then the ${docWord}`, label: capitalize(docWord), because: `As ${n === 1 ? "this is" : "these are"} ${docWord} for this change` };
+        if (cfg && docs) t = { title: "Then config and docs", label: "Config & docs", because: `Settings and ${docWord} for this change.` };
+        else if (cfg) t = { title: "Then the config", label: "Config", because: "Settings for this change." };
+        else t = { title: `Then the ${docWord}`, label: capitalize(docWord), because: `${capitalize(docWord)} for this change.` };
         break;
       }
       default: {
         const locks = b.files.filter(isLockfile).length;
         const gen = n - locks;
-        const what = locks && gen ? "generated files and lockfiles" : locks ? (locks === 1 ? "a lockfile" : "lockfiles") : gen === 1 ? "a generated file" : "generated files";
-        t = { title: "Skim last", label: "Generated", because: `As ${n === 1 ? "this is" : "these are"} ${what}` };
+        const noun = locks && gen ? "generated files" : locks ? (locks === 1 ? "the lockfile" : "the lockfiles") : gen === 1 ? "the generated file" : "the generated files";
+        const because = locks && gen ? "Lockfiles and tool output; skim only." : locks ? `${locks === 1 ? "A lockfile" : "Lockfiles"}; skim only.` : "Tool output; skim only.";
+        t = { title: `Skim ${noun} last`, label: "Generated", because };
       }
     }
     out.push(t);
-  }
+  });
   return out;
+}
+
+const CONTRACT_NOUN: Record<string, [string, string]> = {
+  schema: ["the schema", "the schemas"],
+  query: ["the query", "the queries"],
+  migration: ["the migration", "the migrations"],
+  type: ["the types", "the types"],
+  "API contract": ["the API contract", "the API contracts"],
+};
+
+/** "the schemas", "the schemas and migrations", "the schemas, queries and migrations". */
+function contractNoun(kinds: string[], n: number): string {
+  const order = ["schema", "query", "migration", "type", "API contract"].filter((k) => kinds.includes(k));
+  const word = (k: string) => CONTRACT_NOUN[k][kinds.filter((x) => x === k).length > 1 || n > 1 ? 1 : 0];
+  if (order.length === 1) return word(order[0]);
+  const ws = order.map((k, i) => (i ? word(k).replace(/^the /, "") : word(k)));
+  return `${ws.slice(0, -1).join(", ")} and ${ws[ws.length - 1]}`;
 }

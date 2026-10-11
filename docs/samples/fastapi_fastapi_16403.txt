@@ -1,13 +1,13 @@
 # fastapi/fastapi#16403: ✨ Add native OpenTelemetry support
-head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 49 ms
+head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched for 3 files · engine 51 ms
 
-## L0 Review this first [Core]  (1 file, +276/-0)
-   As this file is imported by 5 other changed files
+## Step 1: Start with the core code [Core]  (1 file, +276/-0)
+   5 other changed files import this.
   - fastapi/telemetry/_api.py  [+276/-0]
       Imported by background.py and 4 others
 
-## L1 Then review these [Callers 1]  (5 files, +802/-32)
-   As these use the changes you just reviewed
+## Step 2: Then the code that uses it [Callers 1]  (5 files, +802/-32)
+   These use the changes you just reviewed.
   - fastapi/background.py  [+6/-0]
       Uses _api.py
   - fastapi/routing.py  [+108/-32]
@@ -19,13 +19,13 @@ head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched
   - fastapi/telemetry/_runtime.py  [+239/-0]
       Uses _api.py
 
-## L2 Review these after that [Callers 2]  (1 file, +65/-2)
-   As this file uses routing.py and 2 others from the step before
+## Step 3: Then the code built on that [Callers 2]  (1 file, +65/-2)
+   This uses routing.py and 2 others from step 2.
   - fastapi/applications.py  [+65/-2]
       Uses routing.py and 2 others
 
-## L3 Now the tests [Tests]  (20 files, +3792/-0)
-   As these cover the 4 files above (13 test files have no matching changed file)
+## Step 4: Now the tests [Tests]  (20 files, +3792/-0)
+   These cover 4 files above; 13 have no direct match.
   - tests/test_telemetry/test_native_integrations.py  [+316/-0]
       Tests for routing.py
   - tests/test_telemetry/test_background.py  [+276/-0]
@@ -44,8 +44,8 @@ head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched
       Inside a tests/ directory, with no matching changed file
   … 12 more
 
-## L4 Then config and docs [Config & docs]  (8 files, +220/-0)
-   As these are settings and docs for this change
+## Step 5: Then config and docs [Config & docs]  (8 files, +220/-0)
+   Settings and docs for this change.
   - docs_src/opentelemetry/tutorial001_py310.py  [+8/-0]
       Example/documentation code (top-level examples dir)
   - docs_src/opentelemetry/tutorial002_py310.py  [+13/-0]
@@ -63,7 +63,7 @@ head daba280 · 36 files · +5251/-46 · 37 dependency edges · contents fetched
   - pyproject.toml  [+18/-0]
       Python packaging/config
 
-## L5 Skim last [Generated]  (1 file, +96/-12)
-   As this is a lockfile
+## Step 6: Skim the lockfile last [Generated]  (1 file, +96/-12)
+   A lockfile; skim only.
   - uv.lock  [+96/-12]
       Lockfile for the pyproject.toml change

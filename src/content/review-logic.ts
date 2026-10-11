@@ -75,3 +75,53 @@ export function setReviewed(state: ReviewState, layer: Layer, reviewed: boolean,
   else delete next[layer.id];
   return next;
 }
+
+/** The step to work on now: the first one that isn't reviewed (or changed since it was). -1 when all done. */
+export function currentStep(plan: LayerPlan, state: ReviewState): number {
+  return plan.layers.findIndex((l) => !state[l.id] || changedSinceReviewed(l, state[l.id]).length > 0);
+}
+
+export interface Progress {
+  step: number; // 1-based current step, or 0 when all steps are done
+  steps: number;
+  reviewedFiles: number;
+  totalFiles: number;
+  text: string;
+  ratio: number;
+}
+
+export function progress(plan: LayerPlan, state: ReviewState): Progress {
+  const s = summarize(plan, state);
+  const cur = currentStep(plan, state);
+  const steps = plan.layers.length;
+  const files = (n: number) => `${n} file${n === 1 ? "" : "s"}`;
+  const text =
+    cur < 0
+      ? `All ${steps} step${steps === 1 ? "" : "s"} reviewed · ${s.reviewedFiles} of ${files(s.totalFiles)}`
+      : `Step ${cur + 1} of ${steps} · ${s.reviewedFiles} of ${files(s.totalFiles)} reviewed`;
+  return { step: cur + 1, steps, reviewedFiles: s.reviewedFiles, totalFiles: s.totalFiles, text, ratio: s.totalFiles ? s.reviewedFiles / s.totalFiles : 0 };
+}
+
+export interface FolderGroup<T extends { path: string }> {
+  /** Folder with trailing slash ("" for the repo root). */
+  dir: string;
+  files: (T & { name: string })[];
+}
+
+/** Group files by folder, keeping first-appearance order, so the shared path is shown once. */
+export function groupByFolder<T extends { path: string }>(files: readonly T[]): FolderGroup<T>[] {
+  const out: FolderGroup<T>[] = [];
+  const at = new Map<string, FolderGroup<T>>();
+  for (const f of files) {
+    const i = f.path.lastIndexOf("/");
+    const dir = i >= 0 ? f.path.slice(0, i + 1) : "";
+    let g = at.get(dir);
+    if (!g) {
+      g = { dir, files: [] };
+      at.set(dir, g);
+      out.push(g);
+    }
+    g.files.push({ ...f, name: f.path.slice(i + 1) });
+  }
+  return out;
+}

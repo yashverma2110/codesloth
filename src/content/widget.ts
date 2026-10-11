@@ -5,7 +5,7 @@ import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
 import { GRAPH_CSS } from "../graph/svg";
 import { GraphView, GRAPH_VIEW_CSS } from "../graph/view";
 import { toDom } from "../graph/vdom";
-import { normalizeReviewState, setReviewed, summarize, type ReviewState } from "./review-logic";
+import { currentStep, normalizeReviewState, progress, setReviewed, summarize, type ReviewState } from "./review-logic";
 import { renderReview } from "./review-view";
 import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
 import demoData from "../demo/demo-plan.json";
@@ -70,8 +70,10 @@ export class Widget {
   private bannerEl!: HTMLElement;
   private tabs!: Record<View, HTMLButtonElement>;
   private panes!: Record<View, HTMLElement>;
-  private refreshBtn!: HTMLButtonElement;
-  private helpBtn!: HTMLButtonElement;
+  private menuBtn!: HTMLButtonElement;
+  /** Steps the user has expanded; reset per plan and seeded with the current step. */
+  private openSteps = new Set<string>();
+  private openFor = "";
   private menu!: HTMLElement;
   private overlay: HTMLElement | null = null;
   private graphView: GraphView | null = null;
@@ -102,10 +104,9 @@ export class Widget {
     this.bubble.append(toDom(ICON), el("span", { class: "dot" }));
 
     this.titleEl = el("div", { class: "ttl" }, "PR Layers");
-    this.helpBtn = el("button", { type: "button", class: "icon", title: "Help: tour and demo", "aria-label": "Help", "aria-haspopup": "menu", "aria-expanded": "false" }, "?") as HTMLButtonElement;
-    this.refreshBtn = el("button", { type: "button", title: "Re-analyze (ignores cache)" }, "Re-analyze") as HTMLButtonElement;
+    this.menuBtn = el("button", { type: "button", class: "icon", title: "More: re-analyze, tour, demo, settings, details", "aria-label": "More options", "aria-haspopup": "menu", "aria-expanded": "false" }, "⋯") as HTMLButtonElement;
     const closeBtn = el("button", { type: "button", class: "x", title: "Close (Esc)", "aria-label": "Close" }, "✕");
-    const hdr = el("div", { class: "hdr" }, this.titleEl, this.helpBtn, this.refreshBtn, closeBtn);
+    const hdr = el("div", { class: "hdr" }, this.titleEl, this.menuBtn, closeBtn);
     this.menu = el("div", { class: "menu", role: "menu", hidden: "" });
 
     // GitHub-style underline tabs with full ARIA tab semantics.
@@ -118,7 +119,7 @@ export class Widget {
       graph: el("div", { class: "pane graph", role: "tabpanel", id: "prl-pane-graph", "aria-labelledby": "prl-tab-graph", hidden: "" }),
     };
     this.bannerEl = el("div", { class: "banner", hidden: "" });
-    this.subEl = el("div", { class: "sub" });
+    this.subEl = el("div", { class: "sub", "aria-live": "polite" });
     this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "PR Layers" }, hdr, this.menu, tablist, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
     this.panel.hidden = true;
     this.root.append(this.panel, this.bubble);
@@ -133,8 +134,7 @@ export class Widget {
       this.toggle("bubble");
     });
     closeBtn.addEventListener("click", () => this.toggle("close"));
-    this.refreshBtn.addEventListener("click", () => (this.demo ? this.loadDemo() : void this.analyze(true)));
-    this.helpBtn.addEventListener("click", () => this.toggleMenu());
+    this.menuBtn.addEventListener("click", () => this.toggleMenu());
     for (const v of ["review", "graph"] as View[]) this.tabs[v].addEventListener("click", () => this.setView(v, true));
     tablist.addEventListener("keydown", (e) => {
       const order: View[] = ["review", "graph"];
@@ -285,7 +285,7 @@ export class Widget {
   private toggleMenu(force?: boolean) {
     const show = force ?? this.menu.hidden;
     this.menu.hidden = !show;
-    this.helpBtn.setAttribute("aria-expanded", String(show));
+    this.menuBtn.setAttribute("aria-expanded", String(show));
     if (!show) return;
     const item = (label: string, fn: () => void) => {
       const b = el("button", { type: "button", role: "menuitem" }, label);
@@ -295,10 +295,21 @@ export class Widget {
       });
       return b;
     };
+    const res = this.result;
+    const meta: HTMLElement[] = [];
+    if (res) {
+      const fmt = (n: number) => n.toLocaleString("en-US");
+      if (!this.demo) meta.push(el("div", { class: "meta" }, `Head commit ${res.meta.headSha.slice(0, 7)} · ${res.fromCache ? "cached" : "fresh"}`));
+      if (res.rate) meta.push(el("div", { class: "meta" }, `GitHub API ${fmt(res.rate.remaining)} / ${fmt(res.rate.limit)} left`));
+      meta.push(el("div", { class: "meta" }, `${fmt(res.plan.stats.files)} files · +${fmt(res.plan.stats.additions)} / −${fmt(res.plan.stats.deletions)} lines`));
+      for (const w of res.plan.warnings) meta.push(el("div", { class: "meta warn" }, "⚠ " + w));
+    }
     this.menu.replaceChildren(
-      item("Take the Review tour", () => this.startTour()),
+      item(this.demo ? "Reload demo" : "Re-analyze", () => (this.demo ? this.loadDemo() : void this.analyze(true))),
+      item("Take the tour", () => this.startTour()),
       this.demo ? item("Exit demo", () => this.exitDemo()) : item("Try demo (sample PR, no token needed)", () => this.loadDemo(true)),
       item("Token & settings…", () => void rpc({ type: "openOnboarding" })),
+      ...(meta.length ? [el("div", { class: "sep", role: "separator" }), ...meta] : []),
     );
     (this.menu.firstElementChild as HTMLElement | null)?.focus();
   }
@@ -394,7 +405,6 @@ export class Widget {
     if (!this.pr || this.busy) return;
     if (this.auth?.method !== "pat") return this.renderSetup();
     this.busy = true;
-    this.refreshBtn.disabled = true;
     this.subEl.textContent = "Analyzing…";
     const pr = this.pr;
     try {
@@ -410,7 +420,6 @@ export class Widget {
       this.subEl.replaceChildren(el("span", { class: "err" }, err.message));
     } finally {
       this.busy = false;
-      this.refreshBtn.disabled = false;
     }
   }
 
@@ -453,21 +462,32 @@ export class Widget {
     this.titleEl.textContent = `#${res.pr.number} ${res.meta.title}`;
     this.titleEl.title = res.meta.title;
     const s = summarize(res.plan, this.review);
-    const rate = res.rate ? ` · API ${res.rate.remaining}/${res.rate.limit}` : "";
-    this.subEl.replaceChildren(
-      el(
-        "div",
-        {},
-        `${res.plan.stats.files} files · +${res.plan.stats.additions}/−${res.plan.stats.deletions} · ${res.plan.layers.length} layers · ${s.reviewedFiles}/${s.totalFiles} reviewed` +
-          (this.demo ? "" : ` · ${res.fromCache ? "cached" : "fresh"} @ ${res.meta.headSha.slice(0, 7)}${rate}`),
-      ),
-      ...res.plan.warnings.map((w) => el("div", { class: "warn" }, "⚠ " + w)),
-    );
+    const key = `${prKey(res.pr)}@${res.meta.headSha}${this.demo ? ":demo" : ""}`;
+    if (this.openFor !== key) {
+      this.openFor = key;
+      this.openSteps = new Set();
+      const cur = currentStep(res.plan, this.review);
+      if (cur >= 0) this.openSteps.add(res.plan.layers[cur].id);
+    }
+    const pg = progress(res.plan, this.review);
+    const bar = el("div", { class: "pbar", role: "progressbar", "aria-label": "Files reviewed", "aria-valuemin": "0", "aria-valuemax": String(pg.totalFiles), "aria-valuenow": String(pg.reviewedFiles) }, el("i"));
+    (bar.firstChild as HTMLElement).style.width = `${Math.round(pg.ratio * 100)}%`;
+    const [stepPart, filesPart] = pg.text.split(" · ");
+    this.subEl.replaceChildren(el("div", { class: "plbl" }, el("b", {}, stepPart), el("span", {}, filesPart ?? "")), bar);
+    this.menuBtn.classList.toggle("has-warn", res.plan.warnings.length > 0);
     const scroll = this.panes.review.scrollTop;
     this.panes.review.replaceChildren(
       renderReview(res.plan, this.review, {
+        open: this.openSteps,
         onToggle: (l, on) => this.setLayerReviewed(l, on),
         onJump: (p) => void this.jump(p),
+        onOpen: (l, open) => {
+          if (open) this.openSteps.add(l.id);
+          else this.openSteps.delete(l.id);
+          this.renderAll();
+          (this.panes.review.querySelector(`[data-layer="${CSS.escape(l.id)}"] .sh`) as HTMLElement | null)?.focus({ preventScroll: true });
+        },
+        onMarkNext: (l) => this.markNext(l),
       }),
     );
     this.panes.review.scrollTop = scroll;
@@ -479,7 +499,31 @@ export class Widget {
     if (!this.result) return;
     this.review = setReviewed(this.review, l, on, this.result.meta.headSha);
     if (!this.demo) void rpc({ type: "reviewed:set", key: prKey(this.result.pr), value: this.review }).catch(() => {});
+    if (on) {
+      this.openSteps.delete(l.id);
+      const cur = currentStep(this.result.plan, this.review);
+      if (cur >= 0) this.openSteps.add(this.result.plan.layers[cur].id);
+    }
     this.renderAll();
+  }
+
+  /** "Mark step reviewed & next →": tick, collapse, open the next unreviewed step and jump to its first file. */
+  markNext(l: Layer) {
+    const res = this.result;
+    if (!res) return;
+    this.review = setReviewed(this.review, l, true, res.meta.headSha);
+    if (!this.demo) void rpc({ type: "reviewed:set", key: prKey(res.pr), value: this.review }).catch(() => {});
+    this.openSteps.delete(l.id);
+    const i = res.plan.layers.indexOf(l);
+    const s = summarize(res.plan, this.review);
+    const isDone = (x: Layer) => s.reviewedLayers.has(x.id) && !s.changedLayers.has(x.id);
+    const next = res.plan.layers.slice(i + 1).find((x) => !isDone(x)) ?? res.plan.layers.find((x) => !isDone(x));
+    if (next) this.openSteps.add(next.id);
+    this.renderAll();
+    const row = next && this.panes.review.querySelector(`[data-layer="${CSS.escape(next.id)}"]`);
+    (row as HTMLElement | null)?.scrollIntoView?.({ block: "nearest" });
+    (row?.querySelector(".sh") as HTMLElement | null)?.focus({ preventScroll: true });
+    if (next?.files[0]) void this.jump(next.files[0].path);
   }
 
   private renderGraph() {
@@ -528,7 +572,9 @@ export class Widget {
     if (this.demo && this.result) {
       const url = `https://github.com/${this.result.pr.owner}/${this.result.pr.repo}/pull/${this.result.pr.number}/files#${await diffAnchor(path)}`;
       const a = el("a", { href: url, target: "_blank", rel: "noopener" }, "open it on GitHub");
-      this.subEl.replaceChildren(el("div", { class: "toast" }, `Demo: on a real PR this scrolls Files changed to ${path}. You can `, a, "."));
+      const exit = el("button", { type: "button", class: "btn" }, "Exit demo");
+      exit.addEventListener("click", () => this.exitDemo());
+      this.bannerEl.replaceChildren(el("span", { class: "toast" }, `Demo: on a real PR this opens the diff for ${path.slice(path.lastIndexOf("/") + 1)}. You can `, a, "."), exit);
       return;
     }
     this.closeOverlay();
@@ -552,20 +598,19 @@ export class Widget {
     this.setView("review", false);
     this.tour?.end(false);
     const q = (sel: string) => () => this.panes.review.querySelector(sel);
-    const openFirst = () => (this.panes.review.querySelector('[data-tour="layer"]') as HTMLDetailsElement | null)?.setAttribute("open", "");
+    const peek = (on: boolean) => () => this.panes.review.querySelector('[data-tour="file"]')?.classList.toggle("peek", on);
     const T = REVIEW_TOUR_TEXT;
     const steps: TourStep[] = [
-      { target: q('[data-tour="layer"] > summary'), ...T.layers, before: openFirst },
-      { target: q('[data-tour="reason"]'), ...T.reasons, before: openFirst },
-      { target: q('[data-tour="file"]'), ...T.jump, before: openFirst },
-      { target: q('[data-tour="check"]'), ...T.check },
-      {
-        target: () => this.panes.review.querySelector('[data-tour="changed"]'),
-        ...T.changed,
-        before: () => (this.panes.review.querySelector('[data-tour="changed"]')?.closest("details") as HTMLDetailsElement | null)?.setAttribute("open", ""),
-      },
+      { target: q('[data-tour="step"] .sh'), ...T.layers, before: peek(false) },
+      { target: q('.step.open [data-tour="why"]'), ...T.reasons, before: peek(false) },
+      { target: q('[data-tour="file"]'), ...T.jump, before: peek(true) },
+      { target: q('.step.open [data-tour="next"]'), ...T.check, before: peek(false) },
+      { target: q('[data-tour="changed"]'), ...T.changed, before: peek(false) },
     ];
-    this.tour = new Tour(this.root, steps, () => void setPref("tourDone", true));
+    this.tour = new Tour(this.root, steps, () => {
+      peek(false)();
+      void setPref("tourDone", true);
+    });
     this.tour.start();
   }
 }

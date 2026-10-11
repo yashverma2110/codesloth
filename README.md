@@ -4,7 +4,7 @@ PR Layers is a browser extension (Manifest V3; Chrome, Arc, Edge, Brave) for **h
 
 > mechanical → contracts & schemas → core → callers (by import depth) → standalone → deleted code → tests → config/docs/assets → generated & lockfiles
 
-You can then review bottom-up, one layer at a time. The layers show up in a **floating, draggable widget** on the PR page. Each layer tells you **when** to review it and **why** (e.g. *"Review this first: As this file is imported by 5 other changed files"*). Each file says how it connects (e.g. *"Uses _api.py; imported by applications.py"*), and clicking a file jumps to it in **Files changed**.
+You can then review bottom-up, one step at a time. The steps show up as a **checklist in a floating, draggable widget** on the PR page. Each step has a short heading and one line on why it comes now (e.g. *"Start with the core code: 5 other changed files import this."*). Hover a file to see how it connects (e.g. *"Uses _api.py; imported by applications.py"*), click it to jump to it in **Files changed**, and use **Mark step reviewed & next →** to move on.
 
 - **Read-only.** It only sends `GET` requests, using a fine-grained token you create with *Pull requests: Read-only* and *Contents: Read-only*.
 - **Local.** There's no backend. PR code never leaves your browser. Results are cached in IndexedDB.
@@ -31,9 +31,8 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
 - **Open/close:** click the bubble, click the toolbar icon (on a PR tab), or press **Alt+Shift+L** (⌥⇧L on macOS). Close with ✕ or **Esc**. Esc is ignored while you're typing in a GitHub text field.
 - **Move it:** drag the bubble or the panel header. On release it snaps to the left or right edge. You can put it anywhere vertically; it's kept below GitHub's header and inside the window. The side and vertical position are remembered across pages and restarts; a resized height lasts until you leave the page. A drag never counts as a click.
 - **Panel:** it opens toward the middle of the screen (downward if the bubble is in the top half, upward otherwise). Drag its bottom edge to resize; lists scroll inside it.
-- **Tabs:** **Review** (the layered list with reviewed checkboxes) and **Graph** (dependency graph). They're GitHub-style underline tabs with `tablist`/`tab`/`tabpanel` roles: ←/→ switch, Home/End jump to first/last. The last tab you used is remembered.
-- **Help (`?`):** take the Review tour again, **Try demo** (or exit it), or open token settings.
-- **Re-analyze** ignores the cache.
+- **Tabs:** **Review** (the step checklist) and **Graph** (dependency graph). They're GitHub-style underline tabs with `tablist`/`tab`/`tabpanel` roles: ←/→ switch, Home/End jump to first/last. The last tab you used is remembered.
+- **⋯ menu:** Re-analyze (ignores the cache), Take the tour, Try demo / Exit demo, and Token & settings. It also shows the technical details: head commit and whether the result is cached, GitHub API quota left, total files and +/− lines, and any analysis warnings (a dot on ⋯ means there's a warning).
 - The bubble only appears on `/{owner}/{repo}/pull/{n}` pages. It follows GitHub's in-page navigation and disappears on other pages. A red dot means no token is set yet.
 - Theme follows GitHub's `data-color-mode` (light/dark/auto), or your OS setting.
 - Change the shortcut at `chrome://extensions/shortcuts` (or the equivalent page in your browser).
@@ -50,36 +49,48 @@ v0.3.0 was smoke-tested in **headless Chrome 154 on live github.com** (no token,
 
 ## How to use the Review tab
 
-1. Open a PR and click the bubble. Each layer starts with **when** to review it and a **because** line worked out from the PR's own import graph and file kinds. Read from top to bottom. This is fastapi/fastapi#16403 (the bundled demo):
+The Review tab is a **checklist of numbered steps** in reading order. At the top, one line shows where you are, e.g. **Step 2 of 6 · 1 of 36 files reviewed**, with a thin progress bar.
 
-   | Layer | Heading | Because |
+1. **Steps.** Each step has a number (✓ once done), a short plain heading and a file count. Only the **current step** is open, meaning the first one that isn't reviewed yet or has changed since. The others are collapsed rows; click one (or press Enter/Space on it) to open it. The open step shows one short why line, worked out from the PR's import graph and file kinds. For fastapi/fastapi#16403 (the bundled demo):
+
+   | Step | Heading | Why |
    |---|---|---|
-   | L0 Core | Review this first | As this file is imported by 5 other changed files |
-   | L1 Callers 1 | Then review these | As these use the changes you just reviewed |
-   | L2 Callers 2 | Review these after that | As this file uses routing.py and 2 others from the step before |
-   | L3 Tests | Now the tests | As these cover the 4 files above (13 test files have no matching changed file) |
-   | L4 Config & docs | Then config and docs | As these are settings and docs for this change |
-   | L5 Generated | Skim last | As this is a lockfile |
+   | 1 | Start with the core code | 5 other changed files import this. |
+   | 2 | Then the code that uses it | These use the changes you just reviewed. |
+   | 3 | Then the code built on that | This uses routing.py and 2 others from step 2. |
+   | 4 | Now the tests | These cover 4 files above; 13 have no direct match. |
+   | 5 | Then config and docs | Settings and docs for this change. |
+   | 6 | Skim the lockfile last | A lockfile; skim only. |
 
-   Other layers follow the same pattern. **Contracts** adapt to what changed. Schema, query, migration, type and API contract are detected per file, e.g. *Review this first: As these are type updates that 27 other changed files build on* (excalidraw/excalidraw#12018). **Deleted code** says *Then check what was removed: As this code was deleted and nothing changed still depends on it*, but only when no changed file still imports it. Otherwise it names the files that do. For a Go file whose package still exists it says that can't be checked from imports. **Standalone** layers say *As these files don't import, and aren't imported by, other changed code*. Deeper caller levels read *Then review these → Review these after that → Then these → And finally these*. When a big layer is split by package, each part keeps its heading and names its area in the because line. Counts are pluralized correctly (1 file / 3 files).
-2. Each file says **how it connects**: *Imported by routing.py and 3 others*, *Uses _api.py*, *Uses _api.py; imported by applications.py*, *Tests for _api.py*, *Lockfile for the pyproject.toml change*, *Deleted; no changed file imports it*. If a line looks wrong, take a closer look at that file.
-3. **Click a file** (or focus it and press Enter) to jump to its diff in Files changed.
-4. **Tick a layer** when you've reviewed it. It collapses and counts toward *n/m reviewed*. Ticks are stored in this browser per PR, together with each file's blob SHA.
-5. **⚠ Changed since you reviewed it.** If later pushes change a ticked layer's files (new content, new files, or files that moved out), the layer gets a ⚠ flag and those files get a *changed* badge, so you only re-read what changed. Tick it again to clear the flag.
+   Other kinds of step:
+   - **Contracts** are named after what changed, e.g. *Start with the types: 27 other changed files build on these.* (excalidraw/excalidraw#12018), or *Start with the schemas*, *…the migrations*, *…the schemas, queries and migrations*.
+   - **Deleted code** reads *Check what was removed: Nothing changed still imports this code.* That line only appears when no changed file still imports it. Otherwise the step names the files that do. A deleted Go file whose package still exists gets a "check it" line instead, because imports can't tell.
+   - **Standalone:** *No imports to or from other changed code.*
+   - When a big step is split by package, the why line starts with its folder (*In packages/a/.*).
+2. **Files** are grouped by folder; the shared path is shown once. Each row shows:
+   - a **status dot**: filled = new, hollow = modified, dashed = deleted, square = renamed/copied. Hover for the label; screen readers get it too.
+   - the file name;
+   - a small **+N bar**, with **−N** only when lines were removed.
 
-**First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers exactly the steps above. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **? → Take the Review tour**.
+   **Hover or focus** a file to see how it connects (*Imported by routing.py and 3 others*, *Uses _api.py*, *Tests for _api.py*, *Lockfile for the pyproject.toml change*). **Click it** (or press Enter) to jump to its diff in Files changed.
+3. **Mark step reviewed & next →** on the open step ticks it, collapses it, opens the next unreviewed step and jumps to that step's first file. On the last step the button reads **Mark reviewed ✓**. You can also use the checkbox on any step. Ticks are stored in this browser per PR, together with each file's blob SHA.
+4. **⚠ Changed since you reviewed it.** If later pushes change files in a ticked step (new content, new files, or files that moved out), the step shows ⚠ and becomes the current step again. The changed files get a small ⚠ too, so you only re-read what moved. Mark it reviewed again to clear it.
 
-**Try demo:** **? → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.
+**First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers exactly the steps above. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **⋯ → Take the tour**.
 
-![Review tab in demo mode (fastapi/fastapi#16403): order headings, because-lines and per-file reasons. Headless render of the real widget code and the bundled sample plan](docs/images/review-demo.png)
+**Try demo:** **⋯ → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.
+
+![Review tab in demo mode (fastapi/fastapi#16403) after "Mark step reviewed & next": step 1 done, step 2 open with files grouped by folder, hovering routing.py shows its reason. Headless render of the real widget code and the bundled sample plan](docs/images/review-demo.png)
+
+Dark theme: [docs/images/review-demo-dark.png](docs/images/review-demo-dark.png).
 
 ## Graph view
 
 The **Graph** tab draws the PR's changed files as a layered dependency graph:
 
-- **Nodes** are changed files: file name, +/−, and status. Hover for the full path, the layer with its heading (e.g. *L0 Core: Review this first*) and the file's reason. They're colored by layer, with a legend that doubles as a **layer filter** (click a chip to hide or show that layer).
+- **Nodes** are changed files: file name, +/−, and status. Hover for the full path, its step (e.g. *Step 1: Start with the core code*) and the file's reason. They're colored by layer, with a legend that names each step the same way as the Review tab (*1 Start with the core code · 1*) and doubles as a **filter** (click a chip to hide or show that step).
 - **Edges** go importer → imported, using the import graph the engine already builds. Dashed green edges link a test to the file it tests.
-- **Layout:** one band per layer, top to bottom in review order, labeled like *L0 · Review this first · Core*. Contracts and core are at the top. Within a band, nodes are ordered by where their neighbors sit, to cut down on crossings. Multi-file **Go packages** and **import cycles** get a dashed box.
+- **Layout:** one band per layer, top to bottom in review order, labeled like *Step 1 · Start with the core code*, the same names as in the Review tab. Contracts and core are at the top. Within a band, nodes are ordered by where their neighbors sit, to cut down on crossings. Multi-file **Go packages** and **import cycles** get a dashed box.
 - **Generated files and lockfiles** are collapsed into one node; click it to expand. For big PRs (more than 160 nodes), files are **clustered by directory**, coarsening until they fit. Click a cluster to expand it. Repeated edges between clusters are merged and drawn thicker.
 - **Interactions:** drag to pan, wheel or ± to zoom, **Fit**. Hovering or focusing a node highlights it and its neighbors. **Search** fades out non-matching files; Enter centers the first match. Click a node (or press Enter) to jump to its diff. Files in reviewed layers are dimmed with a ✓. A ● marks files changed since review.
 - **⤢ Expand** opens a near-full-screen overlay inside the same shadow root (Esc or ✕ closes it). **↗ Tab** opens a full extension page (`graph.html`). That page asks the service worker for the cached plan; it gets no token and makes no network calls. Clicking a node there focuses the PR tab and jumps.
@@ -170,7 +181,7 @@ PR Layers needs read access only, so it refuses tokens it can tell are write-cap
    - *Standalone* = no links to other changed files.
    - Layers with more than 25 files are split by package directory.
 6. **Tests** are paired with their subject: first by imports and name, then name only, then Go same-package. They're ordered to follow their subject's layer.
-7. **Copy:** every layer gets a heading saying when to review it and a because line built from real counts (dependents, covered files, kinds of contract change, lockfile vs. generated). Every file gets a line saying how it connects. Deleted code is only called safe to remove if no changed file still imports it. See [How to use the Review tab](#how-to-use-the-review-tab).
+7. **Copy:** every layer is a numbered step with a short heading (*Start with the schemas*, *Then the code that uses it*, *Now the tests*) and a one-line why built from real counts (dependents, covered files, kinds of contract change, lockfile vs. generated). Every file gets a line saying how it connects. Deleted code is only called safe to remove if no changed file still imports it. See [How to use the Review tab](#how-to-use-the-review-tab).
 
 ### Sample output (real public PRs)
 

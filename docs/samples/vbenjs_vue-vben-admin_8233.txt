@@ -1,8 +1,8 @@
 # vbenjs/vue-vben-admin#8233: feat(@vben-core/popup-ui)!: add typed popup data contracts
 head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched for 26 files · engine 23 ms
 
-## L0 Review this first [Core]  (15 files, +192/-46)
-   As these files are imported by 18 other changed files
+## Step 1: Start with the core code [Core]  (15 files, +192/-46)
+   18 other changed files import these.
   - packages/@core/ui-kit/popup-ui/src/drawer/drawer-api.ts  [+6/-6]
       Uses drawer.ts; imported by drawer.ts and use-drawer.ts · In an import cycle with drawer.ts, so kept together
   - packages/@core/ui-kit/popup-ui/src/drawer/drawer.ts  [+20/-7]
@@ -21,8 +21,8 @@ head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched
       Imported by drawer/index.vue and 2 others
   … 7 more
 
-## L1 Then review these [Callers 1]  (8 files, +206/-26)
-   As these use the changes you just reviewed
+## Step 2: Then the code that uses it [Callers 1]  (8 files, +206/-26)
+   These use the changes you just reviewed.
   - packages/@core/ui-kit/popup-ui/src/drawer/use-drawer.ts  [+51/-11]
       Uses drawer.ts and drawer-api.ts; imported by drawer/index.ts
   - packages/@core/ui-kit/popup-ui/src/modal/use-modal.ts  [+57/-13]
@@ -40,8 +40,8 @@ head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched
   - playground/src/views/system/user/list.vue  [+1/-1]
       Uses detail.vue and modules/form.vue
 
-## L2 Review these after that [Callers 2]  (4 files, +160/-2)
-   As these files use use-drawer.ts and 3 others from the step before
+## Step 3: Then the code built on that [Callers 2]  (4 files, +160/-2)
+   These use use-drawer.ts and 3 others from step 2.
   - packages/@core/ui-kit/popup-ui/src/drawer/index.ts  [+5/-1]
       Uses drawer.ts and use-drawer.ts
   - packages/@core/ui-kit/popup-ui/src/modal/index.ts  [+5/-1]
@@ -51,8 +51,8 @@ head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched
   - playground/src/views/examples/modal/index.vue  [+76/-0]
       Uses modal/typed-data-contract.ts and 5 others
 
-## L3 Then review these on their own [Standalone]  (3 files, +38/-14)
-   As these files don't import, and aren't imported by, other changed code
+## Step 4: Then the standalone changes [Standalone]  (3 files, +38/-14)
+   No imports to or from other changed code.
   - apps/web-naive/src/views/demos/form/modal.vue  [+10/-4]
       No imports to or from other changed code
   - playground/src/views/system/dept/modules/form.vue  [+18/-7]
@@ -60,8 +60,8 @@ head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched
   - playground/src/views/system/menu/modules/form.vue  [+10/-3]
       No imports to or from other changed code
 
-## L4 Now the tests [Tests]  (8 files, +182/-0)
-   As these cover the 6 files above
+## Step 5: Now the tests [Tests]  (8 files, +182/-0)
+   These cover 6 files above.
   - packages/@core/ui-kit/popup-ui/src/drawer/__tests__/drawer-api.test.ts  [+10/-0]
       Tests for drawer-api.ts
   - packages/@core/ui-kit/popup-ui/src/drawer/__tests__/drawer-types.test.ts  [+59/-0]
@@ -79,8 +79,8 @@ head 0a47dc8 · 44 files · +898/-102 · 47 dependency edges · contents fetched
   - packages/@core/ui-kit/popup-ui/src/modal/__tests__/use-modal.test.ts  [+6/-0]
       Tests for use-modal.ts
 
-## L5 Then the docs [Docs]  (6 files, +120/-14)
-   As these are docs for this change
+## Step 6: Then the docs [Docs]  (6 files, +120/-14)
+   Docs for this change.
   - docs/src/components/common-ui/vben-drawer.md  [+25/-2]
       Documentation
   - docs/src/components/common-ui/vben-modal.md  [+25/-2]

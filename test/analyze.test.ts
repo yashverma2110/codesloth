@@ -58,16 +58,16 @@ describe("layer assembly", () => {
   it("tells the reviewer the order and why for each layer, from real counts", () => {
     const copy = plan.layers.map((l) => [l.label, l.title, l.description]);
     expect(copy).toEqual([
-      ["Mechanical", "Skim this first", "As this is a pure rename with no other changes"],
-      ["Contracts", "Review this first", "As this is a type update that 1 other changed file builds on"],
-      ["Core", "Review this next", "As this file is imported by 2 other changed files"],
-      ["Callers 1", "Then review these", "As this uses the changes you just reviewed"],
-      ["Callers 2", "Review these after that", "As this file uses user.ts from the step before"],
-      ["Callers 3", "Then these", "As this file uses UserCard.vue from the step before"],
-      ["Standalone", "Then review these on their own", "As this file doesn't import, and isn't imported by, other changed code"],
-      ["Tests", "Now the tests", "As these cover the 2 files above"],
-      ["Config & docs", "Then config and docs", "As these are settings and docs for this change"],
-      ["Generated", "Skim last", "As this is a lockfile"],
+      ["Mechanical", "Skim the rename", "1 pure rename; nothing else changed."],
+      ["Contracts", "Start with the types", "1 other changed file builds on this."],
+      ["Core", "Then the core code", "2 other changed files import this."],
+      ["Callers 1", "Then the code that uses it", "This uses the changes you just reviewed."],
+      ["Callers 2", "Then the code built on that", "This uses user.ts from step 4."],
+      ["Callers 3", "Then the code built on that", "This uses UserCard.vue from step 5."],
+      ["Standalone", "Then the standalone changes", "No imports to or from other changed code."],
+      ["Tests", "Now the tests", "These cover 2 files above."],
+      ["Config & docs", "Then config and docs", "Settings and docs for this change."],
+      ["Generated", "Skim the lockfile last", "A lockfile; skim only."],
     ]);
   });
 
@@ -75,21 +75,23 @@ describe("layer assembly", () => {
     const del = (filename: string): PRFile => ({ filename, status: "removed", additions: 0, deletions: 3, changes: 3, sha: filename, patch: "@@ -1,3 +0,0 @@\n-a\n-b\n-c" });
     const clean = analyze({ files: [del("src/old.ts"), added("src/a.ts", "export const a = 1")] });
     const d1 = clean.layers.find((l) => l.id === "removed")!;
-    expect(d1.title).toBe("Then check what was removed");
-    expect(d1.description).toBe("As this code was deleted and nothing changed still depends on it");
+    expect(d1.title).toBe("Check what was removed");
+    expect(d1.description).toBe("Nothing changed still imports this code.");
     expect(d1.files[0].reason).toBe("Deleted; no changed file imports it");
     const dirty = analyze({ files: [del("src/old.ts"), added("src/a.ts", "import { x } from './old'\nexport const a = x")] });
     const d2 = dirty.layers.find((l) => l.id === "removed")!;
-    expect(d2.description).toBe("As this code was deleted, but 1 changed file still imports it: check a.ts");
+    expect(d2.description).toBe("Still imported by a.ts; check it.");
     expect(d2.files[0].reason).toBe("Deleted, but still imported by a.ts");
     const go = analyze({ goMods: { "go.mod": "module m" }, files: [del("pkg/old.go"), added("pkg/new.go", "package pkg\nfunc New() {}")] });
-    expect(go.layers.find((l) => l.id === "removed")!.description).toMatch(/Go packages that still exist/);
+    expect(go.layers.find((l) => l.id === "removed")!.description).toBe("Its Go package still exists, so check nothing still uses it.");
   });
 
   it("adapts contract wording to what changed", () => {
     const p = analyze({ files: [added("db/schema.sql", "create table t(id int);"), added("api/queries/get.graphql", "query { a }"), added("db/migrations/0001_init.sql", "x")] });
-    expect(p.layers[0].title).toBe("Review this first");
-    expect(p.layers[0].description).toBe("As these are schema, query and migration updates everything else builds on");
+    expect(p.layers[0].title).toBe("Start with the schemas, queries and migrations");
+    expect(p.layers[0].description).toBe("The rest of the change builds on these.");
+    const one = analyze({ files: [added("db/schema.sql", "create table t(id int);"), added("src/x.ts", "export const x = 1")] });
+    expect(one.layers[0].title).toBe("Start with the schema");
   });
 
   it("orders tests by their subject's layer", () => {
@@ -121,7 +123,7 @@ describe("layer assembly", () => {
     expect(L("store/a.go").id).toBe(L("store/b.go").id);
     expect(L("store/a.go").index).toBeLessThan(L("api/h.go").index);
     expect(L("api/h_test.go").files.find((f) => f.path === "api/h_test.go")!.reason).toBe("Tests for h.go (matched by name)");
-    expect(L("store/a.go").description).toBe("As these files are imported by 1 other changed file");
+    expect(L("store/a.go").description).toBe("1 other changed file imports these.");
   });
 
   it("splits oversized layers by package directory", () => {
@@ -129,8 +131,8 @@ describe("layer assembly", () => {
     for (const pkg of ["packages/a", "packages/b"]) for (let i = 0; i < 15; i++) fs.push(added(`${pkg}/f${i}.ts`, "export const v = 1"));
     const p = analyze({ files: fs });
     expect(p.layers.map((l) => [l.label, l.title, l.description])).toEqual([
-      ["Standalone · packages/a", "Review these first", "As these files in packages/a/ don't import, and aren't imported by, other changed code"],
-      ["Standalone · packages/b", "Then review these on their own", "As these files in packages/b/ don't import, and aren't imported by, other changed code"],
+      ["Standalone · packages/a", "Start with the standalone changes", "In packages/a/. No imports to or from other changed code."],
+      ["Standalone · packages/b", "Then the standalone changes", "In packages/b/. No imports to or from other changed code."],
     ]);
   });
 

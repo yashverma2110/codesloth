@@ -57,3 +57,27 @@ describe("tour card placement", () => {
     expect(placeCard(null, card, vp)).toEqual({ left: 355, top: 325 });
   });
 });
+
+import { currentStep, groupByFolder, progress } from "../src/content/review-logic";
+describe("checklist helpers", () => {
+  const mk = (id: string, files: [string, string][]): Layer => ({ ...L(files), id });
+  const plan = { layers: [mk("a", [["x/1.ts", "1"]]), mk("b", [["y/2.ts", "2"], ["y/3.ts", "3"]])] } as unknown as LayerPlan;
+  it("current step is the first not reviewed (or changed since)", () => {
+    expect(currentStep(plan, {})).toBe(0);
+    const st = setReviewed({}, plan.layers[0], true);
+    expect(currentStep(plan, st)).toBe(1);
+    const stale = { a: { ...st.a, files: { "x/1.ts": "old" } } };
+    expect(currentStep(plan, stale)).toBe(0);
+    expect(currentStep(plan, setReviewed(st, plan.layers[1], true))).toBe(-1);
+  });
+  it("progress text pluralizes and handles all-done", () => {
+    expect(progress(plan, {}).text).toBe("Step 1 of 2 · 0 of 3 files reviewed");
+    const st = setReviewed(setReviewed({}, plan.layers[0], true), plan.layers[1], true);
+    expect(progress(plan, st).text).toBe("All 2 steps reviewed · 3 of 3 files");
+    expect(progress(plan, st).ratio).toBe(1);
+  });
+  it("groups files by folder in first-appearance order", () => {
+    const g = groupByFolder([{ path: "a/b/x.py" }, { path: "c/y.py" }, { path: "a/b/z.py" }, { path: "root.md" }]);
+    expect(g.map((x) => [x.dir, x.files.map((f) => f.name)])).toEqual([["a/b/", ["x.py", "z.py"]], ["c/", ["y.py"]], ["", ["root.md"]]]);
+  });
+});
