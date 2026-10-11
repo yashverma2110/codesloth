@@ -68,7 +68,7 @@ export async function validateToken(token: string, testRepo?: string): Promise<{
 
 function explain(status: number, h: Headers): string {
   const need = h.get("x-accepted-github-permissions");
-  if (status === 404) return `404: the token can't see this repository. Add it under "Repository access"${need ? ` (needs ${need})` : ""}.`;
+  if (status === 404) return `404 "Repository not found": the token can't see this repository${need ? ` (needs ${need})` : ""}. Check the token's resource owner is this repo's owner, the repo is selected under "Repository access", an org admin has approved the token (Pending tokens only read public repos), and you've signed in to the org via SSO. See "Repository not found?" above.`;
   if (status === 403 && h.get("x-github-sso")) return "403: SAML SSO authorization required for this organization.";
   if (status === 403) return `403: missing permission${need ? ` (endpoint needs ${need})` : ""}. If your org requires approval, the token may still be pending.`;
   return `HTTP ${status}`;

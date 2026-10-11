@@ -60,6 +60,8 @@ for (const data of ["real", "stress"])
         // v0.6.2: stale banner (file list open) and the Restart review confirm, with the Restart button in the tab row
         for (const extra of ["banner", "confirm"]) cases.push({ data, vw, forced, theme, story: "expanded", extra });
         // v0.6.3: the "Aa" font popover open, on the Review and the Graph tab
+        // v0.6.5: Graph tab: full panel height, opens on step 1 at a readable zoom, no arrowheads
+        cases.push({ data, vw, forced, theme, story: "expanded", extra: "graph" });
         for (const extra of ["fontpop", "graph-fontpop"]) cases.push({ data, vw, forced, theme, story: "expanded", extra, font: "jetbrains", size: "large" });
       }
 // v0.6.3: every bundled font at every size (light theme, both widths, worst-case data)
@@ -88,6 +90,20 @@ for (const c of cases) {
     await p.evaluate(() => window.__shadow.querySelector(".step.open .next").click());
     await p.evaluate(() => window.__shadow.querySelector(".tabbar .restart").click());
   }
+  if (c.extra === "graph") {
+    await p.evaluate(() => window.__shadow.querySelector("#prl-tab-graph").click());
+    await sleep(300);
+  }
+  const graphOk = c.extra !== "graph" ? true : await p.evaluate(() => {
+    const s = window.__shadow;
+    const panel = s.querySelector(".panel");
+    const canvas = s.querySelector(".gv-canvas").getBoundingClientRect();
+    const m = /translate\(([-\d.]+),([-\d.]+)\) scale\(([\d.]+)\)/.exec(s.querySelector(".g-root").getAttribute("transform") ?? "");
+    const band = s.querySelector(".g-band text").getBoundingClientRect();
+    const fullHeight = Math.abs(panel.getBoundingClientRect().height - parseFloat(panel.style.maxHeight)) < 2;
+    const r = { fullHeight, k: m ? +m[3] : 0, y: m ? +m[2] : NaN, bandVisible: band.top >= canvas.top - 1 && band.bottom <= canvas.bottom && band.left >= canvas.left - 1, markers: s.querySelectorAll(".gv marker, .gv [marker-end]").length, primary: !!s.querySelector(".gv-bar .gv-primary") };
+    return r.fullHeight && r.k >= 0.7 && r.y === 0 && r.bandVisible && !r.markers && r.primary ? true : JSON.stringify(r);
+  });
   if (c.extra?.endsWith("fontpop")) {
     if (c.extra === "graph-fontpop") await p.evaluate(() => window.__shadow.querySelector("#prl-tab-graph").click());
     await p.evaluate(() => window.__shadow.querySelector(".tabbar .fontbtn").click());
@@ -129,14 +145,14 @@ for (const c of cases) {
     const latest = s.querySelector("li.file.sel .latest");
     return { state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".step.open .next") };
   });
-  const onGraph = c.extra === "graph-fontpop";
+  const onGraph = c.extra === "graph-fontpop" || c.extra === "graph";
   const wantTl = c.extra === "confirm" || onGraph ? r.tl : { collapsed: 0, expanded: 3, all: 13 }[c.story];
   const wantMore = c.extra === "confirm" || onGraph ? r.state.more : { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
   const panelW = c.forced ?? Math.min(400, c.vw - 32);
-  const extraOk = r.state.restart === (onGraph ? "hidden" : panelW <= 320 ? "icon" : "label") && r.state.fontBtn && fontOk && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm) && (!c.extra?.endsWith("fontpop") || r.state.fontPop);
+  const extraOk = r.state.restart === (onGraph ? "hidden" : panelW <= 320 ? "icon" : "label") && r.state.fontBtn && fontOk && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm) && (!c.extra?.endsWith("fontpop") || r.state.fontPop) && graphOk === true;
   const ok = extraOk && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
   if (!ok) failures++;
-  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}` : ""} restart=${r.state.restart} font=${fontOk}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}` : ""} restart=${r.state.restart} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
   if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}` : ""}.png` });
   await p.close();
 }

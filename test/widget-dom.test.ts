@@ -259,7 +259,7 @@ describe("Widget (DOM)", () => {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(s.querySelector(".overlay")).toBeNull();
     expect((s.querySelector(".panel") as HTMLElement).hidden).toBe(false);
-    ([...s.querySelectorAll(".gv-bar button")].find((b) => /Tab/.test(b.textContent!)) as HTMLButtonElement).click();
+    ([...s.querySelectorAll(".gv-bar button")].find((b) => /browser tab/.test(b.getAttribute("aria-label") ?? "")) as HTMLButtonElement).click();
     await vi.waitFor(() => expect(calls.some((c) => c.type === "graph:openTab")).toBe(true));
   });
 

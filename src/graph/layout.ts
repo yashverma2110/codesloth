@@ -56,12 +56,22 @@ export function groupKey(n: GNode): string {
   return n.group ?? (n.kind === "file" ? `dir:${dirname(n.paths[0])}` : `node:${n.id}`);
 }
 
+/** Default node size: big enough to read at 100% zoom (v0.6.5; was 168×38). */
+export const NODE_W = 200;
+export const NODE_H = 48;
+export const GAP_X = 20;
+
+/** How many nodes fit on a row of a canvas this wide at 100% zoom (outer padding 16px each side). */
+export function perRowFor(width: number, max = 8): number {
+  return Math.max(1, Math.min(max, Math.floor((width - 32 + GAP_X) / (NODE_W + GAP_X))));
+}
+
 export function layoutGraph(g: Graph, o: LayoutOptions = {}): Layout {
-  const nodeW = o.nodeW ?? 168;
-  const nodeH = o.nodeH ?? 38;
-  const gapX = o.gapX ?? 22;
-  const gapY = o.gapY ?? 18;
-  const bandPad = o.bandPad ?? 30;
+  const nodeW = o.nodeW ?? NODE_W;
+  const nodeH = o.nodeH ?? NODE_H;
+  const gapX = o.gapX ?? GAP_X;
+  const gapY = o.gapY ?? 20;
+  const bandPad = o.bandPad ?? 34;
   const bandGap = o.bandGap ?? 14;
   const labelW = o.labelW ?? 0;
   const maxPerRow = Math.max(1, o.maxPerRow ?? 7);

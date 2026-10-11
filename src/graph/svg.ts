@@ -1,6 +1,6 @@
 /** Render a laid-out graph to an SVG string (used by the interactive view and for static export). */
 import type { Graph, GNode } from "./build";
-import { layerColor } from "./build";
+import { edgeTitle, layerColor } from "./build";
 import type { Layout } from "./layout";
 import { h, toString, type VNode } from "./vdom";
 
@@ -9,22 +9,23 @@ const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…
 /** CSS for graph SVG; variables come from the widget theme (or are inlined for standalone export). */
 export const GRAPH_CSS = `
 .g-band rect { fill-opacity:.07; }
-.g-band text { font:600 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
+.g-band text { font:600 12.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
 .g-group rect { fill:none; stroke:var(--muted,#8c959f); stroke-dasharray:4 3; stroke-opacity:.7; rx:10; }
-.g-group text { font:italic 10px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
-.g-edge { fill:none; stroke:var(--edge,#8c959f); stroke-opacity:.55; stroke-width:1.2; }
-.g-edge.test { stroke-dasharray:5 4; stroke:var(--add,#1a7f37); stroke-opacity:.6; }
+.g-group text { font:italic 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
+.g-edge { fill:none; stroke:var(--edge,#8c959f); stroke-opacity:.5; stroke-width:1.4; stroke-linecap:round; pointer-events:none; }
+.g-edge.test { stroke-dasharray:6 5; stroke:var(--add,#1a7f37); stroke-opacity:.65; }
+.g-hit { fill:none; stroke:transparent; stroke-width:10; pointer-events:stroke; }
 .g-node rect.box { fill:var(--bg,#fff); stroke:var(--border,#d1d9e0); rx:7; }
-.g-node .lbl { font:600 11.5px var(--cs-mono, ui-monospace,SFMono-Regular,Menlo,monospace); font-variant-ligatures:var(--cs-lig, normal); fill:var(--fg,#1f2328); }
-.g-node .meta { font:10.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
+.g-node .lbl { font:600 13.5px var(--cs-mono, ui-monospace,SFMono-Regular,Menlo,monospace); font-variant-ligatures:var(--cs-lig, normal); fill:var(--fg,#1f2328); }
+.g-node .meta { font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
 .g-node .meta .a { fill:var(--add,#1a7f37); } .g-node .meta .d { fill:var(--del,#d1242f); }
 .g-node.cluster rect.box, .g-node.generated rect.box { stroke-dasharray:4 2; }
 .g-node.reviewed { opacity:.45; }
-.g-node .chk { font:700 12px sans-serif; fill:var(--add,#1a7f37); }
+.g-node .chk { font:700 14px sans-serif; fill:var(--add,#1a7f37); }
 .g-node .chg { fill:#d4a72c; }
 .g-root.hovering .g-node:not(.hl), .g-root.searching .g-node:not(.match) { opacity:.18; }
 .g-root.hovering .g-edge:not(.hl) { stroke-opacity:.06; }
-.g-root.hovering .g-edge.hl { stroke-opacity:1; stroke-width:2; }
+.g-root.hovering .g-edge.hl { stroke-opacity:1; stroke-width:2.4; }
 .g-node.match rect.box { stroke:var(--accent,#0969da); stroke-width:2; }
 .g-node { cursor:pointer; }
 `;
@@ -47,10 +48,10 @@ function nodeTree(n: GNode, x: number, y: number, w: number, hh: number): VNode 
     h("title", {}, tip),
     h("rect", { class: "box", width: w, height: hh }),
     h("rect", { width: 5, height: hh, rx: 2, fill: color }),
-    h("text", { class: "lbl", x: 12, y: 16 }, trunc(n.label, Math.floor((w - 30) / 7))),
-    h("text", { class: "meta", x: 12, y: hh - 8 }, h("tspan", { class: "a" }, `+${n.additions}`), " ", h("tspan", { class: "d" }, `−${n.deletions}`), n.kind === "file" && n.status ? ` · ${n.status}` : ""),
-    n.reviewed && h("text", { class: "chk", x: w - 16, y: 16 }, "✓"),
-    n.changed && h("circle", { class: "chg", cx: w - 9, cy: hh - 10, r: 4 }, h("title", {}, "changed since reviewed")),
+    h("text", { class: "lbl", x: 14, y: 20 }, trunc(n.label, Math.floor((w - 36) / 8.2))),
+    h("text", { class: "meta", x: 14, y: hh - 10 }, h("tspan", { class: "a" }, `+${n.additions}`), " ", h("tspan", { class: "d" }, `−${n.deletions}`), n.kind === "file" && n.status ? ` · ${n.status}` : ""),
+    n.reviewed && h("text", { class: "chk", x: w - 18, y: 20 }, "✓"),
+    n.changed && h("circle", { class: "chg", cx: w - 11, cy: hh - 12, r: 4.5 }, h("title", {}, "changed since reviewed")),
   );
 }
 
@@ -73,9 +74,8 @@ export function graphTree(g: Graph, L: Layout, o: SvgOptions = {}): VNode {
   const W = L.width + pad * 2;
   const H = L.height + pad * 2;
   const dark = o.theme === "dark";
-  const kids: (VNode | false)[] = [
-    h("defs", {}, h("marker", { id: "g-arrow", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, h("path", { d: "M0,0 L10,5 L0,10 z", fill: dark ? "#9198a1" : "#8c959f" }))),
-  ];
+  // Plain lines, no arrowheads: direction is the layering (upper steps are what lower steps build on).
+  const kids: (VNode | false)[] = [];
   if (o.standalone) {
     const vars = dark
       ? "--fg:#f0f6fc;--muted:#9198a1;--border:#3d444d;--bg:#151b23;--accent:#4493f8;--add:#3fb950;--del:#f85149;--edge:#9198a1"
@@ -84,22 +84,28 @@ export function graphTree(g: Graph, L: Layout, o: SvgOptions = {}): VNode {
   }
   const vp: (VNode | false)[] = [];
   for (const b of L.bands) {
-    vp.push(h("g", { class: "g-band" }, h("rect", { x: 0, y: b.y, width: L.width, height: b.h, rx: 10, fill: layerColor(b.layerId) }), h("text", { x: 10, y: b.y + 17 }, `Step ${b.layerIndex + 1} · ${b.title}`)));
+    vp.push(h("g", { class: "g-band", "data-layer": b.layerId }, h("rect", { x: 0, y: b.y, width: L.width, height: b.h, rx: 10, fill: layerColor(b.layerId) }), h("text", { x: 12, y: b.y + 20 }, `Step ${b.layerIndex + 1} · ${b.title}`)));
   }
   for (const gr of L.groups) vp.push(h("g", { class: "g-group" }, h("rect", { x: gr.x, y: gr.y, width: gr.w, height: gr.h }), h("text", { x: gr.x + gr.w - 4, y: gr.y - 3, "text-anchor": "end" }, gr.label)));
   for (const e of g.edges) {
     const a = L.pos.get(e.from);
     const b = L.pos.get(e.to);
     if (!a || !b) continue;
+    const d = edgePath(a, b, L.nodeW, L.nodeH);
     vp.push(
-      h("path", {
-        class: `g-edge ${e.kind}`,
-        "data-from": e.from,
-        "data-to": e.to,
-        d: edgePath(a, b, L.nodeW, L.nodeH),
-        "marker-end": "url(#g-arrow)",
-        style: e.count > 1 ? `stroke-width:${Math.min(4, 1 + Math.log2(e.count)).toFixed(2)}` : undefined,
-      }),
+      h(
+        "g",
+        { class: "g-link", "data-count": e.count },
+        h("title", {}, edgeTitle(e, g)),
+        h("path", { class: "g-hit", d }),
+        h("path", {
+          class: `g-edge ${e.kind}`,
+          "data-from": e.from,
+          "data-to": e.to,
+          d,
+          style: e.count > 1 ? `stroke-width:${Math.min(4.5, 1.4 + Math.log2(e.count)).toFixed(2)}` : undefined,
+        }),
+      ),
     );
   }
   for (const n of g.nodes) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildGraph, clusterId, GENERATED_NODE, searchNodes } from "../src/graph/build";
-import { layoutGraph } from "../src/graph/layout";
-import { renderSvg } from "../src/graph/svg";
+import { buildGraph, clusterId, edgeTitle, GENERATED_NODE, searchNodes } from "../src/graph/build";
+import { layoutGraph, NODE_H, NODE_W, perRowFor } from "../src/graph/layout";
+import { GRAPH_CSS, renderSvg } from "../src/graph/svg";
 import type { LayerPlan, LayerFile } from "../src/engine/types";
 import { readFileSync } from "node:fs";
 
@@ -35,7 +35,7 @@ describe("buildGraph", () => {
     const gen = g.nodes.find((n) => n.id === GENERATED_NODE)!;
     expect(gen.kind).toBe("generated");
     expect(gen.paths).toEqual(["package-lock.json", "pnpm-lock.yaml"]);
-    expect(g.edges.filter((e) => e.kind === "test")).toEqual([{ from: "src/a.test.ts", to: "src/a.ts", kind: "test", count: 1 }]);
+    expect(g.edges.filter((e) => e.kind === "test")).toEqual([{ from: "src/a.test.ts", to: "src/a.ts", kind: "test", count: 1, imports: 0, tests: 1, mutual: false }]);
     expect(g.edges.filter((e) => e.kind === "import")).toHaveLength(3);
     expect(g.neighbors.get("src/a.ts")).toEqual(new Set(["api/types.ts", "src/ui/y.ts", "src/a.test.ts"]));
   });
@@ -115,4 +115,62 @@ describe("layoutGraph", () => {
     const evil = buildGraph({ ...plan, layers: [layer("core", 0, [f('a/<img src=x onerror="1">.ts')])], edges: [] });
     expect(renderSvg(evil, layoutGraph(evil))).not.toContain("<img");
   });
+
+describe("graph edges v0.6.5: one plain line per file pair", () => {
+  const p2: LayerPlan = {
+    ...plan,
+    edges: [
+      { from: "src/ui/y.ts", to: "src/a.ts", kind: "import" },
+      { from: "src/ui/y.ts", to: "src/a.ts", kind: "import" }, // listed twice
+      { from: "src/a.ts", to: "src/b.ts", kind: "import" },
+      { from: "src/b.ts", to: "src/a.ts", kind: "import" }, // cycle: both directions
+      { from: "src/a.test.ts", to: "src/a.ts", kind: "import" },
+      { from: "src/a.test.ts", to: "src/a.ts", kind: "test" }, // import + test pairing
+    ],
+  };
+  const g = buildGraph(p2);
+  const pair = (a: string, b: string) => g.edges.filter((e) => (e.from === a && e.to === b) || (e.from === b && e.to === a));
+
+  it("dedupes repeated links and merges both directions into one edge", () => {
+    expect(pair("src/ui/y.ts", "src/a.ts")).toEqual([{ from: "src/ui/y.ts", to: "src/a.ts", kind: "import", count: 1, imports: 1, tests: 0, mutual: false }]);
+    const cyc = pair("src/a.ts", "src/b.ts");
+    expect(cyc).toHaveLength(1);
+    expect(cyc[0]).toMatchObject({ count: 2, imports: 2, mutual: true });
+    expect(g.edges).toHaveLength(3);
+  });
+
+  it("an import plus a test pairing is one dashed test edge counting both", () => {
+    expect(pair("src/a.test.ts", "src/a.ts")).toEqual([{ from: "src/a.test.ts", to: "src/a.ts", kind: "test", count: 2, imports: 1, tests: 1, mutual: false }]);
+  });
+
+  it("edge tooltips say who links to whom and how many links the line stands for", () => {
+    expect(edgeTitle(pair("src/ui/y.ts", "src/a.ts")[0], g)).toBe("y.ts → a.ts\n1 import link");
+    expect(edgeTitle(pair("src/a.ts", "src/b.ts")[0], g)).toBe("a.ts ↔ b.ts (import each other)\n2 import links");
+    expect(edgeTitle(pair("src/a.test.ts", "src/a.ts")[0], g)).toBe("a.test.ts → a.ts\n1 import link + test pairing");
+    expect(edgeTitle({ from: "src/a.test.ts", to: "src/a.ts", kind: "test", count: 1, imports: 0, tests: 1, mutual: false }, g)).toBe("a.test.ts tests a.ts\ntest pairing");
+  });
+
+  it("renders plain lines (no arrowheads), one per pair, with a tooltip and dashed test lines", () => {
+    const svg = renderSvg(g, layoutGraph(g));
+    expect(svg).not.toMatch(/marker/);
+    expect(svg.match(/class="g-edge /g)).toHaveLength(3);
+    expect(svg.match(/class="g-edge test"/g)).toHaveLength(1);
+    expect(svg).toContain("<title>a.ts ↔ b.ts (import each other)\n2 import links</title>");
+    expect(GRAPH_CSS).toMatch(/\.g-edge\.test \{[^}]*stroke-dasharray/);
+  });
+
+  it("bigger nodes, and as many per row as fit at 100%", () => {
+    expect(NODE_W).toBeGreaterThanOrEqual(200);
+    expect(NODE_H).toBeGreaterThanOrEqual(48);
+    expect(perRowFor(398)).toBe(1);
+    expect(perRowFor(398 / 0.8, 3)).toBe(2);
+    expect(perRowFor(1392)).toBe(6);
+    expect(perRowFor(10)).toBe(1);
+    const L = layoutGraph(g, { maxPerRow: 2 });
+    expect(L.nodeW).toBe(NODE_W);
+    // still top-to-bottom in review order
+    const ys = g.nodes.map((n) => [n.layerIndex, L.pos.get(n.id)!.y] as const).sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < ys.length; i++) expect(ys[i][1]).toBeGreaterThanOrEqual(ys[i - 1][1]);
+  });
+});
 });

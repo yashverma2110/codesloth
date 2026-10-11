@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseScopes, tokenCreationUrl, tokenHint, tokenKind, validateTokenFormat, validateTokenProbe, writeCapableScopes } from "../src/shared/token-validation";
+import { ORG_TOKEN_URL, parseScopes, tokenCreationUrl, tokenHint, tokenKind, validateTokenFormat, validateTokenProbe, writeCapableScopes } from "../src/shared/token-validation";
 
 // Fake tokens are assembled at runtime so no token-shaped literal is committed.
 const FG = ["github", "pat", "11ABCDEFG0123456789", "FAKEfakeFAKEfakeFAKEfakeFAKEfakeFAKEfakeFAKEUVWX"].join("_");
@@ -80,15 +80,19 @@ describe("probe validation", () => {
 
 describe("token creation URL", () => {
   it("uses only documented prefill params with read-only permissions", () => {
-    const u = new URL(tokenCreationUrl({ owner: "wayground", expiresInDays: 90 }));
+    const u = new URL(tokenCreationUrl({ expiresInDays: 90 }));
     expect(u.origin + u.pathname).toBe("https://github.com/settings/personal-access-tokens/new");
-    expect(u.searchParams.get("target_name")).toBe("wayground");
+    expect(u.searchParams.get("name")).toBe("CodeSloth (read-only)");
     expect(u.searchParams.get("expires_in")).toBe("90");
     expect(u.searchParams.get("pull_requests")).toBe("read");
     expect(u.searchParams.get("contents")).toBe("read");
     expect(u.searchParams.get("name")!.length).toBeLessThanOrEqual(40);
     expect([...u.searchParams.values()]).not.toContain("write");
   });
-  it("omits target_name when no owner", () => expect(new URL(tokenCreationUrl()).searchParams.has("target_name")).toBe(false));
+  it("personal link never sets target_name (GitHub defaults the owner to you)", () => expect(new URL(tokenCreationUrl()).searchParams.has("target_name")).toBe(false));
+  it("organisation link is the plain token page with no params", () => {
+    expect(ORG_TOKEN_URL).toBe("https://github.com/settings/personal-access-tokens/new");
+    expect(new URL(ORG_TOKEN_URL).search).toBe("");
+  });
   it("masks tokens", () => expect(tokenHint(FG)).toBe("github_pat_11AB…UVWX"));
 });

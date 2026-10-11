@@ -145,6 +145,7 @@ How it's fetched (read-only `GET`s only, cached in IndexedDB by owner/repo/numbe
 ![Review tab in demo mode (fastapi/fastapi#16403): steps 1–3 done, step 4 "Now the tests" open with "Touched in 3 of 5 commits", each file showing its commit count, and test_runtime.py selected with its 3-commit timeline. Headless render of the real widget code with the bundled sample data](docs/images/review-demo.png)
 
 Long commit messages wrap to at most two lines (full message on hover), the *Latest* line and file names truncate with an ellipsis (full text on hover), and nothing in the panel scrolls sideways at any panel width. `node scripts/dev/check-overflow.mjs` checks that in headless Chrome with real long messages and a stress case, with the timeline collapsed, expanded (3) and fully shown; it runs as part of `npm test` when Chrome is available.
+node scripts/dev/render-setup.mjs out.png      # headless render of the setup page, Organisation tab (after npm run build)
 
 ![Commit story with long real commit messages: go-gitea/gitea#39426 (40 commits), services/gitproxy/server.go selected with its timeline expanded: the latest 3 of 13 commits plus "+ 10 earlier commits · Show all 13". Headless render of the real widget code](docs/images/commit-story.png)
 
@@ -161,47 +162,64 @@ Dark theme: [docs/images/review-demo-dark.png](docs/images/review-demo-dark.png)
 The **Graph** tab draws the PR's changed files as a layered dependency graph:
 
 - **Nodes** are changed files: file name, +/−, and status. Hover for the full path, its step (e.g. *Step 1: Start with the core code*) and the file's reason. They're colored by layer, with a legend that names each step the same way as the Review tab (*1 Start with the core code · 1*) and doubles as a **filter** (click a chip to hide or show that step).
-- **Edges** go importer → imported, using the import graph the engine already builds. Dashed green edges link a test to the file it tests.
+- **Edges:** one plain line per file pair, without arrowheads. Several imports between the same two files, imports in both directions (a cycle), or an import plus a test pairing all merge into one line. Hover a line for who uses whom and how many links it stands for (e.g. *routing.py → _api.py · 2 import links*). Direction comes from the layering: the lower file uses the upper one. Dashed green lines link a test and the file it tests. Thicker lines stand for more links (clusters).
 - **Layout:** one band per layer, top to bottom in review order, labeled like *Step 1 · Start with the core code*, the same names as in the Review tab. Contracts and core are at the top. Within a band, nodes are ordered by where their neighbors sit, to cut down on crossings. Multi-file **Go packages** and **import cycles** get a dashed box.
 - **Generated files and lockfiles** are collapsed into one node; click it to expand. For big PRs (more than 160 nodes), files are **clustered by directory**, coarsening until they fit. Click a cluster to expand it. Repeated edges between clusters are merged and drawn thicker.
-- **Interactions:** drag to pan, wheel or ± to zoom, **Fit**. Hovering or focusing a node highlights it and its neighbors. **Search** fades out non-matching files; Enter centers the first match. Click a node (or press Enter) to jump to its diff. Files in reviewed layers are dimmed with a ✓. A ● marks files changed since review.
+- **Size and navigation (v0.6.5):** nodes are larger (200×48, 13.5 px labels), and the Graph tab uses the full panel height. It opens on **step 1 at a readable zoom** (never below 70%) instead of shrinking the whole graph to fit. Scroll down through the steps with the wheel or trackpad (Shift + wheel scrolls sideways). **Ctrl/⌘ + wheel** or a pinch zooms. **Top** goes back to step 1, and **Fit** shows the whole graph. In the small panel the step filter shows just step numbers (hover for names) and the key is one line, so the canvas stays tall. **⤢ Expand** (the green button) is the recommended way to read the graph.
+- **Interactions:** drag to pan, ± to zoom. Hovering or focusing a node highlights it and its neighbors. **Search** fades out non-matching files; Enter centers the first match. Click a node (or press Enter) to jump to its diff. Files in reviewed layers are dimmed with a ✓. A ● marks files changed since review.
 - **⤢ Expand** opens a near-full-screen overlay inside the same shadow root (Esc or ✕ closes it). **↗ Tab** opens a full extension page (`graph.html`). That page asks the service worker for the cached plan; it gets no token and makes no network calls. Clicking a node there focuses the PR tab and jumps.
 - **Implementation:** a hand-rolled layered layout plus SVG built with `createElementNS`. No `innerHTML` (so GitHub's Trusted Types/CSP don't come into play), no `eval`, no dependencies. Bundle impact: `content.js` went from 23.9 KB to about 88 KB unminified. That includes the graph, the tour, and the 14 KB bundled demo plan. `graph-page.js` is 44 KB.
 
-![Graph overlay for go-gitea/gitea#39426 (57 files): headless render of the real widget code with the engine's plan for that PR](docs/images/graph-sample.png)
+![Graph overlay (⤢ Expand) for go-gitea/gitea#39426 (57 files), opened on step 1 at 100%: one plain line per file pair, dashed test lines, bands per step. Headless render of the real widget code with the engine's plan for that PR](docs/images/graph-sample.png)
 
 
 ## Onboarding: create a read-only fine-grained token
 
-The setup page has a **pre-filled** link to GitHub's token form. It uses GitHub's documented template URL parameters ([docs](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#pre-filling-fine-grained-personal-access-token-details-using-url-parameters), [changelog](https://github.blog/changelog/2025-08-26-template-urls-for-fine-grained-pats-and-updated-permissions-ui/)):
+The setup page (also **⋯ → Token & settings**) asks who owns the repos you review, with two tabs:
+
+### Personal repos
+
+A **pre-filled** link to GitHub's token form, using GitHub's documented template URL parameters ([docs](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#pre-filling-fine-grained-personal-access-token-details-using-url-parameters)):
 
 ```
 https://github.com/settings/personal-access-tokens/new
-  ?name=PR+Layers+(read-only)
+  ?name=CodeSloth+(read-only)
   &description=...
-  &target_name=<your org, e.g. Wayground's GitHub org slug>
   &expires_in=90
   &pull_requests=read
   &contents=read
 ```
 
-On GitHub:
+It never sets `target_name`; without it, GitHub defaults the resource owner to you. On GitHub: leave the name, expiration (90 days) and permissions as pre-filled, choose *Only select repositories* and pick your repos (GitHub can't pre-fill that), then **Generate token**.
 
-1. **Token name:** pre-filled as `CodeSloth (read-only)`.
-2. **Expiration:** pre-filled to 90 days. Avoid "No expiration".
-3. **Resource owner:** your organization. Type its slug on the setup page to pre-fill `target_name`.
-   - **SAML SSO orgs:** fine-grained tokens are SSO-authorized *during creation* ([docs](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/authorizing-a-personal-access-token-for-use-with-single-sign-on)). If the org doesn't appear under Resource owner, first open the org on github.com and sign in through SSO, then reload the token page. Fine-grained tokens have no separate "Configure SSO" step; that step only exists for classic tokens.
-   - If the org **requires approval** for fine-grained tokens, the token stays *pending* until an admin approves it. Until then it can only read public repos.
-4. **Repository access:** pick *Only select repositories* and choose the repos you review. GitHub can't pre-fill this field.
-5. **Permissions:** *Pull requests: Read-only* and *Contents: Read-only* (both pre-filled). *Metadata: Read-only* gets added automatically. **Add nothing else.**
-6. Click **Generate token** and copy it (`github_pat_…`).
+### Organisation repos
 
-Back on the setup page:
+The pre-filled link didn't work reliably for organisation tokens. `target_name` sets the resource owner. If you can't pick that owner (wrong slug, an org that blocks fine-grained tokens, or an org you haven't signed in to with SSO), GitHub shows *"Cannot find the specified resource owner"*, and it validates the other parameters against that owner. So the Organisation tab opens the **plain** `https://github.com/settings/personal-access-tokens/new` with no parameters, and lists the steps:
 
-7. Paste the token. Optionally enter a **private** `owner/repo` to test against.
-8. Tick the confirmation box (see the next section for why), then click **Validate & save**.
+1. **Token name:** `CodeSloth (read-only)`.
+2. **Expiration:** 90 days or less (your org may cap it).
+3. **Resource owner:** the organisation. If it isn't listed, the org must allow fine-grained tokens (org *Settings → Personal access tokens*). If the org uses SAML SSO, open the org on github.com, sign in through SSO, then reload the token page ([docs](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/authorizing-a-personal-access-token-for-use-with-single-sign-on)). Fine-grained tokens have no separate "Configure SSO" step.
+4. **Repository access:** *Only select repositories* (or *All repositories*).
+5. **Repository permissions:** *Contents: Read-only* and *Pull requests: Read-only*. *Metadata: Read-only* is added automatically. Nothing else.
+6. **Generate token.**
+7. **Admin approval:** if the org requires approval, the token shows **Pending** and can only read public resources until an org admin approves it. Org owners are approved automatically ([docs](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token)).
+8. Paste it back.
 
-The token is stored in `chrome.storage.local` on this device. Access is restricted to trusted extension contexts with `storage.local.setAccessLevel('TRUSTED_CONTEXTS')`, so the content script and github.com pages can't read it. It's only ever sent as the `Authorization` header of `GET` requests to `api.github.com`. **Remove token** on the setup page deletes it.
+![Setup page with the Organisation repos tab open: the plain token-page button, the numbered org steps, the "Repository not found" troubleshooting box and the privacy note. Headless render of the real setup page](docs/images/setup-org.png)
+
+**"Repository not found" / 404 troubleshooting** (shown on the setup page, and the 404 errors point to it): wrong resource owner (the token was made for your account but the repo is the org's, or the other way round), the repo not selected under *Only select repositories*, approval still pending, SSO not signed in, or Contents / Pull requests left at *No access*. GitHub returns 404 rather than 403 when a token can't see a private repo.
+
+Back on the setup page, paste the token, optionally enter a **private** `owner/repo` to test against, tick the confirmation box (see the next section for why), and click **Validate & save**.
+
+### Where the token lives (security)
+
+The setup page and Token & settings say: *"Your token is stored only on this device, in CodeSloth's extension storage. GitHub pages, other websites and other extensions can't read it. It's sent only to api.github.com, for read-only requests, and only when you open CodeSloth on a pull request. Remove it anytime with Clear token, or by removing the extension."*
+
+Details:
+- It's in CodeSloth's own `chrome.storage.local`, which other extensions and websites can't access. CodeSloth also calls `storage.local.setAccessLevel('TRUSTED_CONTEXTS')`, so even its own content script on github.com can't read it. Only the extension's pages and background worker can.
+- It's sent only as the `Authorization` header of `GET` requests to `api.github.com`, made by the background worker when you open CodeSloth on a PR.
+- **Not encrypted at rest beyond your OS profile.** Like other browser extension storage, `chrome.storage.local` is kept unencrypted in your browser profile folder on disk. It's protected by your OS user account (and disk encryption, if you use it), not by CodeSloth. Malware or anyone with access to your OS account could read it. That's one more reason to use a read-only, repo-scoped token with an expiry.
+- **Clear token** on the setup page deletes it; removing the extension deletes all of its storage. You can also revoke the token on GitHub at any time.
 
 ## Why write tokens are rejected, and what can and can't be detected
 

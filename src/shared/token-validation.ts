@@ -185,11 +185,22 @@ export function validateTokenProbe(token: string, probe: TokenProbe, now = Date.
 }
 
 /** Pre-filled fine-grained token creation URL (documented query params: name, description, target_name, expires_in, <permission>=<level>). */
-export function tokenCreationUrl(opts: { owner?: string; expiresInDays?: number } = {}): string {
+/**
+ * Plain token page for organisation tokens: no query params at all. A `target_name` that isn't a resource owner you
+ * can pick (wrong slug, org that blocks fine-grained tokens, org you haven't SSO'd into) makes GitHub show
+ * "Cannot find the specified resource owner", and the other params are validated against that owner, so for orgs the
+ * user fills the form by hand. https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#pre-filling-fine-grained-personal-access-token-details-using-url-parameters
+ */
+export const ORG_TOKEN_URL = "https://github.com/settings/personal-access-tokens/new";
+
+/**
+ * Pre-filled token page for personal repos. Never sets target_name: without it GitHub defaults the resource owner to
+ * the signed-in user, which is exactly the personal case.
+ */
+export function tokenCreationUrl(opts: { expiresInDays?: number } = {}): string {
   const p = new URLSearchParams();
   p.set("name", "CodeSloth (read-only)");
   p.set("description", "Read-only token for the CodeSloth Chrome extension: reads pull request files and file contents. Never used to write.");
-  if (opts.owner?.trim()) p.set("target_name", opts.owner.trim());
   p.set("expires_in", String(opts.expiresInDays ?? 90));
   p.set("pull_requests", "read");
   p.set("contents", "read");

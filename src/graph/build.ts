@@ -24,12 +24,23 @@ export interface GNode {
   changed: boolean;
 }
 
+/**
+ * One edge per node pair (undirected): several imports between the same two files, an import plus a test pairing,
+ * or imports both ways all collapse into one line. Direction is shown by the layering (upper steps are what lower
+ * steps build on), not by arrowheads.
+ */
 export interface GEdge {
+  /** The importer / test side of the first link seen (usually the lower node). */
   from: string;
   to: string;
+  /** "test" when any link in the pair is a test pairing (drawn dashed), else "import". */
   kind: "import" | "test";
-  /** How many file-level edges this edge stands for (after clustering). */
+  /** How many file-level links this edge stands for (imports + test pairings, both directions, after clustering). */
   count: number;
+  imports: number;
+  tests: number;
+  /** Links go both ways (import cycle). */
+  mutual: boolean;
 }
 
 export interface GLayer {
@@ -185,16 +196,25 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
     }
   }
 
-  // Edges, re-mapped onto (possibly clustered) nodes and aggregated.
+  // Edges, re-mapped onto (possibly clustered) nodes and merged per unordered node pair.
   const agg = new Map<string, GEdge>();
+  const seen = new Set<string>();
   for (const e of plan.edges ?? []) {
     const a = nodeOf.get(e.from);
     const b = nodeOf.get(e.to);
     if (!a || !b || a === b) continue;
-    const k = `${a}\u0000${b}\u0000${e.kind}`;
-    const ex = agg.get(k);
-    if (ex) ex.count++;
-    else agg.set(k, { from: a, to: b, kind: e.kind, count: 1 });
+    // The same file-level link listed twice (e.g. two import statements) counts once.
+    const raw = `${e.from}\u0000${e.to}\u0000${e.kind}`;
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    const k = a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;
+    let ex = agg.get(k);
+    if (!ex) agg.set(k, (ex = { from: a, to: b, kind: "import", count: 0, imports: 0, tests: 0, mutual: false }));
+    ex.count++;
+    if (e.kind === "test") ex.tests++;
+    else ex.imports++;
+    if (ex.tests) ex.kind = "test";
+    if (ex.from !== a) ex.mutual = ex.mutual || e.kind === "import";
   }
   const edges = [...agg.values()];
   const neighbors = new Map<string, Set<string>>();
@@ -219,6 +239,23 @@ function countWithClusters(visible: LayerPlan["layers"], depth: number, expanded
     for (const [d, c] of byDir) n += c < 2 || expanded.has(clusterId(l.id, d)) ? c : 1;
   }
   return n;
+}
+
+const plural = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+
+/** Tooltip for an edge: who links to whom and how many links the single line stands for. */
+export function edgeTitle(e: GEdge, g: Pick<Graph, "nodes">): string {
+  const name = (id: string) => {
+    const n = g.nodes.find((x) => x.id === id);
+    return n ? n.label : id;
+  };
+  const a = name(e.from);
+  const b = name(e.to);
+  const head = e.mutual ? `${a} ↔ ${b} (import each other)` : e.tests && !e.imports ? `${a} tests ${b}` : `${a} → ${b}`;
+  const parts: string[] = [];
+  if (e.imports) parts.push(plural(e.imports, "import link"));
+  if (e.tests) parts.push(e.tests === 1 ? "test pairing" : plural(e.tests, "test pairing"));
+  return `${head}\n${parts.join(" + ")}`;
 }
 
 /** Case-insensitive search over file paths; returns matching node ids. */

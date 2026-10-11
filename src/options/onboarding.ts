@@ -1,11 +1,12 @@
 import { FONT_PREF_KEYS, ligaturesOn, normalizeFontPrefs } from "../shared/fonts";
 import type { AuthStatus, TokenValidationResponse } from "../shared/messages";
 import { send } from "../shared/messages";
-import { tokenCreationUrl } from "../shared/token-validation";
+import { ORG_TOKEN_URL, tokenCreationUrl } from "../shared/token-validation";
 import config from "../../config/extension.config.json";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-const OWNER_KEY = "onboarding.owner";
+const MODE_KEY = "onboarding.mode";
+const OWNER_KEY = "onboarding.owner"; // pre-v0.6.5: a saved org name means the org path
 const REPO_KEY = "onboarding.testRepo";
 
 function h(tag: string, cls: string, text: string) {
@@ -15,8 +16,19 @@ function h(tag: string, cls: string, text: string) {
   return e;
 }
 
-function updateUrl() {
-  $("createUrl").textContent = tokenCreationUrl({ owner: $<HTMLInputElement>("owner").value, expiresInDays: config.tokenExpiresInDays });
+type Mode = "personal" | "org";
+
+/** Personal / Organisation tabs (ARIA tabs, arrow keys, remembered). */
+function setMode(mode: Mode, focus = false, persist = true) {
+  for (const m of ["personal", "org"] as Mode[]) {
+    const tab = $(`tab-${m}`);
+    const on = m === mode;
+    tab.setAttribute("aria-selected", String(on));
+    tab.tabIndex = on ? 0 : -1;
+    $(`panel-${m}`).hidden = !on;
+    if (on && focus) tab.focus();
+  }
+  if (persist) void chrome.storage.local.set({ [MODE_KEY]: mode });
 }
 
 async function showCurrent() {
@@ -73,15 +85,23 @@ async function go(save: boolean) {
 }
 
 async function init() {
-  const saved = await chrome.storage.local.get([OWNER_KEY, REPO_KEY]);
-  $<HTMLInputElement>("owner").value = (saved[OWNER_KEY] as string | undefined) ?? config.defaultTokenOwner ?? "";
+  const saved = await chrome.storage.local.get([MODE_KEY, OWNER_KEY, REPO_KEY]);
   $<HTMLInputElement>("testRepo").value = (saved[REPO_KEY] as string | undefined) ?? "";
-  updateUrl();
-  $("owner").addEventListener("input", () => {
-    updateUrl();
-    chrome.storage.local.set({ [OWNER_KEY]: $<HTMLInputElement>("owner").value.trim() });
+  const personalUrl = tokenCreationUrl({ expiresInDays: config.tokenExpiresInDays });
+  $("createUrl").textContent = personalUrl;
+  $("createOrgUrl").textContent = ORG_TOKEN_URL;
+  $("create").addEventListener("click", () => chrome.tabs.create({ url: personalUrl }));
+  $("createOrg").addEventListener("click", () => chrome.tabs.create({ url: ORG_TOKEN_URL }));
+  const savedMode = saved[MODE_KEY] as Mode | undefined;
+  setMode(savedMode ?? (saved[OWNER_KEY] || config.defaultTokenOwner ? "org" : "personal"), false, false);
+  for (const m of ["personal", "org"] as Mode[]) $(`tab-${m}`).addEventListener("click", () => setMode(m));
+  document.querySelector(".modes")!.addEventListener("keydown", (e) => {
+    const k = (e as KeyboardEvent).key;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(k)) return;
+    e.preventDefault();
+    const cur: Mode = $("tab-org").getAttribute("aria-selected") === "true" ? "org" : "personal";
+    setMode(k === "Home" ? "personal" : k === "End" ? "org" : cur === "org" ? "personal" : "org", true);
   });
-  $("create").addEventListener("click", () => chrome.tabs.create({ url: tokenCreationUrl({ owner: $<HTMLInputElement>("owner").value, expiresInDays: config.tokenExpiresInDays }) }));
   const sync = $<HTMLInputElement>("syncViewed");
   sync.checked = (await chrome.storage.local.get("pref.syncViewed"))["pref.syncViewed"] === true;
   sync.addEventListener("change", () => void chrome.storage.local.set({ "pref.syncViewed": sync.checked }));

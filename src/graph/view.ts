@@ -1,7 +1,7 @@
 /** Interactive Graph view: pan/zoom, hover neighbours, search, layer filter, cluster expand, click-to-jump. */
 import type { LayerPlan } from "../engine/types";
 import { buildGraph, GENERATED_NODE, layerColor, searchNodes, type Graph } from "./build";
-import { layoutGraph, type Layout } from "./layout";
+import { layoutGraph, perRowFor, type Layout } from "./layout";
 import { graphTree } from "./svg";
 import { toDom } from "./vdom";
 
@@ -10,18 +10,23 @@ export const GRAPH_VIEW_CSS = `
 .gv-bar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; padding:8px 10px; border-bottom:1px solid var(--border); }
 .gv-bar input[type=search] { flex:1 1 140px; min-width:100px; font:inherit; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--fg); }
 .gv-bar button { font:inherit; font-size:12px; padding:3px 8px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--fg); cursor:pointer; }
+.gv-bar button.gv-primary { background:var(--btn,#1f883d); border-color:var(--btn,#1f883d); color:#fff; font-weight:600; }
 .gv-legend { display:flex; flex-wrap:wrap; gap:4px; padding:6px 10px; border-bottom:1px solid var(--border); }
 .gv-chip { display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:11px; padding:2px 7px; border-radius:999px; border:1px solid var(--border); background:var(--bg); color:var(--fg); cursor:pointer; }
 .gv-chip[aria-pressed=false] { opacity:.45; text-decoration:line-through; }
 .gv-chip i { width:9px; height:9px; border-radius:2px; display:inline-block; }
 .gv-note { padding:4px 10px; font-size:11.5px; color:var(--muted); }
-.gv-canvas { position:relative; flex:1; min-height:160px; overflow:hidden; cursor:grab; touch-action:none; background:var(--bg2); }
+.gv-canvas { position:relative; flex:1; min-height:220px; overflow:hidden; cursor:grab; touch-action:none; background:var(--bg2); }
 .gv-canvas.panning { cursor:grabbing; }
 .gv-canvas svg { position:absolute; inset:0; width:100%; height:100%; }
 .gv-bar, .gv-legend, .gv-note, .gv-key { flex-shrink:0; }
 .gv-key { padding:4px 10px 8px; font-size:11px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap; }
 .gv-key svg { vertical-align:middle; }
+.gv-more { text-decoration:underline dotted; cursor:help; }
 `;
+
+/** The initial view never zooms out below this (readable labels); wider graphs scroll sideways. */
+export const HOME_MIN_ZOOM = 0.7;
 
 export interface GraphViewOptions {
   onJump(path: string): void;
@@ -71,15 +76,16 @@ export class GraphView {
     this.search = mk("input", { type: "search", placeholder: "Search files…", "aria-label": "Search files in graph" }) as HTMLInputElement;
     const zoomOut = mk("button", { type: "button", title: "Zoom out", "aria-label": "Zoom out" }, "−");
     const zoomIn = mk("button", { type: "button", title: "Zoom in", "aria-label": "Zoom in" }, "+");
-    const fit = mk("button", { type: "button", title: "Fit to view" }, "Fit");
-    bar.append(this.search, zoomOut, zoomIn, fit);
+    const fit = mk("button", { type: "button", title: "Zoom out to show the whole graph" }, "Fit");
+    const top = mk("button", { type: "button", title: "Back to step 1 at a readable size" }, "Top");
+    bar.append(this.search, zoomOut, zoomIn, top, fit);
     if (opts.onExpand) {
-      const b = mk("button", { type: "button", title: "Open a larger view (Esc to close)" }, "⤢ Expand");
+      const b = mk("button", { type: "button", class: "gv-primary", title: "Recommended: open the graph in a large view (Esc to close)" }, "⤢ Expand");
       b.addEventListener("click", () => opts.onExpand!());
       bar.append(b);
     }
     if (opts.onOpenTab) {
-      const b = mk("button", { type: "button", title: "Open the graph in a full browser tab" }, "↗ Tab");
+      const b = mk("button", { type: "button", title: "Open the graph in a full browser tab", "aria-label": "Open the graph in a full browser tab" }, opts.compact ? "↗" : "↗ Tab");
       b.addEventListener("click", () => opts.onOpenTab!());
       bar.append(b);
     }
@@ -87,16 +93,19 @@ export class GraphView {
     this.note = mk("div", { class: "gv-note" });
     this.canvas = mk("div", { class: "gv-canvas" });
     const key = mk("div", { class: "gv-key" });
-    key.append(
-      this.keyItem("import (importer → imported)", false),
-      this.keyItem("test → file under test", true),
-      mk("span", {}, "dimmed = reviewed · ● changed since reviewed · dashed box = Go package / import cycle"),
-    );
+    const more = "One line per file pair; hover a line for the count · thicker = more links · dimmed = reviewed · ● changed since reviewed · dashed box = Go package / import cycle · wheel scrolls, Ctrl/⌘ + wheel or pinch zooms";
+    key.append(this.keyItem(opts.compact ? "imports" : "imports (the lower file uses the upper one)", false), this.keyItem(opts.compact ? "test" : "test and the file it tests", true));
+    // The small panel keeps the canvas tall: the long key moves into a tooltip.
+    if (opts.compact) {
+      key.title = more;
+      key.append(mk("span", { class: "gv-more" }, "hover for more"));
+    } else key.append(mk("span", {}, more));
     this.el.append(bar, this.legend, this.note, this.canvas, key);
 
     zoomIn.addEventListener("click", () => this.zoomBy(1.25));
     zoomOut.addEventListener("click", () => this.zoomBy(0.8));
     fit.addEventListener("click", () => this.fit());
+    top.addEventListener("click", () => this.home());
     this.search.addEventListener("input", () => this.applySearch());
     this.search.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
@@ -123,13 +132,16 @@ export class GraphView {
   private render(refit: boolean) {
     if (!this.plan) return;
     const width = this.canvas.clientWidth || 380;
-    const maxPerRow = this.opts.compact ? 3 : Math.max(4, Math.min(10, Math.floor((width - 40) / 190)));
+    // As many full-size nodes per row as fit at a readable zoom (the panel may scale down to 80%).
+    const maxPerRow = this.opts.compact ? perRowFor(width / 0.8, 3) : perRowFor(width, 8);
     this.graph = buildGraph(this.plan, { hiddenLayers: this.hidden, expanded: this.expanded, reviewedLayers: this.info.reviewedLayers, reviewedPaths: this.info.reviewedPaths, changedPaths: this.info.changedPaths });
     this.layout = layoutGraph(this.graph, { maxPerRow });
     this.renderLegend();
     const parts: string[] = [];
     if (this.graph.clusteredFiles) parts.push(`${this.graph.clusteredFiles} of ${this.graph.totalFiles} files grouped into directory clusters to keep this large PR fast. Click a cluster to expand it.`);
-    parts.push(`${this.graph.nodes.length} nodes · ${this.graph.edges.length} links`);
+    const allFiles = this.graph.nodes.every((n) => n.kind === "file");
+    parts.push(`${this.graph.nodes.length} ${allFiles ? "files" : "nodes"} · ${this.graph.edges.length} links.`);
+    if (this.opts.compact && this.opts.onExpand) parts.push("Tip: ⤢ Expand for a bigger view.");
     this.note.textContent = parts.join(" ");
     const tree = graphTree(this.graph, this.layout);
     tree.attrs.width = "100%";
@@ -141,7 +153,7 @@ export class GraphView {
     this.nodeEls.clear();
     this.svg.querySelectorAll(".g-node").forEach((n) => this.nodeEls.set(n.getAttribute("data-id")!, n));
     this.edgeEls = [...this.svg.querySelectorAll(".g-edge")];
-    if (refit) requestAnimationFrame(() => this.fit());
+    if (refit) requestAnimationFrame(() => this.home());
     else this.apply();
     this.applySearch();
   }
@@ -154,10 +166,12 @@ export class GraphView {
         b.type = "button";
         b.className = "gv-chip";
         b.setAttribute("aria-pressed", String(!l.hidden));
-        b.title = `${l.hidden ? "Show" : "Hide"} step ${l.index + 1}: ${l.title}`;
+        b.title = `${l.hidden ? "Show" : "Hide"} step ${l.index + 1}: ${l.title} (${l.files} ${l.files === 1 ? "file" : "files"})`;
+        b.setAttribute("aria-label", b.title);
         const i = d.createElement("i");
         i.style.background = layerColor(l.id);
-        b.append(i, `${l.index + 1} ${l.title} · ${l.files}`);
+        // Compact (panel): just the step number; each band in the graph is titled anyway.
+        b.append(i, this.opts.compact ? `${l.index + 1}` : `${l.index + 1} ${l.title} · ${l.files}`);
         b.addEventListener("click", () => {
           if (this.hidden.has(l.id)) this.hidden.delete(l.id);
           else this.hidden.add(l.id);
@@ -168,7 +182,42 @@ export class GraphView {
     );
   }
 
+  private size() {
+    return { cw: this.canvas.clientWidth || 380, ch: this.canvas.clientHeight || 300, W: (this.layout?.width ?? 0) + 32, H: (this.layout?.height ?? 0) + 32 };
+  }
+
+  /** Keep some of the graph on screen: content may not scroll further than its own edges (plus a little slack). */
+  private clamp() {
+    const { cw, ch, W, H } = this.size();
+    const slack = 40;
+    const fitAxis = (v: number, view: number, content: number) => {
+      const lo = Math.min(0, view - content) - slack;
+      const hi = Math.max(0, view - content) + slack;
+      return Math.min(hi, Math.max(lo, v));
+    };
+    this.t.x = fitAxis(this.t.x, cw, W * this.t.k);
+    this.t.y = fitAxis(this.t.y, ch, H * this.t.k);
+  }
+
+  /**
+   * Initial view: step 1 (the top band) in view at a readable zoom, centred horizontally. Never shrinks the whole
+   * graph to fit, which makes big PRs unreadable; scroll down through the steps instead.
+   */
+  home() {
+    if (!this.layout) return;
+    const { cw, W } = this.size();
+    const k = Math.max(HOME_MIN_ZOOM, Math.min(1, cw / W));
+    this.t = { k, x: W * k <= cw ? (cw - W * k) / 2 : 0, y: 0 };
+    this.apply();
+  }
+
+  /** Current transform (for tests and the overflow check). */
+  get transform() {
+    return { ...this.t };
+  }
+
   private apply() {
+    this.clamp();
     this.root?.setAttribute("transform", `translate(${this.t.x.toFixed(1)},${this.t.y.toFixed(1)}) scale(${this.t.k.toFixed(4)})`);
   }
 
@@ -264,8 +313,19 @@ export class GraphView {
       "wheel",
       (e) => {
         e.preventDefault();
-        const r = this.canvas.getBoundingClientRect();
-        this.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
+        const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.canvas.clientHeight || 300 : 1;
+        // Ctrl/⌘ + wheel zooms; a trackpad pinch arrives as a wheel event with ctrlKey set.
+        if (e.ctrlKey || e.metaKey) {
+          const r = this.canvas.getBoundingClientRect();
+          this.zoomBy(Math.exp(-e.deltaY * unit * 0.01), e.clientX - r.left, e.clientY - r.top);
+          return;
+        }
+        // Plain wheel scrolls through the steps (Shift + wheel scrolls sideways).
+        const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * unit;
+        const dy = (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * unit;
+        this.t.x -= dx;
+        this.t.y -= dy;
+        this.apply();
       },
       { passive: false },
     );

@@ -13,25 +13,64 @@
   <section id="current" hidden>
     <h2>Current token</h2>
     <p id="currentText"></p>
-    <button id="clear">Remove token</button>
+    <button id="clear">Clear token</button>
+    <p class="privacy small" data-privacy>Your token is stored only on this device, in CodeSloth's extension storage. GitHub pages, other websites and other extensions can't read it. It's sent only to <code>api.github.com</code>, for read-only requests, and only when you open CodeSloth on a pull request. Remove it anytime with <b>Clear token</b>, or by removing the extension.</p>
   </section>
 
   <section>
     <h2>1 · Create a read-only token on GitHub</h2>
-    <label>Organization that owns the repos (resource owner)
-      <input id="owner" placeholder="e.g. your-org (leave empty for your personal account)" autocomplete="off" />
-    </label>
-    <p><button id="create" class="primary">Open GitHub token page (pre-filled) ↗</button></p>
-    <p class="muted">Opens <code id="createUrl"></code></p>
-    <ol>
-      <li><b>Token name</b>: pre-filled as <code>CodeSloth (read-only)</code>.</li>
-      <li><b>Expiration</b>: pre-filled to 90 days. Shorter is fine; avoid "No expiration".</li>
-      <li><b>Resource owner</b>: pick your organization (e.g. Wayground). If it isn't listed and the org uses SAML SSO, first open the org on github.com and sign in through SSO, then reload the token page. Fine-grained tokens are SSO-authorized at creation, so there's no separate "Configure SSO" step.</li>
-      <li><b>Repository access</b>: <i>Only select repositories</i> and choose the repos you review (GitHub can't pre-fill this). "All repositories" also works but grants more than needed.</li>
-      <li><b>Permissions → Repository permissions</b>: <b>Pull requests: Read-only</b> and <b>Contents: Read-only</b> (pre-filled). <b>Metadata: Read-only</b> is added automatically. <b>Add nothing else</b>: no "Read and write", no account or organization permissions.</li>
-      <li>Click <b>Generate token</b>. If your org requires approval, the token stays <i>pending</i> (public repos only) until an admin approves it.</li>
-      <li>Copy the token (starts with <code>github_pat_</code>).</li>
-    </ol>
+    <p>Who owns the repositories you review?</p>
+    <div class="modes" role="tablist" aria-label="Who owns the repositories">
+      <button type="button" role="tab" id="tab-personal" aria-controls="panel-personal" aria-selected="true">Personal repos</button>
+      <button type="button" role="tab" id="tab-org" aria-controls="panel-org" aria-selected="false" tabindex="-1">Organisation repos</button>
+    </div>
+
+    <div role="tabpanel" id="panel-personal" aria-labelledby="tab-personal">
+      <p class="muted">Repos under your own account (github.com/<i>you</i>/…).</p>
+      <p><button id="create" class="primary">Open GitHub token page (pre-filled) ↗</button></p>
+      <p class="muted">Opens <code id="createUrl"></code></p>
+      <ol>
+        <li><b>Token name</b>: pre-filled as <code>CodeSloth (read-only)</code>.</li>
+        <li><b>Expiration</b>: pre-filled to 90 days. Shorter is fine; avoid "No expiration".</li>
+        <li><b>Resource owner</b>: leave it as your own account.</li>
+        <li><b>Repository access</b>: <i>Only select repositories</i> and pick the repos you review (GitHub can't pre-fill this). <i>All repositories</i> also works but grants more than needed.</li>
+        <li><b>Permissions → Repository permissions</b>: <b>Contents: Read-only</b> and <b>Pull requests: Read-only</b> (pre-filled). <b>Metadata: Read-only</b> is added automatically. <b>Add nothing else.</b></li>
+        <li>Click <b>Generate token</b> and copy it (it starts with <code>github_pat_</code>).</li>
+      </ol>
+    </div>
+
+    <div role="tabpanel" id="panel-org" aria-labelledby="tab-org" hidden>
+      <p class="muted">Repos that belong to an organisation (github.com/<i>your-org</i>/…), e.g. Wayground. GitHub's pre-filled link doesn't work reliably here, so this opens the plain token page and you fill it in by hand.</p>
+      <p><button id="createOrg" class="primary">Open GitHub token page ↗</button></p>
+      <p class="muted">Opens <code id="createOrgUrl"></code></p>
+      <ol class="steps">
+        <li><b>Token name</b>: type <code>CodeSloth (read-only)</code>.</li>
+        <li><b>Expiration</b>: pick 90 days or less. Your org may cap the maximum lifetime.</li>
+        <li><b>Resource owner</b>: choose the <b>organisation</b>, not your own account. If it isn't in the list:
+          <ul>
+            <li>the org must allow fine-grained personal access tokens (an org owner sets this under the org's <i>Settings → Personal access tokens</i>);</li>
+            <li>if the org uses SAML single sign-on, open the org on github.com and sign in through SSO first, then reload the token page.</li>
+          </ul>
+          If the org asks for a justification, write something like <i>"Read-only token for the CodeSloth extension to read pull requests."</i></li>
+        <li><b>Repository access</b>: <i>Only select repositories</i> and pick the repos you review. <i>All repositories</i> also works but grants more than needed.</li>
+        <li><b>Permissions → Repository permissions</b>: set <b>Contents</b> to <b>Read-only</b> and <b>Pull requests</b> to <b>Read-only</b>. <b>Metadata: Read-only</b> is added automatically. Leave everything else at <i>No access</i>: no "Read and write" and no organisation or account permissions.</li>
+        <li>Click <b>Generate token</b> and copy it (it starts with <code>github_pat_</code>).</li>
+        <li><b>Admin approval:</b> many orgs require an org admin to approve new tokens. Until then GitHub lists the token as <b>Pending</b>, and it can only read public repos, so CodeSloth can't load private PRs. Ask an org admin to approve it. Org owners are approved automatically.</li>
+        <li>Paste the token below.</li>
+      </ol>
+    </div>
+
+    <div class="trouble" id="trouble">
+      <h3>"Repository not found" or 404?</h3>
+      <p class="small">GitHub answers 404 (not 403) when a token can't see a private repo. Check these:</p>
+      <ul class="small">
+        <li><b>Wrong resource owner.</b> The token was created for your account but the repo belongs to an org (or the other way round). A token can only reach one owner, so create a new one with the right owner.</li>
+        <li><b>Repo not selected.</b> With <i>Only select repositories</i>, the repo must be in the list. Edit the token on GitHub and add it.</li>
+        <li><b>Approval pending.</b> The token shows <i>Pending</i> under your fine-grained tokens. It works only after an org admin approves it.</li>
+        <li><b>SSO.</b> If the org uses SAML SSO, sign in to the org through SSO in this browser, then validate again.</li>
+        <li><b>Permissions.</b> Contents and Pull requests must both be <i>Read-only</i> (not <i>No access</i>).</li>
+      </ul>
+    </div>
   </section>
 
   <section>
@@ -43,6 +82,7 @@
       <input id="testRepo" placeholder="owner/repo" autocomplete="off" />
     </label>
     <label class="check"><input type="checkbox" id="attest" /> I confirm this token has only <b>Pull requests: Read-only</b> and <b>Contents: Read-only</b> (plus automatic Metadata), and no write permissions.</label>
+    <p class="privacy small" data-privacy>Your token is stored only on this device, in CodeSloth's extension storage. GitHub pages, other websites and other extensions can't read it. It's sent only to <code>api.github.com</code>, for read-only requests, and only when you open CodeSloth on a pull request. Remove it anytime with <b>Clear token</b>, or by removing the extension.</p>
     <p class="muted">Why the checkbox? GitHub doesn't let an extension read a fine-grained token's permissions, so write access can't be detected automatically. Classic tokens are rejected outright. CodeSloth itself only ever sends GET requests.</p>
     <p><button id="validate">Validate</button> <button id="save" class="primary">Validate &amp; save</button></p>
     <div id="result"></div>
@@ -72,7 +112,7 @@
 
   <section class="muted small">
     <h2>Privacy</h2>
-    <p>The token is stored in <code>chrome.storage.local</code> on this device (restricted to the extension itself, not readable by github.com pages or the in-page widget) and sent only as the Authorization header of GET requests to <code>api.github.com</code>. PR code is processed locally and never sent anywhere else.</p>
+    <p>The token lives in CodeSloth's <code>chrome.storage.local</code> on this device. Access is restricted to the extension's own pages and background worker; github.com pages, the in-page panel and other extensions can't read it. It's sent only as the Authorization header of GET requests to <code>api.github.com</code>, when you open CodeSloth on a pull request. Like other browser data it isn't separately encrypted; it's protected by your OS user account and browser profile. PR code is processed locally and never sent anywhere else.</p>
   </section>
 </main>
 <script type="module" src="onboarding.js"></script>

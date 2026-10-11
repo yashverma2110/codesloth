@@ -410,7 +410,8 @@ export class Widget {
       bottom: place.bottom !== undefined ? `${place.bottom}px` : "auto",
       maxHeight: `${place.maxHeight}px`,
     });
-    const h = this.preferredHeight ?? (this.view === "graph" ? 560 : undefined);
+    // The Graph tab takes the full available panel height unless the user resized the panel.
+    const h = this.preferredHeight ?? (this.view === "graph" ? place.maxHeight : undefined);
     this.panel.style.height = h ? `${Math.min(h, place.maxHeight)}px` : "";
   }
 
@@ -471,7 +472,7 @@ export class Widget {
         "div",
         { class: "setup" },
         el("p", {}, "CodeSloth needs a fine-grained GitHub token with only ", el("b", {}, "Pull requests: Read-only"), " and ", el("b", {}, "Contents: Read-only"), "."),
-        el("p", { class: "muted" }, "The token stays inside the extension. This page never sees it."),
+        el("p", { class: "muted" }, "Your token is stored only on this device, in CodeSloth's extension storage. GitHub pages and other extensions can't read it. It's sent only to api.github.com, for read-only requests."),
         el("div", { class: "row" }, btn, demo),
         el("p", { class: "muted" }, "Try demo loads a real sample (fastapi/fastapi#16403) so you can learn the Review and Graph tabs without a token."),
       ),

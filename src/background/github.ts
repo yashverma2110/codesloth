@@ -67,7 +67,7 @@ export class GitHubClient {
     }
     if (res.status === 401) throw new GitHubError("Token rejected (401). Check that it hasn't expired or been revoked.", 401, "unauthorized");
     if (res.status === 404)
-      throw new GitHubError("Not found (404). For private repos the token needs access to this repository (and Pull requests: Read).", 404, "not_found");
+      throw new GitHubError("Not found (404). The token can't see this repository: check its resource owner is this repo's owner, the repo is selected under Repository access (with Pull requests: Read), an org admin has approved it (pending tokens only read public repos), and you've signed in to the org via SSO. Token & settings has a checklist.", 404, "not_found");
     if (res.status >= 500 && attempt < 2) {
       await sleep(1000 * (attempt + 1));
       return this.request(path, opts, attempt + 1);
