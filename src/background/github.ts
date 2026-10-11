@@ -154,6 +154,15 @@ export class GitHubClient {
     return out;
   }
 
+  /** GET /compare/{base}...{head}: how the head moved since `base`. A force-push shows as diverged or 404 (old SHA gone). */
+  async compare(pr: PRRef, base: string, head: string): Promise<{ status: "ahead" | "behind" | "identical" | "diverged" | "missing"; aheadBy: number }> {
+    const res = await this.request(`/repos/${pr.owner}/${pr.repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}?per_page=1`, { allow404: true });
+    if (res.status === 404) return { status: "missing", aheadBy: 0 };
+    const j = (await res.json()) as { status?: string; ahead_by?: number };
+    const st = j.status === "ahead" || j.status === "behind" || j.status === "identical" || j.status === "diverged" ? j.status : "diverged";
+    return { status: st, aheadBy: j.ahead_by ?? 0 };
+  }
+
   /** Raw file contents at a ref, or undefined if missing / too large. */
   async getRaw(pr: PRRef, path: string, ref: string): Promise<string | undefined> {
     const enc = path.split("/").map(encodeURIComponent).join("/");

@@ -82,6 +82,19 @@ for (const theme of ["light", "dark"]) {
   await shot(p, `10-story-gitea-${theme}`);
   await p.close();
 }
+// 1d) Stale reviews: 6 files reviewed at an older head, 2 changed since (gitea#39426), banner with the file list open
+for (const theme of ["light", "dark"]) {
+  const p = await open("stale=1&plan=/test/fixtures/overflow/gitea-39426-plan.json&history=/test/fixtures/overflow/gitea-39426-history.json");
+  if (theme === "dark") await sh(p, () => { document.documentElement.setAttribute("data-color-mode", "dark"); document.body.style.background = "#0d1117"; });
+  await sh(p, () => window.__w.toggle("bubble"));
+  await p.waitForFunction(() => window.__shadow.querySelector(".stalebar"));
+  await sh(p, () => window.__shadow.querySelector('.stalebar [data-act="show"]').click());
+  await p.mouse.move(5, 5);
+  await shot(p, `11-stale-gitea-${theme}`);
+  await sh(p, () => window.__w.toggle("close"));
+  await shot(p, `11b-stale-bubble-${theme}`);
+  await p.close();
+}
 // 1b) Review tab after "Mark step reviewed & next", hovering a file (light + dark)
 for (const theme of ["light", "dark"]) {
   const p = await open("");

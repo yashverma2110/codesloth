@@ -36,6 +36,7 @@ export type Request =
   | { type: "widget:getPosition" }
   | { type: "widget:setPosition"; position: { side: "left" | "right"; top: number } }
   | { type: "reviewed:get"; key: string }
+  | { type: "compare:get"; pr: PRRef; base: string; head: string }
   | { type: "history:get"; pr: PRRef; headSha: string; commits?: number; paths: string[] }
   | { type: "reviewed:set"; key: string; value: unknown }
   | { type: "prefs:get"; key: PrefKey }
@@ -97,6 +98,7 @@ export const CONTENT_ALLOWED: ReadonlySet<Request["type"]> = new Set([
   "prefs:set",
   "graph:openTab",
   "history:get",
+  "compare:get",
 ]);
 
 /** Decide whether a message sender may make a request. Pure for testing. */

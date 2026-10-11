@@ -7,7 +7,7 @@ import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
 import { GRAPH_CSS } from "../graph/svg";
 import { GraphView, GRAPH_VIEW_CSS } from "../graph/view";
 import { toDom } from "../graph/vdom";
-import { allFiles, ctaTarget, currentStep, emptyReview, firstUnreviewed, layerReview, locate, nextUnreviewed, normalizeReviewState, progress, setFilesReviewed, summarize, type ReviewState } from "./review-logic";
+import { allFiles, clearReview, ctaTarget, currentStep, dismissStale, emptyReview, firstUnreviewed, keepStale, layerReview, locate, nextUnreviewed, normalizeReviewState, progress, reviewedAtHead, setFilesReviewed, staleBannerVisible, staleFiles, staleSummary, summarize, untickStale, type CompareInfo, type ReviewState } from "./review-logic";
 import type { LayerFile } from "../engine/types";
 import { renderReview } from "./review-view";
 import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
@@ -73,6 +73,20 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string,
   return e;
 }
 
+/**
+ * Demo: steps 1-2 were reviewed at an older head (the PR's 3rd commit), then "pushed" again: two of those files now
+ * have newer content, so their ticks are stale and the banner shows. Computed from the bundled real data.
+ */
+function demoReview(): ReviewState {
+  const [core, callers] = DEMO.plan.layers;
+  const files = [...(core?.files ?? []), ...(callers?.files ?? [])];
+  const base = DEMO_HISTORY.commits[2]?.sha ?? "demo-old-head";
+  let st = setFilesReviewed(emptyReview(), files, true, base, "2026-09-26T14:00:00Z");
+  const staled = [files[0], files.find((f) => f.path.endsWith("routing.py")) ?? files[1]].filter(Boolean);
+  st = setFilesReviewed(st, staled.map((f) => ({ path: f!.path, sha: "an-older-blob-sha" })), true, base, "2026-09-26T14:00:00Z");
+  return st;
+}
+
 export class Widget {
   private host!: HTMLElement;
   private root!: HTMLElement;
@@ -111,6 +125,14 @@ export class Widget {
   /** Timeline expanded (session pref, default closed) / showing all commits (this selection only). */
   private storyOpen = false;
   private storyAll = false;
+  /** Stale-review banner: file list expanded; compare result for "N new commits" when the commit story can't tell. */
+  private staleListOpen = false;
+  private compare: { key: string; info: CompareInfo | null } | null = null;
+  /** Restart review: inline confirm shown / undo toast. */
+  private confirmRestart = false;
+  private notice: { text: string; undo?: () => void } | null = null;
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  private restartBtn!: HTMLButtonElement;
   private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
@@ -140,13 +162,17 @@ export class Widget {
     const mkTab = (v: View, label: string) => el("button", { type: "button", role: "tab", id: `prl-tab-${v}`, "aria-controls": `prl-pane-${v}`, "aria-selected": "false", tabindex: "-1", class: "tab" }, label) as HTMLButtonElement;
     this.tabs = { review: mkTab("review", "Review"), graph: mkTab("graph", "Graph") };
     tablist.append(this.tabs.review, this.tabs.graph);
+    // Restart review: compact ghost button at the right end of the tab row (Review tab only; icon-only when narrow).
+    this.restartBtn = el("button", { type: "button", class: "restart", title: "Restart review: clear all ticks for this PR", "aria-label": "Restart review", hidden: "" }, el("span", { class: "ri", "aria-hidden": "true" }, "↺"), el("span", { class: "lbl" }, "Restart review")) as HTMLButtonElement;
+    this.restartBtn.addEventListener("click", () => this.askRestart());
+    const tabbar = el("div", { class: "tabbar" }, tablist, this.restartBtn);
     this.panes = {
       review: el("div", { class: "pane body", role: "tabpanel", id: "prl-pane-review", "aria-labelledby": "prl-tab-review", tabindex: "0" }),
       graph: el("div", { class: "pane graph", role: "tabpanel", id: "prl-pane-graph", "aria-labelledby": "prl-tab-graph", hidden: "" }),
     };
     this.bannerEl = el("div", { class: "banner", hidden: "" });
     this.subEl = el("div", { class: "sub", "aria-live": "polite" });
-    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tablist, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
+    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tabbar, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
     this.panel.hidden = true;
     this.root.append(this.panel, this.bubble);
     // documentElement (not body): GitHub's Turbo navigation replaces <body>.
@@ -257,6 +283,7 @@ export class Widget {
     this.open = want;
     this.panel.hidden = !want;
     this.bubble.setAttribute("aria-expanded", String(want));
+    this.updateBubble();
     this.layout();
     if (want) {
       void this.loadSyncPref();
@@ -306,6 +333,7 @@ export class Widget {
       this.panes[k].hidden = !on;
     }
     this.panel.classList.toggle("graph-mode", v === "graph");
+    this.updateRestart();
     if (persist) void setPref("view", v);
     this.layout();
     if (v === "graph") this.renderGraph();
@@ -338,6 +366,7 @@ export class Widget {
     this.menu.replaceChildren(
       item(this.demo ? "Reload demo" : "Re-analyze", () => (this.demo ? this.loadDemo() : void this.analyze(true))),
       item("Take the tour", () => this.startTour()),
+      ...(this.result ? [item("Restart review…", () => this.askRestart())] : []),
       this.demo ? item("Exit demo", () => this.exitDemo()) : item("Try demo (sample PR, no token needed)", () => this.loadDemo(true)),
       this.syncItem(),
       item("Token & settings…", () => void rpc({ type: "openOnboarding" })),
@@ -463,10 +492,10 @@ export class Widget {
     this.history = DEMO_HISTORY;
     this.historyNote = null;
     this.historyKey = "demo";
-    const core = DEMO.plan.layers.find((l) => l.id === "core") ?? DEMO.plan.layers[0];
-    // Pretend the first Core file was reviewed, then pushed again (older blob SHA), to show the change flag.
-    const first = core.files[0];
-    this.review = first ? setFilesReviewed(emptyReview(), [{ path: first.path, sha: "an-older-blob-sha" }], true, "demo-old-head", "2026-10-09T12:00:00Z") : emptyReview();
+    this.review = demoReview();
+    this.staleListOpen = false;
+    this.compare = null;
+    this.clearNotice();
     this.openFor = "";
     this.bannerEl.hidden = false;
     const exit = el("button", { type: "button", class: "btn" }, "Exit demo");
@@ -481,6 +510,8 @@ export class Widget {
 
   exitDemo() {
     this.demo = false;
+    this.clearNotice();
+    this.compare = null;
     this.result = null;
     this.history = null;
     this.historyKey = "";
@@ -510,8 +541,12 @@ export class Widget {
     const pg = progress(res.plan, this.review);
     const bar = el("div", { class: "pbar", role: "progressbar", "aria-label": "Files reviewed", "aria-valuemin": "0", "aria-valuemax": String(pg.totalFiles), "aria-valuenow": String(pg.reviewedFiles) }, el("i"));
     (bar.firstChild as HTMLElement).style.width = `${Math.round(pg.ratio * 100)}%`;
-    const [stepPart, filesPart] = pg.text.split(" · ");
-    this.subEl.replaceChildren(el("div", { class: "plbl" }, el("b", {}, stepPart), el("span", {}, filesPart ?? "")), bar);
+    const [stepPart, filesPart, stalePart] = pg.text.split(" · ");
+    this.subEl.replaceChildren(el("div", { class: "plbl" }, el("b", {}, stepPart), el("span", {}, filesPart ?? "", stalePart ? el("span", { class: "stale-n", title: "Ticked files that changed since you reviewed them" }, ` · ${stalePart}`) : "")), bar);
+    const head = res.meta.headSha;
+    const bannerOn = staleBannerVisible(res.plan, this.review, head);
+    const staleSum = staleFiles(res.plan, this.review).length ? staleSummary(res.plan, this.review, this.history, this.compare?.info) : null;
+    if (bannerOn) this.maybeCompare(res);
     this.menuBtn.classList.toggle("has-warn", res.plan.warnings.length > 0);
     const scroll = this.panes.review.scrollTop;
     this.panes.review.replaceChildren(
@@ -544,8 +579,27 @@ export class Widget {
           this.focusIn(`[data-layer="${CSS.escape(l.id)}"] .sh`);
         },
         onMarkNext: (l) => this.markNext(l, true),
+        stale: bannerOn ? staleSum : null,
+        staleCommits: new Map((staleSum?.files ?? []).map((f) => [f.path, f.commits])),
+        staleListOpen: this.staleListOpen,
+        onToggleStaleList: (open) => {
+          this.staleListOpen = open;
+          this.renderAll();
+          this.focusIn('.stalebar [data-act="show"]');
+        },
+        onUntickStale: () => this.untickStale(),
+        onKeepStale: () => this.keepStale(),
+        onDismissStale: () => {
+          this.review = dismissStale(this.review, head);
+          this.saveReview();
+          this.renderAll();
+        },
       }),
     );
+    const top = this.panes.review.firstElementChild;
+    if (this.confirmRestart || this.notice) top?.prepend(this.restartNotice(Object.keys(this.review.files).length));
+    this.updateRestart();
+    this.updateBubble();
     this.panes.review.scrollTop = scroll;
     if (this.view === "graph") this.renderGraph();
     this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
@@ -565,6 +619,140 @@ export class Widget {
     const r = el.getBoundingClientRect();
     if (r.top < p.top) pane.scrollTop -= p.top - r.top + 8;
     else if (r.bottom > p.bottom) pane.scrollTop += Math.min(r.bottom - p.bottom + 8, r.top - p.top - 8);
+  }
+
+  /** Stale dot on the bubble while the panel is closed. */
+  private updateBubble() {
+    const res = this.result;
+    this.bubble.classList.toggle("stale", !this.open && !!res && staleFiles(res.plan, this.review).length > 0);
+  }
+
+  private updateRestart() {
+    const res = this.result;
+    this.restartBtn.hidden = !res || this.view !== "review";
+    const n = res ? Object.keys(this.review.files).length : 0;
+    this.restartBtn.disabled = n === 0;
+    this.restartBtn.title = n ? `Restart review: clear all ${n} tick${n === 1 ? "" : "s"} for this PR` : "Restart review (nothing ticked yet)";
+  }
+
+  /** "N new commits": ask the compare API (1 read-only GET) when the commit story doesn't contain the reviewed head. */
+  private maybeCompare(res: AnalyzeResult) {
+    if (this.demo) return;
+    const base = reviewedAtHead(this.review, staleFiles(res.plan, this.review).map((f) => f.path));
+    if (!base || this.history?.commits.some((c) => c.sha === base)) return;
+    const key = `${base}...${res.meta.headSha}`;
+    if (this.compare?.key === key) return;
+    this.compare = { key, info: null };
+    void rpc<CompareInfo>({ type: "compare:get", pr: res.pr, base, head: res.meta.headSha })
+      .then((info) => {
+        if (this.compare?.key !== key) return;
+        this.compare = { key, info };
+        this.renderAll();
+      })
+      .catch(() => {});
+  }
+
+  /** Banner: remove the stale ticks, then open the first changed file's step and select it. */
+  private untickStale() {
+    const res = this.result;
+    if (!res) return;
+    const stale = staleFiles(res.plan, this.review);
+    this.review = untickStale(res.plan, this.review, res.meta.headSha);
+    this.saveReview();
+    void this.syncFiles(stale, false);
+    this.staleListOpen = false;
+    if (stale[0]) this.select(stale[0].path, true);
+    else this.renderAll();
+  }
+
+  /** Banner: accept the new versions as reviewed. */
+  private keepStale() {
+    const res = this.result;
+    if (!res) return;
+    const stale = staleFiles(res.plan, this.review);
+    this.review = keepStale(res.plan, this.review, res.meta.headSha);
+    this.saveReview();
+    void this.syncFiles(stale, true);
+    this.staleListOpen = false;
+    this.renderAll();
+  }
+
+  askRestart() {
+    if (!this.result || !Object.keys(this.review.files).length) return;
+    this.toggleMenu(false);
+    if (this.view !== "review") this.setView("review", true);
+    this.clearNotice();
+    this.confirmRestart = true;
+    this.renderAll();
+    this.panes.review.scrollTop = 0;
+    (this.panes.review.querySelector('.restart-note [data-act="clear"]') as HTMLElement | null)?.focus({ preventScroll: true });
+  }
+
+  /** Clear every tick and stale state for this PR; back to step 1's first file. Undo for ~6 s. */
+  restartReview() {
+    const res = this.result;
+    if (!res) return;
+    const prev = this.review;
+    const ticked = allFiles(res.plan).map((r) => res.plan.layers[r.layer].files[r.file]).filter((f) => prev.files[f.path]);
+    this.confirmRestart = false;
+    this.review = clearReview(res.meta.headSha);
+    this.saveReview();
+    void this.syncFiles(ticked, false);
+    const n = Object.keys(prev.files).length;
+    this.setNotice(`Cleared ${n} tick${n === 1 ? "" : "s"}.`, () => {
+      this.review = prev;
+      this.saveReview();
+      void this.syncFiles(ticked, true);
+      this.clearNotice();
+      this.renderAll();
+    });
+    this.openSteps = new Set(res.plan.layers[0] ? [res.plan.layers[0].id] : []);
+    this.selected = null;
+    const first = res.plan.layers[0]?.files[0];
+    this.panes.review.scrollTop = 0;
+    if (first) this.select(first.path, true);
+    else this.renderAll();
+    this.panes.review.scrollTop = 0;
+  }
+
+  private setNotice(text: string, undo?: () => void) {
+    this.clearNotice();
+    this.notice = { text, undo };
+    this.noticeTimer = setTimeout(() => {
+      this.notice = null;
+      this.noticeTimer = null;
+      if (this.result) this.renderAll();
+    }, 6000);
+  }
+
+  private clearNotice() {
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.noticeTimer = null;
+    this.notice = null;
+    this.confirmRestart = false;
+  }
+
+  /** Inline confirm ("Clear all N ticks for this PR?") or the Undo toast, at the top of the Review tab. */
+  private restartNotice(n: number): HTMLElement {
+    if (this.confirmRestart) {
+      const clear = el("button", { type: "button", class: "btn primary sm", "data-act": "clear" }, "Clear ticks");
+      clear.addEventListener("click", () => this.restartReview());
+      const cancel = el("button", { type: "button", class: "btn sm", "data-act": "cancel" }, "Cancel");
+      cancel.addEventListener("click", () => {
+        this.confirmRestart = false;
+        this.renderAll();
+        this.restartBtn.focus({ preventScroll: true });
+      });
+      return el("div", { class: "restart-note", role: "alertdialog", "aria-label": "Restart review" }, el("span", { class: "msg" }, `Clear all ${n} tick${n === 1 ? "" : "s"} for this PR?`), el("span", { class: "sacts" }, clear, cancel));
+    }
+    const note = this.notice!;
+    const box = el("div", { class: "restart-note toast", role: "status" }, el("span", { class: "msg" }, note.text));
+    if (note.undo) {
+      const undo = el("button", { type: "button", class: "linkbtn", "data-act": "undo" }, "Undo");
+      undo.addEventListener("click", note.undo);
+      box.append(undo);
+    }
+    return box;
   }
 
   private saveReview() {

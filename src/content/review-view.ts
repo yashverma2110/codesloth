@@ -1,6 +1,7 @@
 /** The Review tab as a checklist of numbered steps with per-file review (see docs/images/review-demo.png). */
 import type { Layer, LayerFile, LayerPlan } from "../engine/types";
 import { authored, fileStory, relTime, stepCommits, storyActive, type CommitHistory } from "../shared/history";
+import type { StaleSummary } from "./review-logic";
 import { ctaTarget, currentStep, fileReview, groupByFolder, isLastUnreviewed, layerReview, summarize, type ReviewState } from "./review-logic";
 
 export interface ReviewHandlers {
@@ -21,6 +22,15 @@ export interface ReviewHandlers {
   storyAll?: boolean;
   onToggleStory?(open: boolean): void;
   onToggleStoryAll?(all: boolean): void;
+  /** "N new commits changed M files you reviewed" banner (null = hidden). */
+  stale?: StaleSummary | null;
+  /** New commits that touched each stale file (tooltip), from the commit story. */
+  staleCommits?: ReadonlyMap<string, string[]>;
+  staleListOpen?: boolean;
+  onUntickStale?(): void;
+  onKeepStale?(): void;
+  onDismissStale?(): void;
+  onToggleStaleList?(open: boolean): void;
   onSelect(path: string): void;
   onToggleFile(file: LayerFile, reviewed: boolean): void;
   onToggleStep(layer: Layer, reviewed: boolean): void;
@@ -127,10 +137,37 @@ function timeline(hist: CommitHistory, f: LayerFile & { name: string }, h: Revie
   return wrap;
 }
 
+/** "3 new commits changed 2 files you reviewed." + Untick / Keep / Show files / dismiss. */
+function staleBanner(st: StaleSummary, h: ReviewHandlers): HTMLElement {
+  const open = !!h.staleListOpen;
+  const untick = el("button", { type: "button", class: "btn primary sm", "data-act": "untick", title: "Remove the ticks of the changed files and go to the first one" }, "Untick changed files");
+  untick.addEventListener("click", () => h.onUntickStale?.());
+  const keep = el("button", { type: "button", class: "btn sm", "data-act": "keep", title: "Accept the new versions as reviewed" }, "Keep my ticks");
+  keep.addEventListener("click", () => h.onKeepStale?.());
+  const show = el("button", { type: "button", class: "linkbtn", "data-act": "show", "aria-expanded": String(open), "aria-controls": "prl-stale-list" }, open ? "Hide files" : "Show files");
+  show.addEventListener("click", () => h.onToggleStaleList?.(!open));
+  const x = el("button", { type: "button", class: "x", "data-act": "dismiss", title: "Dismiss (comes back only after a new push)", "aria-label": "Dismiss" }, "✕");
+  x.addEventListener("click", () => h.onDismissStale?.());
+  const list = el("ul", { class: "stale-list", id: "prl-stale-list" });
+  list.hidden = !open;
+  for (const f of st.files) {
+    const name = f.path.slice(f.path.lastIndexOf("/") + 1);
+    list.append(el("li", { title: f.commits.length ? `${f.path}\nChanged in: ${f.commits.join(" · ")}` : f.path }, el("span", { class: "fname" }, name), f.commits.length ? el("span", { class: "muted" }, ` · ${f.commits.length} new commit${f.commits.length === 1 ? "" : "s"}`) : ""));
+  }
+  return el(
+    "div",
+    { class: "stalebar", role: "status", "data-tour": "changed" },
+    el("div", { class: "stx" }, el("span", { class: "ico", "aria-hidden": "true" }, "⚠"), el("span", { class: "msg" }, st.text), x),
+    el("div", { class: "sacts" }, untick, keep, show),
+    list,
+  );
+}
+
 export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandlers): HTMLElement {
   const root = el("div", { class: "review" });
   const hist = storyActive(h.history) ? h.history : null;
   const sum = summarize(plan, state);
+  if (h.stale) root.append(staleBanner(h.stale, h));
   if (sum.totalFiles && sum.reviewedFiles === sum.totalFiles) {
     root.append(el("div", { class: "alldone", role: "status" }, el("span", { class: "ok", "aria-hidden": "true" }, "✓"), `All ${files(sum.totalFiles)} reviewed`));
   }
@@ -186,22 +223,25 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
           const stTitle = f.previousPath ? `${st} from ${f.previousPath}` : st;
           const bar = el("span", { class: "bar", "aria-hidden": "true" });
           bar.style.width = `${Math.max(2, Math.round((f.additions / max) * 40))}px`;
+          const staleMsgs = fr === "changed" ? (h.staleCommits?.get(f.path) ?? []) : [];
+          const staleTitle = `Changed since you reviewed${staleMsgs.length ? ` · new commits: ${staleMsgs.join(" · ")}` : ""}`;
           const icon =
             fr === "reviewed"
               ? el("span", { class: "rev-ico", title: `Reviewed · ${stTitle}`, "aria-hidden": "true" }, "✓")
-              : el("span", { class: `dot ${statusClass(f.status)}`, title: stTitle, "aria-hidden": "true" });
+              : fr === "changed"
+                ? el("span", { class: "stale-ico", title: staleTitle, "aria-hidden": "true" }, "⚠")
+                : el("span", { class: `dot ${statusClass(f.status)}`, title: stTitle, "aria-hidden": "true" });
           const btn = el(
             "button",
             {
               type: "button",
               class: "fbtn",
               "data-path": f.path,
-              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? ", changed since reviewed" : ""}${unsync ? ", not synced with GitHub Viewed" : ""}${n ? `, ${commits(n)}` : ""}${story?.afterReview ? ", after review" : ""}${story?.lateChange ? ", late change" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}${latest ? `. Latest commit: ${latest.message}, ${relTime(latest.date, h.now)}` : ""}`,
+              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? `, reviewed but stale: ${staleTitle.toLowerCase()}` : ""}${unsync ? ", not synced with GitHub Viewed" : ""}${n ? `, ${commits(n)}` : ""}${story?.afterReview ? ", after review" : ""}${story?.lateChange ? ", late change" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}${latest ? `. Latest commit: ${latest.message}, ${relTime(latest.date, h.now)}` : ""}`,
               ...(sel ? { "aria-current": "true" } : {}),
             },
             icon,
             el("span", { class: "fname", title: f.path }, f.name),
-            fr === "changed" ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
             unsync ? el("span", { class: "unsync", title: unsync, "aria-hidden": "true" }, "⊘") : "",
             n ? el("span", { class: "cm", title: story!.touches.map((t) => t.commit.message).join("\n") }, commits(n)) : "",
             story?.afterReview ? chip("After review", "A commit that changed this file looks like a review follow-up") : "",
@@ -210,8 +250,8 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
             el("span", { class: "reason" }, el("span", { class: "rtext" }, f.reason), latest ? el("span", { class: "latest", title: `Latest: ${latest.message} · ${relTime(latest.date, h.now)}` }, el("i", {}, "Latest: "), `${latest.message} · ${relTime(latest.date, h.now)}`) : ""),
           );
           btn.addEventListener("click", () => h.onSelect(f.path));
-          const ft = el("input", { type: "checkbox", class: "ftick", "data-path": f.path, title: fr === "reviewed" ? "Unmark reviewed" : "Mark reviewed", "aria-label": `Mark ${f.name} reviewed` }) as HTMLInputElement;
-          ft.checked = fr === "reviewed";
+          const ft = el("input", { type: "checkbox", class: "ftick" + (fr === "changed" ? " stale" : ""), "data-path": f.path, title: fr === "reviewed" ? "Unmark reviewed" : fr === "changed" ? `${staleTitle}. Uncheck to remove the tick` : "Mark reviewed", "aria-label": `Mark ${f.name} reviewed` }) as HTMLInputElement;
+          ft.checked = fr !== "none"; // stale ticks stay ticked (amber) until you decide
           ft.addEventListener("change", () => h.onToggleFile(f, ft.checked));
           const row = el("li", { class: ["file", sel ? "sel" : "", fr === "reviewed" ? "rev" : "", fr === "changed" ? "chg" : ""].filter(Boolean).join(" ") }, btn, ft);
           if (sel && hist && n) row.append(timeline(hist, f, h));

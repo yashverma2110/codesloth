@@ -211,7 +211,12 @@ describe("Widget (DOM)", () => {
     expect(s.querySelector(".banner")!.textContent).toContain("fastapi/fastapi#16403");
     expect(s.querySelectorAll(".step").length).toBeGreaterThan(3);
     expect(s.querySelector('[data-tour="changed"]')).not.toBeNull();
-    expect(s.querySelector("li.file.chg .chg-ico")).not.toBeNull();
+    // demo simulates a push after steps 1-2 were reviewed: 2 ticks are stale (kept, amber) and the banner shows
+    expect(s.querySelector("li.file.chg .stale-ico")).not.toBeNull();
+    expect((s.querySelector("li.file.chg .ftick") as HTMLInputElement).checked).toBe(true);
+    expect(s.querySelector(".stalebar .msg")!.textContent).toBe("3 new commits changed 2 files you reviewed.");
+    expect(s.querySelector(".sub")!.textContent).toContain("4 of 36 files reviewed · 2 stale");
+    expect((s.querySelector(".bubble") as HTMLElement).classList.contains("stale")).toBe(false); // panel is open
     expect(s.querySelector(".step.current.changed.open")).not.toBeNull();
     await vi.waitFor(() => expect(s.querySelector(".tour-card")).not.toBeNull());
     const titles: string[] = [];
@@ -600,5 +605,177 @@ describe("Widget (DOM)", () => {
     expect(prefs.storyOpen).toBe(false);
     expect(s.querySelectorAll(".tl .tc")).toHaveLength(0);
     history = ONE;
+  });
+
+  describe("stale reviews + restart", () => {
+    const STALE = { v: 2, files: { "src/a.ts": { sha: "s0-old", at: "2026-10-10T00:00:00Z", headSha: "1234567" }, "src/ui/b.ts": { sha: "s2", at: "2026-10-10T00:00:00Z", headSha: "1234567" } } };
+    let saved: any = null;
+    const setup = async (state: unknown = STALE) => {
+      saved = null;
+      replies["reviewed:get"] = () => saved ?? JSON.parse(JSON.stringify(state));
+      replies["reviewed:set"] = (m) => ((saved = m.value), true);
+      replies["compare:get"] = () => ({ status: "ahead", aheadBy: 2 });
+      const w = new Widget();
+      await w.mount();
+      w.setPr({ owner: "o", repo: "r", number: 7 });
+      w.toggle("bubble");
+      const s = shadowOf();
+      await vi.waitFor(() => expect(s.querySelector(".stalebar .msg")?.textContent).toBe("2 new commits changed 1 file you reviewed."));
+      return { w, s };
+    };
+    const restore = () => {
+      replies["reviewed:get"] = () => ({});
+      replies["reviewed:set"] = () => true;
+      delete replies["compare:get"];
+    };
+
+    it("keeps stale ticks (amber ⚠), shows the banner with Show files, and a bubble dot while closed", async () => {
+      const { w, s } = await setup();
+      const cmp = calls.find((c) => c.type === "compare:get") as any;
+      expect([cmp.base, cmp.head]).toEqual(["1234567", "abcdef1234"]);
+      const row = s.querySelector('.fbtn[data-path="src/a.ts"]')!;
+      expect(row.querySelector(".stale-ico")!.getAttribute("title")).toBe("Changed since you reviewed");
+      expect((s.querySelector('.ftick[data-path="src/a.ts"]') as HTMLInputElement).checked).toBe(true);
+      expect(s.querySelector(".sub")!.textContent).toContain("1 of 3 files reviewed · 1 stale");
+      expect(s.querySelector('.step[data-layer="core"] .chg-ico')).not.toBeNull();
+      const show = s.querySelector('.stalebar [data-act="show"]') as HTMLButtonElement;
+      expect((s.querySelector("#prl-stale-list") as HTMLElement).hidden).toBe(true);
+      show.click();
+      expect((s.querySelector("#prl-stale-list") as HTMLElement).hidden).toBe(false);
+      expect(s.querySelector("#prl-stale-list")!.textContent).toContain("a.ts");
+      w.toggle("close");
+      expect(s.querySelector(".bubble")!.classList.contains("stale")).toBe(true);
+      w.toggle("bubble");
+      expect(s.querySelector(".bubble")!.classList.contains("stale")).toBe(false);
+      restore();
+    });
+
+    it("Untick changed files removes the stale ticks (and GitHub Viewed when synced, without double-toggling), then selects the first", async () => {
+      prefs.syncViewed = true;
+      const mkFile = (path: string, checked: boolean) => {
+        const f = document.createElement("div");
+        f.className = "file";
+        f.setAttribute("data-tagsearch-path", path);
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.name = "viewed";
+        cb.checked = checked;
+        let clicks = 0;
+        cb.addEventListener("click", () => clicks++);
+        f.append(cb);
+        document.body.append(f);
+        return { f, cb, clicks: () => clicks };
+      };
+      const a = mkFile("src/a.ts", true);
+      const { s } = await setup();
+      (s.querySelector('.stalebar [data-act="untick"]') as HTMLButtonElement).click();
+      expect(saved.files["src/a.ts"]).toBeUndefined();
+      expect(saved.files["src/ui/b.ts"]).toBeDefined();
+      expect(saved.ack).toBe("abcdef1234");
+      expect(s.querySelector(".stalebar")).toBeNull();
+      expect(s.querySelector('.fbtn[aria-current="true"]')!.getAttribute("data-path")).toBe("src/a.ts");
+      await vi.waitFor(() => expect(a.cb.checked).toBe(false));
+      expect(a.clicks()).toBe(1);
+      a.f.remove();
+      // GitHub already reset Viewed itself: nothing is clicked
+      const a2 = mkFile("src/a.ts", false);
+      const { s: s2 } = await setup();
+      (s2.querySelector('.stalebar [data-act="untick"]') as HTMLButtonElement).click();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(a2.clicks()).toBe(0);
+      a2.f.remove();
+      delete prefs.syncViewed;
+      restore();
+    });
+
+    it("Keep my ticks accepts the new versions; dismiss hides it for this head only (persisted)", async () => {
+      const { s } = await setup();
+      (s.querySelector('.stalebar [data-act="keep"]') as HTMLButtonElement).click();
+      expect(saved.files["src/a.ts"]).toMatchObject({ sha: "s1", headSha: "abcdef1234" });
+      expect(s.querySelector(".stalebar")).toBeNull();
+      expect(s.querySelector(".stale-ico")).toBeNull();
+      restore();
+      // dismiss
+      const { s: s2 } = await setup();
+      (s2.querySelector('.stalebar [data-act="dismiss"]') as HTMLButtonElement).click();
+      expect(saved.ack).toBe("abcdef1234");
+      expect(s2.querySelector(".stalebar")).toBeNull();
+      expect(s2.querySelector(".stale-ico")).not.toBeNull(); // still amber
+      // reopening the same PR/head: still dismissed
+      document.getElementById("codesloth-widget-host")?.remove();
+      const w3 = new Widget();
+      await w3.mount();
+      w3.setPr({ owner: "o", repo: "r", number: 7 });
+      w3.toggle("bubble");
+      const s3 = shadowOf();
+      await vi.waitFor(() => expect(s3.querySelector(".stale-ico")).not.toBeNull());
+      expect(s3.querySelector(".stalebar")).toBeNull();
+      restore();
+    });
+
+    it("Restart review: tab-row button (Review tab only), inline confirm, clears all ticks and stale states, step 1 first file, Undo restores", async () => {
+      const { s } = await setup();
+      const btn = s.querySelector(".tabbar .restart") as HTMLButtonElement;
+      expect(btn.hidden).toBe(false);
+      expect(btn.textContent).toContain("Restart review");
+      (s.querySelector("#prl-tab-graph") as HTMLButtonElement).click();
+      expect(btn.hidden).toBe(true);
+      (s.querySelector("#prl-tab-review") as HTMLButtonElement).click();
+      expect(btn.hidden).toBe(false);
+      btn.click();
+      expect(s.querySelector(".restart-note .msg")!.textContent).toBe("Clear all 2 ticks for this PR?");
+      expect(saved).toBeNull(); // nothing cleared yet
+      (s.querySelector('.restart-note [data-act="cancel"]') as HTMLButtonElement).click();
+      expect(s.querySelector(".restart-note")).toBeNull();
+      btn.click();
+      (s.querySelector('.restart-note [data-act="clear"]') as HTMLButtonElement).click();
+      expect(saved.files).toEqual({});
+      expect(s.querySelector(".stalebar, .stale-ico, .rev-ico")).toBeNull();
+      expect(s.querySelector(".sub")!.textContent).toMatch(/Step 1 of 2\s*0 of 3 files reviewed$/);
+      expect(s.querySelector('.step.open[data-layer="core"]')).not.toBeNull();
+      expect(s.querySelector('.fbtn[aria-current="true"]')!.getAttribute("data-path")).toBe("src/a.ts");
+      expect(s.querySelector(".restart-note.toast .msg")!.textContent).toBe("Cleared 2 ticks.");
+      expect(btn.disabled).toBe(true);
+      (s.querySelector('.restart-note [data-act="undo"]') as HTMLButtonElement).click();
+      expect(Object.keys(saved.files).sort()).toEqual(["src/a.ts", "src/ui/b.ts"]);
+      expect(s.querySelector(".stale-ico")).not.toBeNull();
+      expect(s.querySelector(".restart-note")).toBeNull();
+      // menu entry exists too
+      (s.querySelector(".hdr .icon") as HTMLButtonElement).click();
+      expect([...s.querySelectorAll(".menu button")].some((b) => /Restart review/.test(b.textContent!))).toBe(true);
+      restore();
+    });
+
+    it("the Undo toast goes away after ~6 s", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        const { s } = await setup();
+        (s.querySelector(".tabbar .restart") as HTMLButtonElement).click();
+        (s.querySelector('.restart-note [data-act="clear"]') as HTMLButtonElement).click();
+        expect(s.querySelector(".restart-note.toast")).not.toBeNull();
+        vi.advanceTimersByTime(6100);
+        expect(s.querySelector(".restart-note")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        restore();
+      }
+    });
+
+    it("demo: Restart review works and nothing is saved", async () => {
+      replies["auth:status"] = () => ({ method: "none" });
+      const w = new Widget();
+      await w.mount();
+      w.setPr({ owner: "o", repo: "r", number: 7 });
+      w.toggle("bubble");
+      const s = shadowOf();
+      await vi.waitFor(() => expect(s.querySelector(".setup")).not.toBeNull());
+      w.loadDemo(false);
+      expect(s.querySelector(".stalebar")).not.toBeNull();
+      (s.querySelector(".tabbar .restart") as HTMLButtonElement).click();
+      (s.querySelector('.restart-note [data-act="clear"]') as HTMLButtonElement).click();
+      expect(s.querySelector(".sub")!.textContent).toContain("0 of 36 files reviewed");
+      expect(calls.some((c) => c.type === "reviewed:set")).toBe(false);
+      replies["auth:status"] = () => ({ method: "pat", login: "yash" });
+    });
   });
 });

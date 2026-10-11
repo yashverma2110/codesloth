@@ -177,4 +177,40 @@ ol.steps, .step, .sbody, ul.files, .fbtn, .reason, .tlwrap, ol.tl, .tc, .tm, .sf
 .bubble { background:#1F5F5B; box-shadow:var(--shadow), inset 0 0 0 1.5px rgba(62,138,128,.9); }
 .bubble:hover { background:#24706B; }
 .bubble svg.sloth { width:34px; height:34px; }
+
+/* ---- v0.6.2 stale reviews + restart review ---- */
+.tabbar { display:flex; align-items:center; gap:6px; padding-right:8px; border-bottom:1px solid var(--border); background:var(--bg); container-type:inline-size; min-width:0; }
+.tabbar .tabs { flex:1 1 auto; min-width:0; border-bottom:none; }
+.restart { flex:none; display:inline-flex; align-items:center; gap:4px; max-width:50%; font:inherit; font-size:12px; color:var(--muted); background:transparent; border:1px solid transparent; border-radius:6px; padding:3px 7px; cursor:pointer; white-space:nowrap; overflow:hidden; }
+.restart:hover:not(:disabled) { color:var(--fg); background:var(--bg2); border-color:var(--border); }
+.restart:focus-visible { outline:2px solid var(--accent); outline-offset:0; }
+.restart:disabled { opacity:.45; cursor:default; }
+.restart[hidden] { display:none; }
+.restart .ri { font-size:14px; line-height:1; }
+.restart .lbl { overflow:hidden; text-overflow:ellipsis; }
+@container (max-width: 300px) { .restart .lbl { display:none; } .restart { padding:3px 6px; } }
+.btn.sm { padding:3px 10px; font-size:12px; }
+.linkbtn { border:none; background:transparent; color:var(--accent); font:inherit; font-size:12px; padding:2px 4px; cursor:pointer; border-radius:4px; }
+.linkbtn:hover { text-decoration:underline; }
+.linkbtn:focus-visible { outline:2px solid var(--accent); outline-offset:0; }
+.stalebar, .restart-note { margin:8px 10px 2px; padding:8px 10px; border-radius:8px; border:1px solid rgba(212,167,44,.55); background:rgba(212,167,44,.12); font-size:12.5px; color:var(--fg); min-width:0; overflow-wrap:anywhere; }
+.stalebar .stx { display:flex; align-items:flex-start; gap:6px; min-width:0; }
+.stalebar .ico { color:var(--warn); flex:none; }
+.stalebar .msg { flex:1 1 auto; min-width:0; font-weight:600; }
+.stalebar .x { flex:none; border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:12px; padding:0 2px; border-radius:4px; }
+.stalebar .x:hover { color:var(--fg); }
+.stalebar .x:focus-visible { outline:2px solid var(--accent); }
+.sacts { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:7px; min-width:0; }
+.stale-list { list-style:none; margin:6px 0 0; padding:0 0 0 18px; font-size:12px; }
+.stale-list li { display:flex; min-width:0; gap:2px; white-space:nowrap; }
+.stale-list .fname { flex:0 1 auto; font-size:12px; }
+.stale-list .muted { flex:none; color:var(--muted); }
+.restart-note { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; border-color:var(--border); background:var(--bg2); }
+.restart-note .msg { flex:1 1 140px; min-width:0; }
+.restart-note .sacts { margin-top:0; }
+.stale-ico { flex:none; width:12px; text-align:center; color:var(--warn); font-size:11px; line-height:1; }
+.ftick.stale { accent-color:#d4a72c; opacity:1; }
+li.file.chg .fname { color:var(--fg); }
+.stale-n { color:var(--warn); font-weight:600; }
+.bubble.stale .dot { display:block; background:#d4a72c; }
 `;

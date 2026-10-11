@@ -15,6 +15,13 @@ HTMLElement.prototype.attachShadow = function (init) {
 const plan = planUrl ? await (await fetch(planUrl)).json() : null;
 const historyUrl = params.get("history");
 const history = historyUrl ? await (await fetch(historyUrl)).json() : null;
+// ?stale=1: the first 6 files were reviewed at an older head; 2 of them changed since (simulated push).
+function staleState() {
+  const files = (plan?.plan.layers ?? []).flatMap((l: any) => l.files).slice(0, 6);
+  const out: any = { v: 2, files: {} };
+  files.forEach((f: any, i: number) => (out.files[f.path] = { sha: i < 2 ? "an-older-blob-sha" : f.sha, at: "2026-10-01T00:00:00Z", headSha: "1111111" }));
+  return out;
+}
 (globalThis as any).chrome = {
   runtime: {
     sendMessage: async (m: any) => {
@@ -22,7 +29,8 @@ const history = historyUrl ? await (await fetch(historyUrl)).json() : null;
         "auth:status": () => (plan ? { method: "pat", login: "demo" } : { method: "none" }),
         "widget:getPosition": () => ({ side: "right", top: 16 }),
         "widget:setPosition": () => true,
-        "reviewed:get": () => ({}),
+        "reviewed:get": () => (params.get("stale") === "1" ? staleState() : {}),
+        "compare:get": () => ({ status: "ahead", aheadBy: 3 }),
         "reviewed:set": () => true,
         "prefs:get": () => prefs[m.key] ?? null,
         "prefs:set": () => ((prefs[m.key] = m.value), true),

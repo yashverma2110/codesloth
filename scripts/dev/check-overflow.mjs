@@ -55,13 +55,17 @@ const cases = [];
 for (const data of ["real", "stress"])
   for (const vw of [320, 1280])
     for (const forced of vw === 1280 ? [null, 640] : [null])
-      for (const theme of ["light", "dark"]) for (const story of ["collapsed", "expanded", "all"]) cases.push({ data, vw, forced, theme, story });
+      for (const theme of ["light", "dark"]) {
+        for (const story of ["collapsed", "expanded", "all"]) cases.push({ data, vw, forced, theme, story });
+        // v0.6.2: stale banner (file list open) and the Restart review confirm, with the Restart button in the tab row
+        for (const extra of ["banner", "confirm"]) cases.push({ data, vw, forced, theme, story: "expanded", extra });
+      }
 for (const c of cases) {
   const p = await browser.newPage();
   await p.setViewport({ width: c.vw, height: 900, deviceScaleFactor: 1 });
   p.on("pageerror", (e) => (console.error("pageerror", e.message), failures++));
   const pre = c.data === "stress" ? "stress-" : "";
-  await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}`);
+  await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}${c.extra === "banner" ? "&stale=1" : ""}`);
   await p.waitForFunction(() => window.__ready);
   if (c.theme === "dark") await p.evaluate(() => document.documentElement.setAttribute("data-color-mode", "dark"));
   await p.evaluate(() => window.__w.toggle("bubble"));
@@ -70,6 +74,15 @@ for (const c of cases) {
   const path = c.data === "stress" ? longPath : target;
   await p.evaluate((path) => window.__w.select(path, true), path);
   if (c.story === "all") await p.evaluate(() => window.__shadow.querySelector(".tlmore").click());
+  if (c.extra === "banner") {
+    await p.waitForFunction(() => window.__shadow.querySelector(".stalebar"), { timeout: 5000 });
+    await p.evaluate(() => window.__shadow.querySelector('.stalebar [data-act="show"]').click());
+  }
+  if (c.extra === "confirm") {
+    await p.evaluate((path) => window.__w.select(path, true), path); // tick something so Restart is enabled
+    await p.evaluate(() => window.__shadow.querySelector(".step.open .next").click());
+    await p.evaluate(() => window.__shadow.querySelector(".tabbar .restart").click());
+  }
   await sleep(150);
   const r = await p.evaluate(() => {
     const s = window.__shadow;
@@ -84,17 +97,27 @@ for (const c of cases) {
     const tl = s.querySelectorAll(".tl .tc").length;
     const tog = s.querySelector("li.file.sel .tltog");
     const more = s.querySelector(".tlmore");
-    const state = { expanded: tog?.getAttribute("aria-expanded"), more: more?.textContent ?? null };
+    const rs = s.querySelector(".tabbar .restart");
+    const lbl = rs?.querySelector(".lbl");
+    const state = {
+      expanded: tog?.getAttribute("aria-expanded"),
+      more: more?.textContent ?? null,
+      restart: rs && !rs.hidden ? (lbl && getComputedStyle(lbl).display !== "none" ? "label" : "icon") : "hidden",
+      banner: !!s.querySelector(".stalebar #prl-stale-list:not([hidden])"),
+      confirm: !!s.querySelector(".restart-note [data-act=clear]"),
+    };
     const clamp = [...s.querySelectorAll(".tmsg")].every((m) => m.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(m).lineHeight || "18") + 2 && m.title);
     const latest = s.querySelector("li.file.sel .latest");
     return { state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".step.open .next") };
   });
-  const wantTl = { collapsed: 0, expanded: 3, all: 13 }[c.story];
-  const wantMore = { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
-  const ok = !r.bad.length && r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0 && r.tl === wantTl && r.state.more === wantMore && r.state.expanded === String(c.story !== "collapsed") && r.clamp && r.latestOneLine;
+  const wantTl = c.extra === "confirm" ? r.tl : { collapsed: 0, expanded: 3, all: 13 }[c.story];
+  const wantMore = c.extra === "confirm" ? r.state.more : { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
+  const panelW = c.forced ?? Math.min(400, c.vw - 32);
+  const extraOk = r.state.restart === (panelW <= 320 ? "icon" : "label") && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm);
+  const ok = extraOk && !r.bad.length && r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0 && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
   if (!ok) failures++;
-  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.story}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
-  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.story}.png` });
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story} restart=${r.state.restart}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}.png` });
   await p.close();
 }
 await browser.close();

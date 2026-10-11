@@ -148,7 +148,7 @@ export const REVIEW_TOUR_TEXT = {
   },
   changed: {
     title: "Changed since you reviewed it",
-    body: "If new commits change a file you already reviewed, it gets a \u26a0, loses its \u2713 and its step is reopened. That way you only re-read what moved. You can reopen this tour from \u22ef \u2192 Take the tour.",
+    body: "If new commits change files you already reviewed, their ticks turn into an amber \u26a0 (stale) and this banner asks what to do: Untick changed files to re-read just those, or Keep my ticks. To start over, use \u21ba Restart review in the tab row. You can reopen this tour from \u22ef \u2192 Take the tour.",
   },
 };
 

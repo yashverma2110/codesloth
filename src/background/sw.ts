@@ -220,6 +220,9 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
       if (!PREF_KEYS.includes(msg.key)) throw new Error("Unknown preference");
       await prefArea(msg.key).set({ [`pref.${msg.key}`]: msg.value });
       return true;
+    case "compare:get":
+      if (!/^[0-9a-f]{7,40}$/i.test(msg.base) || !/^[0-9a-f]{7,40}$/i.test(msg.head)) throw new Error("Bad SHA");
+      return client.compare(msg.pr, msg.base, msg.head);
     case "history:get": {
       const key = `history:${HISTORY_VERSION}:${analysisKey(msg.pr.owner, msg.pr.repo, msg.pr.number, msg.headSha)}`;
       const hit = await cacheGet<CommitHistory>("analysis", key);
