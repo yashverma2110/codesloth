@@ -15,3 +15,7 @@ code { font-size:12px; word-break:break-all; }
 .box.ok { border-color:var(--ok); } .box.bad { border-color:var(--err); }
 .ok { color:var(--ok); } .bad { color:var(--err); } .warn { color:var(--warn); }
 .box li { margin:3px 0; }
+
+fieldset.fonts { border:1px solid #d1d9e0; border-radius:8px; padding:8px 12px 10px; margin-top:12px; }
+fieldset.fonts label { margin-right:12px; }
+fieldset.fonts select { margin-left:4px; }

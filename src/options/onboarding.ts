@@ -1,3 +1,4 @@
+import { FONT_PREF_KEYS, ligaturesOn, normalizeFontPrefs } from "../shared/fonts";
 import type { AuthStatus, TokenValidationResponse } from "../shared/messages";
 import { send } from "../shared/messages";
 import { tokenCreationUrl } from "../shared/token-validation";
@@ -84,6 +85,27 @@ async function init() {
   const sync = $<HTMLInputElement>("syncViewed");
   sync.checked = (await chrome.storage.local.get("pref.syncViewed"))["pref.syncViewed"] === true;
   sync.addEventListener("change", () => void chrome.storage.local.set({ "pref.syncViewed": sync.checked }));
+  // Code font settings (same pref.* keys the panel uses; the worker tells open tabs to re-apply).
+  const fp = normalizeFontPrefs(Object.fromEntries(Object.entries(await chrome.storage.local.get(FONT_PREF_KEYS.map((k) => `pref.${k}`))).map(([k, v]) => [k.slice(5), v])));
+  const fontSel = $<HTMLSelectElement>("codeFont");
+  const sizeSel = $<HTMLSelectElement>("fontSize");
+  const lig = $<HTMLInputElement>("ligatures");
+  const diff = $<HTMLInputElement>("diffFont");
+  fontSel.value = fp.codeFont;
+  sizeSel.value = fp.fontSize;
+  lig.checked = ligaturesOn(fp);
+  diff.checked = fp.diffFont;
+  fontSel.addEventListener("change", () => {
+    void chrome.storage.local.set({ "pref.codeFont": fontSel.value });
+    fp.codeFont = fontSel.value as typeof fp.codeFont;
+    lig.checked = ligaturesOn(fp);
+  });
+  sizeSel.addEventListener("change", () => void chrome.storage.local.set({ "pref.fontSize": sizeSel.value }));
+  lig.addEventListener("change", () => {
+    fp.ligatures = lig.checked;
+    void chrome.storage.local.set({ "pref.ligatures": lig.checked });
+  });
+  diff.addEventListener("change", () => void chrome.storage.local.set({ "pref.diffFont": diff.checked }));
   $("validate").addEventListener("click", () => go(false));
   $("save").addEventListener("click", () => go(true));
   $("clear").addEventListener("click", async () => {

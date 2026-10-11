@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CodeSloth",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "short_name": "CodeSloth",
   "description": "Take your time and actually read the code. Review big GitHub PRs in a sensible order. Read-only, local, no AI.",
   "minimum_chrome_version": "110",
@@ -54,5 +54,15 @@
       },
       "description": "Toggle the CodeSloth widget on the current pull request"
     }
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "fonts/*/*.woff2"
+      ],
+      "matches": [
+        "https://github.com/*"
+      ]
+    }
+  ]
 }

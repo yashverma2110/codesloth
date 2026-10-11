@@ -61,6 +61,7 @@ if (!window.__codeslothLoaded) {
     if (msg?.type === "progress") widget?.progress(msg.pr, msg.text);
     if (msg?.type === "auth:changed") widget?.onAuthChanged();
     if (msg?.type === "jump") void jumpTo(msg.path);
+    if (msg?.type === "prefs:changed") void widget?.loadFontPrefs();
     if (msg?.type === "ping") sendResponse(true);
     return false;
   });

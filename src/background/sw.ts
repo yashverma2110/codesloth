@@ -12,6 +12,7 @@ import { clearToken, getStatus, getToken, saveToken, validateToken } from "./aut
 import { analysisKey, cacheClear, cacheGet, cachePut } from "./cache";
 import { GitHubClient, GitHubError, pool } from "./github";
 import { fetchHistory } from "./history-fetch";
+import { FONT_PREF_KEYS } from "../shared/fonts";
 import type { CommitHistory } from "../shared/history";
 
 const HISTORY_VERSION = 1;
@@ -75,6 +76,12 @@ async function notifyGitHubTabs(msg: TabMessage) {
   const tabs = await chrome.tabs.query({ url: "https://github.com/*" });
   await Promise.all(tabs.map((t) => (t.id ? chrome.tabs.sendMessage(t.id, msg).catch(() => {}) : undefined)));
 }
+
+// Font settings changed (widget popover or settings page): tell open GitHub tabs to re-apply live.
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== "local" || !Object.keys(changes).some((k) => FONT_PREF_KEYS.some((f) => k === `pref.${f}`))) return;
+  for (const t of await chrome.tabs.query({ url: "https://github.com/*" })) if (t.id !== undefined) chrome.tabs.sendMessage(t.id, { type: "prefs:changed" } satisfies TabMessage).catch(() => {});
+});
 
 chrome.runtime.onInstalled.addListener(async (details) => {
   await refreshBadge();

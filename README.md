@@ -109,6 +109,21 @@ When stale ticks appear, a banner at the top of the Review tab says what happene
 - If the file isn't rendered yet (virtualized), it waits for it to mount (up to 4 s). If the control can't be found, or GitHub's state doesn't change after the click, nothing breaks: the row shows a small **⊘** with a tooltip saying it wasn't synced. GitHub's Viewed state never flows back into the panel.
 - Demo mode never syncs. Note that in the classic view GitHub collapses a file when you mark it Viewed.
 
+### Code font and text size
+
+Click **Aa** in the tab row (left of ↺ Restart review; on both the Review and Graph tabs) to pick the font used for code-ish text in the panel: file names, folder paths, commit SHAs and graph node labels.
+
+![The Aa picker open on go-gitea/gitea#39426: Code font (GitHub default, JetBrains Mono, Fira Code, Iosevka, each name shown in its own font with a => != {} sample), Size (Small / Default / Large), Ligatures, and Also use in GitHub diffs. Headless render of the real widget code](docs/images/font-options.png)
+
+- **Fonts:** *GitHub default* (the system monospace stack GitHub uses: `ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono`; the default), **JetBrains Mono**, **Fira Code**, **Iosevka**. Each name in the list is drawn in its own font.
+- **Size:** Small / Default / Large scales the Review list and progress line (CSS `zoom` 0.92 / 1 / 1.12). Panel width doesn't change and nothing overflows (checked headlessly for every font × size).
+- **Ligatures:** on by default for JetBrains Mono and Fira Code, off for Iosevka; the checkbox overrides it. Disabled for GitHub default.
+- **Also use in GitHub diffs** (off by default): applies the chosen font (and ligature setting) to GitHub's diff code lines through one injected stylesheet scoped to diff cells (`.blob-code-inner`, `.blob-num` in the classic view; `.diff-text-inner`, `td.diff-text-cell`, `.react-code-text` in the React view). It's best effort: if GitHub renames those classes it simply stops applying. It does nothing while the font is GitHub default, and it's removed when you leave the PR page.
+- Keyboard: Enter/Space opens it, focus moves to the selected font, arrow keys move within *Code font* and *Size*, Tab stays inside the popover, **Esc** closes it and returns focus to **Aa**. Clicking outside closes it too. At narrow widths **Aa** and ↺ are both icon-only.
+- The same settings are in **Token & settings**. Changes are saved in `chrome.storage.local` and apply live, including in other open PR tabs (the background worker tells them to re-apply).
+
+**Bundled, not downloaded.** The fonts ship inside the extension as WOFF2 (weights 400 and 600, Latin), all under the SIL Open Font License 1.1 (`public/fonts/*/OFL.txt`, sources in `public/fonts/README.md`). Nothing is fetched from a font CDN. Iosevka's upstream Latin file is about 1 MB, so it was subset with fonttools to about 18 KB per weight. The six font files total about 136 KB. They're declared as `web_accessible_resources` for `github.com` only, and the `@font-face` rules are added once at document level with prefixed names (*CodeSloth JetBrains Mono*, …) so they never clash with GitHub's fonts. They're not declared inside the shadow root because Chrome doesn't reliably register `@font-face` from a shadow tree, while shadow content can use document-level faces. Side effect: github.com pages can see that the extension is installed by requesting those font URLs.
+
 ### Commit story
 
 Once the plan is on screen, CodeSloth loads the PR's commit history in the background and shows how each file got to its final state:
@@ -312,7 +327,8 @@ src/graph-page/                full-tab graph page
 src/demo/demo-plan.json        bundled real sample plan (fastapi/fastapi#16403); demo-history.json = its real commit story
 src/dev/harness.ts             dev-only harness for headless renders (not shipped)
 src/options/                   onboarding / options page
-src/shared/                    messages, PR URL + anchor, token-validation, history (commit story building + signals; pure, tested)
+src/shared/                    messages, PR URL + anchor, token-validation, history (commit story building + signals; pure, tested), fonts (code font settings + CSS)
+public/fonts/                  bundled OFL fonts (JetBrains Mono, Fira Code, Iosevka; WOFF2 400/600 Latin) + licenses
 src/engine/                    classify, patch, glob(.gitattributes), imports/{js,vue,go,python}, resolve, graph (SCC/depth), analyze (layers + reasons)
 test/                          vitest suites + fixtures
 scripts/                       build.mjs, zip.py, analyze-pr.ts, make-demo-plan.ts, make-demo-history.ts, dev/render-demo.mjs
@@ -335,6 +351,7 @@ docs/samples/                  engine output for real public PRs
 - The panel can cover part of the diff while open; drag it to the other edge or close it with Esc.
 - Reviewed state is per file, per PR, and stored locally only. Stale detection compares blob SHAs, so a file that moves to another step keeps its ✓. GitHub's Viewed state never flows back into the panel. Ticks from v0.2 (stored per head SHA) aren't migrated.
 - Commit story: not yet checked on a live PR in a real browser (fetching, caching and the timeline are unit/DOM-tested and rendered headlessly from the bundled data). Force-pushed PRs show only the commits GitHub currently lists. Author initials come from the commit's author name, not the GitHub avatar.
+- Code font: the panel fonts and the diff stylesheet are checked headlessly against a harness, not on live github.com. The diff selectors are GitHub's class names, so "Also use in GitHub diffs" may stop working after a GitHub UI change.
 - Graph: the small panel graph is a quick overview; use ⤢ Expand for real reading. Positions are recomputed on every filter or expand (no animation).
 - github.com only (no GHES). PRs beyond 3000 files are truncated by GitHub's API.
 - Heuristic categories can be wrong for unusual layouts (e.g. a `schema/` folder that isn't a schema). Reasons make that visible. Overrides are planned for Week 2.

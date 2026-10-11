@@ -41,7 +41,7 @@ const srv = createServer((req, res) => {
   if (files[u.pathname]) return res.writeHead(200, { "content-type": "application/json" }).end(files[u.pathname]);
   try {
     const body = readFileSync("." + u.pathname);
-    res.writeHead(200, { "content-type": "text/javascript" }).end(body);
+    res.writeHead(200, { "content-type": u.pathname.endsWith(".woff2") ? "font/woff2" : "text/javascript" }).end(body);
   } catch {
     res.writeHead(404).end();
   }
@@ -59,13 +59,19 @@ for (const data of ["real", "stress"])
         for (const story of ["collapsed", "expanded", "all"]) cases.push({ data, vw, forced, theme, story });
         // v0.6.2: stale banner (file list open) and the Restart review confirm, with the Restart button in the tab row
         for (const extra of ["banner", "confirm"]) cases.push({ data, vw, forced, theme, story: "expanded", extra });
+        // v0.6.3: the "Aa" font popover open, on the Review and the Graph tab
+        for (const extra of ["fontpop", "graph-fontpop"]) cases.push({ data, vw, forced, theme, story: "expanded", extra, font: "jetbrains", size: "large" });
       }
+// v0.6.3: every bundled font at every size (light theme, both widths, worst-case data)
+for (const font of ["default", "jetbrains", "fira", "iosevka"])
+  for (const size of ["small", "default", "large"])
+    for (const vw of [320, 1280]) for (const data of ["real", "stress"]) cases.push({ data, vw, forced: null, theme: "light", story: "expanded", font, size });
 for (const c of cases) {
   const p = await browser.newPage();
   await p.setViewport({ width: c.vw, height: 900, deviceScaleFactor: 1 });
   p.on("pageerror", (e) => (console.error("pageerror", e.message), failures++));
   const pre = c.data === "stress" ? "stress-" : "";
-  await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}${c.extra === "banner" ? "&stale=1" : ""}`);
+  await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}${c.extra === "banner" ? "&stale=1" : ""}${c.font ? `&font=${c.font}&size=${c.size}` : ""}`);
   await p.waitForFunction(() => window.__ready);
   if (c.theme === "dark") await p.evaluate(() => document.documentElement.setAttribute("data-color-mode", "dark"));
   await p.evaluate(() => window.__w.toggle("bubble"));
@@ -83,7 +89,17 @@ for (const c of cases) {
     await p.evaluate(() => window.__shadow.querySelector(".step.open .next").click());
     await p.evaluate(() => window.__shadow.querySelector(".tabbar .restart").click());
   }
+  if (c.extra?.endsWith("fontpop")) {
+    if (c.extra === "graph-fontpop") await p.evaluate(() => window.__shadow.querySelector("#prl-tab-graph").click());
+    await p.evaluate(() => window.__shadow.querySelector(".tabbar .fontbtn").click());
+  }
+  await p.evaluate(() => document.fonts.ready);
   await sleep(150);
+  const fontOk = await p.evaluate((font) => {
+    const fam = { jetbrains: "CodeSloth JetBrains Mono", fira: "CodeSloth Fira Code", iosevka: "CodeSloth Iosevka" }[font];
+    if (!fam) return true;
+    return document.fonts.check(`12px "${fam}"`) && [...document.fonts].some((f) => f.family.replace(/"/g, "") === fam && f.status === "loaded") && getComputedStyle(window.__shadow.querySelector(".fname")).fontFamily.includes(fam);
+  }, c.font);
   const r = await p.evaluate(() => {
     const s = window.__shadow;
     const panel = s.querySelector(".panel").getBoundingClientRect();
@@ -105,19 +121,24 @@ for (const c of cases) {
       restart: rs && !rs.hidden ? (lbl && getComputedStyle(lbl).display !== "none" ? "label" : "icon") : "hidden",
       banner: !!s.querySelector(".stalebar #prl-stale-list:not([hidden])"),
       confirm: !!s.querySelector(".restart-note [data-act=clear]"),
+      fontBtn: (() => { const b = s.querySelector(".tabbar .fontbtn"); return !!b && b.getBoundingClientRect().width > 0; })(),
+      fontPop: (() => { const fp = s.querySelector(".fontpop"); return !!fp && !fp.hidden && fp.querySelectorAll('[role="radio"]').length === 7 && fp.contains(s.activeElement); })(),
     };
-    const clamp = [...s.querySelectorAll(".tmsg")].every((m) => m.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(m).lineHeight || "18") + 2 && m.title);
+    // Rects are in zoomed px (Large/Small text size uses CSS zoom), line-height is not.
+    const zoom = parseFloat(getComputedStyle(s.querySelector(".review")).zoom) || 1;
+    const clamp = [...s.querySelectorAll(".tmsg")].every((m) => m.getBoundingClientRect().height <= (2 * parseFloat(getComputedStyle(m).lineHeight || "18") + 2) * zoom && m.title);
     const latest = s.querySelector("li.file.sel .latest");
     return { state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".step.open .next") };
   });
-  const wantTl = c.extra === "confirm" ? r.tl : { collapsed: 0, expanded: 3, all: 13 }[c.story];
-  const wantMore = c.extra === "confirm" ? r.state.more : { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
+  const onGraph = c.extra === "graph-fontpop";
+  const wantTl = c.extra === "confirm" || onGraph ? r.tl : { collapsed: 0, expanded: 3, all: 13 }[c.story];
+  const wantMore = c.extra === "confirm" || onGraph ? r.state.more : { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
   const panelW = c.forced ?? Math.min(400, c.vw - 32);
-  const extraOk = r.state.restart === (panelW <= 320 ? "icon" : "label") && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm);
-  const ok = extraOk && !r.bad.length && r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0 && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
+  const extraOk = r.state.restart === (onGraph ? "hidden" : panelW <= 320 ? "icon" : "label") && r.state.fontBtn && fontOk && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm) && (!c.extra?.endsWith("fontpop") || r.state.fontPop);
+  const ok = extraOk && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
   if (!ok) failures++;
-  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story} restart=${r.state.restart}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
-  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}.png` });
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}` : ""} restart=${r.state.restart} font=${fontOk}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}` : ""}.png` });
   await p.close();
 }
 await browser.close();

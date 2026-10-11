@@ -15,7 +15,7 @@ export const GRAPH_CSS = `
 .g-edge { fill:none; stroke:var(--edge,#8c959f); stroke-opacity:.55; stroke-width:1.2; }
 .g-edge.test { stroke-dasharray:5 4; stroke:var(--add,#1a7f37); stroke-opacity:.6; }
 .g-node rect.box { fill:var(--bg,#fff); stroke:var(--border,#d1d9e0); rx:7; }
-.g-node .lbl { font:600 11.5px ui-monospace,SFMono-Regular,Menlo,monospace; fill:var(--fg,#1f2328); }
+.g-node .lbl { font:600 11.5px var(--cs-mono, ui-monospace,SFMono-Regular,Menlo,monospace); font-variant-ligatures:var(--cs-lig, normal); fill:var(--fg,#1f2328); }
 .g-node .meta { font:10.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
 .g-node .meta .a { fill:var(--add,#1a7f37); } .g-node .meta .d { fill:var(--del,#d1242f); }
 .g-node.cluster rect.box, .g-node.generated rect.box { stroke-dasharray:4 2; }

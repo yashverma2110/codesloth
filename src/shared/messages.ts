@@ -48,7 +48,7 @@ export type Request =
   | { type: "cache:clear" };
 
 /** Widget preferences content scripts may read/write (nothing sensitive). */
-export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen"] as const;
+export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen", "codeFont", "fontSize", "ligatures", "diffFont"] as const;
 /** Preferences kept only for the browser session (chrome.storage.session). */
 export const SESSION_PREF_KEYS: readonly string[] = ["storyOpen"];
 export type PrefKey = (typeof PREF_KEYS)[number];
@@ -80,7 +80,8 @@ export type TabMessage =
   | { type: "widget:toggle"; source: "toolbar" | "shortcut" }
   | { type: "auth:changed" }
   | { type: "jump"; path: string }
-  | { type: "ping" };
+  | { type: "ping" }
+  | { type: "prefs:changed" };
 
 /**
  * Requests a content script (running on github.com) may make. Everything else (token validation,

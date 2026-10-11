@@ -16,7 +16,7 @@ const srv = createServer((req, res) => {
   if (u.pathname === "/") return res.writeHead(200, { "content-type": "text/html" }).end(page0);
   try {
     const body = readFileSync("." + u.pathname);
-    res.writeHead(200, { "content-type": extname(u.pathname) === ".js" ? "text/javascript" : "application/json" }).end(body);
+    res.writeHead(200, { "content-type": extname(u.pathname) === ".js" ? "text/javascript" : extname(u.pathname) === ".woff2" ? "font/woff2" : "application/json" }).end(body);
   } catch {
     res.writeHead(404).end();
   }
@@ -93,6 +93,25 @@ for (const theme of ["light", "dark"]) {
   await shot(p, `11-stale-gitea-${theme}`);
   await sh(p, () => window.__w.toggle("close"));
   await shot(p, `11b-stale-bubble-${theme}`);
+  await p.close();
+}
+// 1e) v0.6.3 code font: JetBrains Mono in the panel (gitea#39426 story), then the "Aa" picker open
+for (const theme of ["light", "dark"]) {
+  const p = await open("story=1&font=jetbrains&plan=/test/fixtures/overflow/gitea-39426-plan.json&history=/test/fixtures/overflow/gitea-39426-history.json");
+  if (theme === "dark") await sh(p, () => { document.documentElement.setAttribute("data-color-mode", "dark"); document.body.style.background = "#0d1117"; });
+  await sh(p, () => window.__w.toggle("bubble"));
+  await p.waitForFunction(() => window.__shadow.querySelector(".fbtn .cm"));
+  for (let i = 0; i < 2; i++) {
+    await sh(p, () => window.__shadow.querySelector(".step.open .next").click());
+    await sleep(120);
+  }
+  await sh(p, () => window.__w.select("services/gitproxy/server.go", true));
+  await sh(p, () => document.fonts.ready);
+  await p.mouse.move(5, 5);
+  await shot(p, `12-font-jetbrains-${theme}`);
+  await sh(p, () => window.__shadow.querySelector(".tabbar .fontbtn").click());
+  await sh(p, () => document.fonts.ready);
+  await shot(p, `13-font-options-${theme}`);
   await p.close();
 }
 // 1b) Review tab after "Mark step reviewed & next", hovering a file (light + dark)

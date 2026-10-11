@@ -6,6 +6,18 @@ import { GRAPH_CSS } from "../graph/svg";
 import { emptyReview, normalizeReviewState, summarize } from "../content/review-logic";
 import demoData from "../demo/demo-plan.json";
 import { diffAnchor } from "../shared/pr-url";
+import { FONT_PREF_KEYS, fontFaceCss, fontVars, normalizeFontPrefs } from "../shared/fonts";
+
+/** Code font for node labels (same setting as the panel). */
+async function applyFont() {
+  const raw: Record<string, unknown> = {};
+  await Promise.all(FONT_PREF_KEYS.map(async (k) => (raw[k] = await rpc({ type: "prefs:get", key: k }).catch(() => null))));
+  const p = normalizeFontPrefs(raw);
+  const faces = document.createElement("style");
+  faces.textContent = fontFaceCss((path) => chrome.runtime.getURL(path));
+  document.head.append(faces);
+  for (const [k, v] of Object.entries(fontVars(p))) document.documentElement.style.setProperty(k, v);
+}
 
 async function rpc<T>(req: Request): Promise<T> {
   const res = (await chrome.runtime.sendMessage(req)) as Response<T> | undefined;
@@ -18,6 +30,7 @@ async function main() {
   const style = document.createElement("style");
   style.textContent = GRAPH_CSS + GRAPH_VIEW_CSS;
   document.head.append(style);
+  void applyFont();
   const q = new URLSearchParams(location.search);
   const status = document.getElementById("status")!;
   const demo = q.get("demo") === "1";

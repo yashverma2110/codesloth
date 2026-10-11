@@ -41,6 +41,7 @@ const replies: Record<string, (m: any) => unknown> = {
       calls.push(m);
       return { ok: true, data: await replies[m.type]?.(m) };
     }),
+    getURL: (p: string) => `chrome-extension://test/${p}`,
   },
 };
 (globalThis as any).ResizeObserver ??= class { observe() {} disconnect() {} };
@@ -777,5 +778,90 @@ describe("Widget (DOM)", () => {
       expect(calls.some((c) => c.type === "reviewed:set")).toBe(false);
       replies["auth:status"] = () => ({ method: "pat", login: "yash" });
     });
+  });
+
+  it("code font: 'Aa' in the tab row on both tabs, popover with fonts/size/ligatures/diffs, applied live and persisted; Esc returns focus", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const bar = s.querySelector(".tabbar")!;
+    const btn = bar.querySelector(".fontbtn") as HTMLButtonElement;
+    const restart = bar.querySelector(".restart") as HTMLButtonElement;
+    // Left of Restart, right of the tabs.
+    expect([...bar.children].indexOf(btn)).toBe([...bar.children].indexOf(restart) - 1);
+    expect(s.querySelector(".menu")!.textContent).not.toMatch(/JetBrains/);
+    const pop = s.querySelector(".fontpop") as HTMLElement;
+    expect(pop.hidden).toBe(true);
+    btn.click();
+    expect(pop.hidden).toBe(false);
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
+    const fonts = [...pop.querySelectorAll<HTMLButtonElement>(".fp-font")];
+    expect(fonts.map((b) => b.querySelector(".fp-name")!.textContent)).toEqual(["GitHub default", "JetBrains Mono", "Fira Code", "Iosevka"]);
+    expect(fonts[1].style.fontFamily).toContain("CodeSloth JetBrains Mono"); // each name in its own font
+    expect(s.activeElement).toBe(fonts[0]); // focus moves into the popover (checked radio)
+    expect(document.getElementById("codesloth-font-faces")?.textContent).toContain("chrome-extension://test/fonts/jetbrains-mono/jetbrains-mono-400.woff2");
+    // Ligatures disabled for the system stack.
+    expect((pop.querySelector("#prl-fp-lig") as HTMLInputElement).disabled).toBe(true);
+
+    // Pick JetBrains Mono -> CSS var applied live, saved, ligatures on by default.
+    fonts[1].click();
+    const root = s.querySelector(".root") as HTMLElement;
+    expect(root.style.getPropertyValue("--cs-mono")).toContain('"CodeSloth JetBrains Mono"');
+    expect(root.style.getPropertyValue("--cs-lig")).toBe("normal");
+    expect(calls.some((c) => c.type === "prefs:set" && c.key === "codeFont" && c.value === "jetbrains")).toBe(true);
+    const lig = pop.querySelector("#prl-fp-lig") as HTMLInputElement;
+    expect(lig.disabled).toBe(false);
+    expect(lig.checked).toBe(true);
+    lig.click();
+    expect(root.style.getPropertyValue("--cs-lig")).toBe("none");
+    // Size via arrow keys in the radiogroup.
+    const def = pop.querySelector('[data-size="default"]') as HTMLButtonElement;
+    def.focus();
+    def.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, composed: true }));
+    expect(root.style.getPropertyValue("--cs-zoom")).toBe("1.12");
+    expect((s.activeElement as HTMLElement).dataset.size).toBe("large");
+    // GitHub diffs: off by default; on injects a scoped stylesheet.
+    expect(document.getElementById("codesloth-diff-font")).toBeNull();
+    (pop.querySelector("#prl-fp-diff") as HTMLInputElement).click();
+    const css = document.getElementById("codesloth-diff-font")!.textContent!;
+    expect(css).toContain(".blob-code-inner");
+    expect(css).toContain("CodeSloth JetBrains Mono");
+    // Tab is trapped inside.
+    const diff = pop.querySelector("#prl-fp-diff") as HTMLInputElement;
+    diff.focus();
+    diff.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, composed: true }));
+    expect(pop.contains(s.activeElement)).toBe(true);
+    // Esc closes the popover only (panel stays), focus returns to Aa.
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(pop.hidden).toBe(true);
+    expect((s.querySelector(".panel") as HTMLElement).hidden).toBe(false);
+    expect(s.activeElement).toBe(btn);
+    // Graph tab: Aa stays, Restart hides.
+    (s.querySelector("#prl-tab-graph") as HTMLButtonElement).click();
+    expect(btn.hidden).toBe(false);
+    expect(restart.hidden).toBe(true);
+    // Unmount removes the diff stylesheet.
+    w.unmount();
+    expect(document.getElementById("codesloth-diff-font")).toBeNull();
+  });
+
+  it("code font: saved settings apply on mount and re-apply when another page changes them", async () => {
+    prefs = { tourDone: true, codeFont: "fira", fontSize: "small", ligatures: false, diffFont: true };
+    const w = new Widget();
+    await w.mount();
+    const s = shadowOf();
+    const root = s.querySelector(".root") as HTMLElement;
+    await vi.waitFor(() => expect(root.style.getPropertyValue("--cs-mono")).toContain("CodeSloth Fira Code"));
+    expect(root.style.getPropertyValue("--cs-lig")).toBe("none");
+    expect(root.style.getPropertyValue("--cs-zoom")).toBe("0.92");
+    expect(document.getElementById("codesloth-diff-font")!.textContent).toContain("Fira Code");
+    prefs.codeFont = "default";
+    await w.loadFontPrefs();
+    expect(root.style.getPropertyValue("--cs-mono")).not.toContain("CodeSloth");
+    expect(document.getElementById("codesloth-diff-font")).toBeNull(); // default font: GitHub's diffs untouched
+    w.unmount();
   });
 });

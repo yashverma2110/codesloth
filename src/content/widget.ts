@@ -13,6 +13,8 @@ import { renderReview } from "./review-view";
 import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
 import demoData from "../demo/demo-plan.json";
 import demoHistory from "../demo/demo-history.json";
+import { DEFAULT_FONT_PREFS, FONT_ORDER, FONT_PREF_KEYS, FONTS, fontStack, fontVars, ligaturesOn, normalizeFontPrefs, SIZE_LABEL, SIZE_ORDER, type CodeFont, type FontPrefs, type FontSize } from "../shared/fonts";
+import { applyDiffFont, ensureFontFaces } from "./fonts-dom";
 import type { CommitHistory } from "../shared/history";
 import {
   BUBBLE,
@@ -133,6 +135,10 @@ export class Widget {
   private notice: { text: string; undo?: () => void } | null = null;
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
   private restartBtn!: HTMLButtonElement;
+  /** Code font settings (tab-row "Aa" popover). */
+  private fontPrefs: FontPrefs = { ...DEFAULT_FONT_PREFS };
+  private fontBtn!: HTMLButtonElement;
+  private fontPop!: HTMLElement;
   private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
@@ -165,14 +171,19 @@ export class Widget {
     // Restart review: compact ghost button at the right end of the tab row (Review tab only; icon-only when narrow).
     this.restartBtn = el("button", { type: "button", class: "restart", title: "Restart review: clear all ticks for this PR", "aria-label": "Restart review", hidden: "" }, el("span", { class: "ri", "aria-hidden": "true" }, "↺"), el("span", { class: "lbl" }, "Restart review")) as HTMLButtonElement;
     this.restartBtn.addEventListener("click", () => this.askRestart());
-    const tabbar = el("div", { class: "tabbar" }, tablist, this.restartBtn);
+    // Code font: "Aa" popover, on both tabs, left of Restart.
+    this.fontBtn = el("button", { type: "button", class: "fontbtn", title: "Code font & size", "aria-label": "Code font and size", "aria-haspopup": "dialog", "aria-expanded": "false", "aria-controls": "prl-fontpop" }, el("span", { class: "aa", "aria-hidden": "true" }, "Aa")) as HTMLButtonElement;
+    this.fontBtn.addEventListener("click", () => this.toggleFontPop());
+    this.fontPop = el("div", { class: "fontpop", id: "prl-fontpop", role: "dialog", "aria-label": "Code font", hidden: "" });
+    this.fontPop.addEventListener("keydown", (e) => this.onFontPopKey(e));
+    const tabbar = el("div", { class: "tabbar" }, tablist, this.fontBtn, this.restartBtn);
     this.panes = {
       review: el("div", { class: "pane body", role: "tabpanel", id: "prl-pane-review", "aria-labelledby": "prl-tab-review", tabindex: "0" }),
       graph: el("div", { class: "pane graph", role: "tabpanel", id: "prl-pane-graph", "aria-labelledby": "prl-tab-graph", hidden: "" }),
     };
     this.bannerEl = el("div", { class: "banner", hidden: "" });
     this.subEl = el("div", { class: "sub", "aria-live": "polite" });
-    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tabbar, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
+    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tabbar, this.fontPop, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
     this.panel.hidden = true;
     this.root.append(this.panel, this.bubble);
     // documentElement (not body): GitHub's Turbo navigation replaces <body>.
@@ -215,11 +226,17 @@ export class Widget {
       if (!inWidget && typingInPage) return;
       e.stopPropagation();
       if (this.tour?.isActive()) this.tour.end(false);
+      else if (!this.fontPop.hidden) this.toggleFontPop(false);
       else if (!this.menu.hidden) this.toggleMenu(false);
       else if (this.overlay) this.closeOverlay();
       else this.toggle("escape");
     };
     document.addEventListener("keydown", onKey, true);
+    // Click outside the popover closes it.
+    this.root.addEventListener("pointerdown", (e) => {
+      if (!this.fontPop.hidden && !e.composedPath().some((n) => n === this.fontPop || n === this.fontBtn)) this.toggleFontPop(false, false);
+    });
+    void this.loadFontPrefs();
     const onResizeWin = () => {
       this.pos = onResize(this.pos, viewport());
       this.layout();
@@ -260,6 +277,7 @@ export class Widget {
 
   unmount() {
     this.tour?.end(false);
+    applyDiffFont(document, null);
     this.cleanups.forEach((f) => f());
     this.cleanups = [];
     this.host?.remove();
@@ -619,6 +637,109 @@ export class Widget {
     const r = el.getBoundingClientRect();
     if (r.top < p.top) pane.scrollTop -= p.top - r.top + 8;
     else if (r.bottom > p.bottom) pane.scrollTop += Math.min(r.bottom - p.bottom + 8, r.top - p.top - 8);
+  }
+
+  /* ---------------- code font ---------------- */
+
+  /** (Re)read font settings and apply them live (also called when another page changes them). */
+  async loadFontPrefs() {
+    const raw: Record<string, unknown> = {};
+    await Promise.all(FONT_PREF_KEYS.map(async (k) => (raw[k] = await getPref(k))));
+    this.fontPrefs = normalizeFontPrefs(raw);
+    this.applyFonts();
+  }
+
+  private applyFonts() {
+    const p = this.fontPrefs;
+    if (p.codeFont !== "default") ensureFontFaces(document, (path) => chrome.runtime.getURL(path));
+    for (const [k, v] of Object.entries(fontVars(p))) this.root.style.setProperty(k, v);
+    this.root.dataset.font = p.codeFont;
+    this.root.dataset.size = p.fontSize;
+    applyDiffFont(document, p);
+    if (!this.fontPop.hidden) this.renderFontPop();
+  }
+
+  private setFontPref<K extends keyof FontPrefs>(key: K, value: FontPrefs[K]) {
+    this.fontPrefs = { ...this.fontPrefs, [key]: value };
+    void setPref(key as PrefKey, value);
+    this.applyFonts();
+    if (this.view === "graph") this.renderGraph();
+  }
+
+  toggleFontPop(force?: boolean, returnFocus = true) {
+    const show = force ?? this.fontPop.hidden;
+    if (show === !this.fontPop.hidden) return;
+    this.fontPop.hidden = !show;
+    this.fontBtn.setAttribute("aria-expanded", String(show));
+    if (show) {
+      this.toggleMenu(false);
+      ensureFontFaces(document, (path) => chrome.runtime.getURL(path)); // so each name can preview in its font
+      this.renderFontPop();
+      (this.fontPop.querySelector('[role="radio"][aria-checked="true"]') as HTMLElement | null)?.focus();
+    } else if (returnFocus) this.fontBtn.focus({ preventScroll: true });
+  }
+
+  private renderFontPop() {
+    const p = this.fontPrefs;
+    const act = (this.root.getRootNode() as ShadowRoot | Document).activeElement as HTMLElement | null;
+    const focusSel = act && this.fontPop.contains(act) ? (act.dataset.font ? `[data-font="${act.dataset.font}"]` : act.dataset.size ? `[data-size="${act.dataset.size}"]` : act.id ? `#${act.id}` : null) : null;
+    const bar = this.fontBtn.parentElement as HTMLElement;
+    this.fontPop.style.top = `${bar.offsetTop + bar.offsetHeight + 4}px`;
+    const fontGroup = el("div", { class: "fp-group", role: "radiogroup", "aria-label": "Code font" });
+    for (const k of FONT_ORDER) {
+      const on = p.codeFont === k;
+      const b = el("button", { type: "button", role: "radio", class: "fp-font", "aria-checked": String(on), tabindex: on ? "0" : "-1", "data-font": k }, el("span", { class: "fp-name" }, FONTS[k].label), el("span", { class: "fp-sample", "aria-hidden": "true" }, "=> != {}"));
+      b.style.fontFamily = fontStack(k);
+      b.style.fontVariantLigatures = k !== "default" && ligaturesOn({ ...p, codeFont: k }) ? "normal" : "none";
+      b.addEventListener("click", () => this.setFontPref("codeFont", k as CodeFont));
+      fontGroup.append(b);
+    }
+    const sizeGroup = el("div", { class: "fp-seg", role: "radiogroup", "aria-label": "Panel text size" });
+    for (const sz of SIZE_ORDER) {
+      const on = p.fontSize === sz;
+      const b = el("button", { type: "button", role: "radio", "aria-checked": String(on), tabindex: on ? "0" : "-1", "data-size": sz }, SIZE_LABEL[sz]);
+      b.addEventListener("click", () => this.setFontPref("fontSize", sz as FontSize));
+      sizeGroup.append(b);
+    }
+    const lig = el("input", { type: "checkbox", id: "prl-fp-lig" }) as HTMLInputElement;
+    lig.checked = ligaturesOn(p);
+    lig.disabled = p.codeFont === "default";
+    lig.addEventListener("change", () => this.setFontPref("ligatures", lig.checked));
+    const diff = el("input", { type: "checkbox", id: "prl-fp-diff" }) as HTMLInputElement;
+    diff.checked = p.diffFont;
+    diff.addEventListener("change", () => this.setFontPref("diffFont", diff.checked));
+    this.fontPop.replaceChildren(
+      el("div", { class: "fp-h" }, "Code font"),
+      fontGroup,
+      el("div", { class: "fp-h" }, "Size"),
+      sizeGroup,
+      el("label", { class: "fp-chk", title: lig.disabled ? "Pick a bundled font to use ligatures" : "Combine sequences like => and != into one glyph" }, lig, el("span", {}, "Ligatures")),
+      el("label", { class: "fp-chk", title: "Best effort: restyles GitHub's diff lines with this font (classic and new view)" }, diff, el("span", {}, "Also use in GitHub diffs")),
+    );
+    if (focusSel) (this.fontPop.querySelector(focusSel) as HTMLElement | null)?.focus();
+  }
+
+  /** Arrow keys move within a radio group; Tab is trapped inside the popover; Esc is handled globally. */
+  private onFontPopKey(e: KeyboardEvent) {
+    const t = e.composedPath()[0] as HTMLElement;
+    if (["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(e.key) && t.getAttribute("role") === "radio") {
+      const radios = [...(t.parentElement?.querySelectorAll<HTMLElement>('[role="radio"]') ?? [])];
+      const i = radios.indexOf(t);
+      const next = radios[(i + (e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : radios.length - 1)) % radios.length];
+      e.preventDefault();
+      next.click();
+      (this.fontPop.querySelector(`[role="radio"][data-${next.dataset.font ? "font" : "size"}="${next.dataset.font ?? next.dataset.size}"]`) as HTMLElement | null)?.focus();
+      return;
+    }
+    if (e.key === "Tab") {
+      const items = [...this.fontPop.querySelectorAll<HTMLElement>('[role="radio"][tabindex="0"], input:not(:disabled)')];
+      if (!items.length) return;
+      const i = items.indexOf(t);
+      const next = e.shiftKey ? items[(i <= 0 ? items.length : i) - 1] : items[(i + 1) % items.length];
+      e.preventDefault();
+      next.focus();
+    }
+    e.stopPropagation(); // keep n/j/k from firing while choosing
   }
 
   /** Stale dot on the bubble while the panel is closed. */
