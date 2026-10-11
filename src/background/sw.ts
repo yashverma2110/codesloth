@@ -2,7 +2,8 @@ import config from "../../config/extension.config.json";
 import { analyze, ENGINE_VERSION, filesNeedingContents } from "../engine/analyze";
 import type { LayerPlan, PRFile } from "../engine/types";
 import type { AnalyzeResult, PRMeta, PRRef, Request, Response, TabMessage } from "../shared/messages";
-import { isAllowedSender } from "../shared/messages";
+import { isAllowedSender, PREF_KEYS } from "../shared/messages";
+import { diffAnchor } from "../shared/pr-url";
 import { parsePrUrl } from "../shared/pr-url";
 import { clearToken, getStatus, getToken, saveToken, validateToken } from "./auth";
 import { analysisKey, cacheClear, cacheGet, cachePut } from "./cache";
@@ -203,6 +204,38 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
     case "reviewed:set":
       await chrome.storage.local.set({ [REVIEWED_PREFIX + msg.key]: msg.value });
       return true;
+    case "prefs:get": {
+      if (!PREF_KEYS.includes(msg.key)) throw new Error("Unknown preference");
+      const k = `pref.${msg.key}`;
+      return (await chrome.storage.local.get(k))[k] ?? null;
+    }
+    case "prefs:set":
+      if (!PREF_KEYS.includes(msg.key)) throw new Error("Unknown preference");
+      await chrome.storage.local.set({ [`pref.${msg.key}`]: msg.value });
+      return true;
+    case "graph:openTab": {
+      const q = new URLSearchParams({ owner: msg.pr.owner, repo: msg.pr.repo, number: String(msg.pr.number) });
+      if (msg.headSha) q.set("sha", msg.headSha);
+      if (msg.demo) q.set("demo", "1");
+      if (sender.tab?.id !== undefined) q.set("tab", String(sender.tab.id));
+      await chrome.tabs.create({ url: chrome.runtime.getURL(`graph.html?${q}`), index: sender.tab ? sender.tab.index + 1 : undefined });
+      return true;
+    }
+    case "graph:getPlan": {
+      const cached = await cacheGet<CachedAnalysis>("analysis", analysisKey(msg.pr.owner, msg.pr.repo, msg.pr.number, msg.headSha));
+      if (!cached) throw new Error("No analysis cached for this PR yet. Open the PR and run PR Layers first.");
+      return { pr: msg.pr, meta: cached.meta, plan: cached.plan, fromCache: true } satisfies AnalyzeResult;
+    }
+    case "graph:jump": {
+      try {
+        await chrome.tabs.update(msg.tabId, { active: true });
+        await chrome.tabs.sendMessage(msg.tabId, { type: "jump", path: msg.path } satisfies TabMessage);
+      } catch {
+        const url = `https://github.com/${msg.pr.owner}/${msg.pr.repo}/pull/${msg.pr.number}/files#${await diffAnchor(msg.path)}`;
+        await chrome.tabs.create({ url });
+      }
+      return true;
+    }
     case "cache:clear":
       await cacheClear();
       return true;

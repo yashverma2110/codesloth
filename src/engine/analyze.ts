@@ -1,4 +1,4 @@
-import type { AnalyzeInput, Category, FileNode, Layer, LayerFile, LayerPlan, PRFile } from "./types";
+import type { AnalyzeInput, Category, FileNode, Layer, LayerFile, LayerPlan, PlanEdge, PRFile } from "./types";
 import { classifyFile, detectLang } from "./classify";
 import { parseGitAttributes } from "./glob";
 import { contentFromAddedPatch, parsePatch } from "./patch";
@@ -9,7 +9,7 @@ import { extractPythonImports } from "./imports/python";
 import { buildResolveContext, dirname, resolveGo, resolveJs, resolvePython } from "./resolve";
 import { computeDepths } from "./graph";
 
-export const ENGINE_VERSION = "0.1.0";
+export const ENGINE_VERSION = "0.3.0";
 
 const MAX_CALLER_LEVELS = 4;
 const SPLIT_LAYER_FILES = 25;
@@ -347,7 +347,20 @@ export function analyze(input: AnalyzeInput): LayerPlan {
     return `imports ${listSome(deps, (p) => `${label(p)} [${layerOf.get(p) ?? "?"}]`)}${users.length ? `; used by ${listSome(users, label)}` : ""}${cycNote}`;
   };
 
-  // 8) assemble
+  // 8) groups + edges for the graph view
+  const groupOf = new Map<string, string>();
+  for (const [p, dir] of goPkgOf) if ((rctx.goDirs.get(dir) ?? []).filter((q) => goPkgOf.has(q)).length >= 2) groupOf.set(p, `pkg:${dir || "(root)"}`);
+  const cycles = [...new Set(cycleOf.values())];
+  cycles.forEach((c, i) => {
+    const nonPkg = c.filter((p) => !groupOf.has(p));
+    if (nonPkg.length >= 2) for (const p of nonPkg) groupOf.set(p, `cycle:${i}`);
+  });
+  const planEdges: PlanEdge[] = [];
+  const pairs = new Set(testFiles.filter((t) => t.subject).map((t) => `${t.path}->${t.subject}`));
+  for (const [from, tos] of edges) for (const to of tos) if (!pairs.has(`${from}->${to}`)) planEdges.push({ from, to, kind: "import" });
+  for (const t of testFiles) if (t.subject) planEdges.push({ from: t.path, to: t.subject, kind: "test" });
+
+  // 9) assemble
   const sorted = [...buckets.values()].sort((a, b) => a.order - b.order);
   const layers: Layer[] = sorted.map((b, i) => {
     const files: LayerFile[] = b.files.map((p) => {
@@ -360,6 +373,8 @@ export function analyze(input: AnalyzeInput): LayerPlan {
         deletions: n.deletions,
         category: n.classification.category,
         reason: reasonFor(n),
+        sha: n.blobSha,
+        ...(groupOf.has(p) ? { group: groupOf.get(p) } : {}),
       };
     });
     if (b.key !== "test") files.sort((x, y) => x.path.localeCompare(y.path));
@@ -391,6 +406,7 @@ export function analyze(input: AnalyzeInput): LayerPlan {
     version: 1,
     engineVersion: ENGINE_VERSION,
     layers,
+    edges: planEdges,
     warnings,
     stats: {
       files: input.files.length,

@@ -1,7 +1,14 @@
-import type { AnalyzeResult, AuthStatus, PRRef, Request, Response } from "../shared/messages";
+import type { AnalyzeResult, AuthStatus, PrefKey, PRRef, Request, Response } from "../shared/messages";
 import { diffAnchor, prKey } from "../shared/pr-url";
 import type { Layer } from "../engine/types";
-import { WIDGET_CSS } from "./widget.css";
+import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
+import { GRAPH_CSS } from "../graph/svg";
+import { GraphView, GRAPH_VIEW_CSS } from "../graph/view";
+import { toDom } from "../graph/vdom";
+import { normalizeReviewState, setReviewed, summarize, type ReviewState } from "./review-logic";
+import { renderReview } from "./review-view";
+import { REVIEW_TOUR_TEXT, Tour, TOUR_CSS, type TourStep } from "./tour";
+import demoData from "../demo/demo-plan.json";
 import {
   BUBBLE,
   bubbleLeft,
@@ -21,6 +28,8 @@ import {
 } from "./widget-logic";
 
 export const HOST_ID = "pr-layers-widget-host";
+export type View = "review" | "graph";
+const DEMO = demoData as unknown as AnalyzeResult;
 
 /** Talk to the background worker. The token never comes back to the page side. */
 async function rpc<T>(req: Request): Promise<T> {
@@ -29,10 +38,20 @@ async function rpc<T>(req: Request): Promise<T> {
   if (!res.ok) throw Object.assign(new Error(res.error), { code: res.code });
   return res.data;
 }
+const getPref = <T>(key: PrefKey) => rpc<T | null>({ type: "prefs:get", key }).catch(() => null);
+const setPref = (key: PrefKey, value: unknown) => rpc({ type: "prefs:set", key, value }).catch(() => {});
 
 const viewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight });
 
-const ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 3 7.5l9 4.5 9-4.5L12 3Z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/></svg>`;
+const ICON = {
+  tag: "svg",
+  attrs: { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" },
+  children: [
+    { tag: "path", attrs: { d: "M12 3 3 7.5l9 4.5 9-4.5L12 3Z" }, children: [] },
+    { tag: "path", attrs: { d: "m3 12 9 4.5 9-4.5" }, children: [] },
+    { tag: "path", attrs: { d: "m3 16.5 9 4.5 9-4.5" }, children: [] },
+  ],
+};
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string> = {}, ...kids: (Node | string)[]) {
   const e = document.createElement(tag);
@@ -48,12 +67,23 @@ export class Widget {
   private panel!: HTMLElement;
   private titleEl!: HTMLElement;
   private subEl!: HTMLElement;
-  private bodyEl!: HTMLElement;
+  private bannerEl!: HTMLElement;
+  private tabs!: Record<View, HTMLButtonElement>;
+  private panes!: Record<View, HTMLElement>;
   private refreshBtn!: HTMLButtonElement;
+  private helpBtn!: HTMLButtonElement;
+  private menu!: HTMLElement;
+  private overlay: HTMLElement | null = null;
+  private graphView: GraphView | null = null;
+  private overlayGraph: GraphView | null = null;
+  private tour: Tour | null = null;
   private pos: WidgetPosition = { side: "right", top: 0 };
   private open = false;
+  private view: View = "review";
   private pr: PRRef | null = null;
   private result: AnalyzeResult | null = null;
+  private review: ReviewState = {};
+  private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
   private preferredHeight?: number;
@@ -64,21 +94,32 @@ export class Widget {
     this.host = el("div", { id: HOST_ID });
     // Closed shadow root: GitHub's page scripts can't reach into the widget's DOM.
     const shadow = this.host.attachShadow({ mode: "closed" });
-    shadow.append(el("style", {}, WIDGET_CSS));
+    shadow.append(el("style", {}, WIDGET_CSS + WIDGET_CSS_V3 + GRAPH_CSS + GRAPH_VIEW_CSS + TOUR_CSS));
     this.root = el("div", { class: "root" });
     shadow.append(this.root);
 
     this.bubble = el("button", { class: "bubble", type: "button", title: "PR Layers (Alt+Shift+L)", "aria-label": "Toggle PR Layers", "aria-expanded": "false" }) as HTMLButtonElement;
-    this.bubble.innerHTML = ICON;
-    this.bubble.append(el("span", { class: "dot" }));
+    this.bubble.append(toDom(ICON), el("span", { class: "dot" }));
 
     this.titleEl = el("div", { class: "ttl" }, "PR Layers");
+    this.helpBtn = el("button", { type: "button", class: "icon", title: "Help: tour and demo", "aria-label": "Help", "aria-haspopup": "menu", "aria-expanded": "false" }, "?") as HTMLButtonElement;
     this.refreshBtn = el("button", { type: "button", title: "Re-analyze (ignores cache)" }, "Re-analyze") as HTMLButtonElement;
     const closeBtn = el("button", { type: "button", class: "x", title: "Close (Esc)", "aria-label": "Close" }, "✕");
-    const hdr = el("div", { class: "hdr" }, this.titleEl, this.refreshBtn, closeBtn);
+    const hdr = el("div", { class: "hdr" }, this.titleEl, this.helpBtn, this.refreshBtn, closeBtn);
+    this.menu = el("div", { class: "menu", role: "menu", hidden: "" });
+
+    // GitHub-style underline tabs with full ARIA tab semantics.
+    const tablist = el("div", { class: "tabs", role: "tablist", "aria-label": "PR Layers views" });
+    const mkTab = (v: View, label: string) => el("button", { type: "button", role: "tab", id: `prl-tab-${v}`, "aria-controls": `prl-pane-${v}`, "aria-selected": "false", tabindex: "-1", class: "tab" }, label) as HTMLButtonElement;
+    this.tabs = { review: mkTab("review", "Review"), graph: mkTab("graph", "Graph") };
+    tablist.append(this.tabs.review, this.tabs.graph);
+    this.panes = {
+      review: el("div", { class: "pane body", role: "tabpanel", id: "prl-pane-review", "aria-labelledby": "prl-tab-review", tabindex: "0" }),
+      graph: el("div", { class: "pane graph", role: "tabpanel", id: "prl-pane-graph", "aria-labelledby": "prl-tab-graph", hidden: "" }),
+    };
+    this.bannerEl = el("div", { class: "banner", hidden: "" });
     this.subEl = el("div", { class: "sub" });
-    this.bodyEl = el("div", { class: "body" });
-    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "PR Layers" }, hdr, this.subEl, this.bodyEl);
+    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "PR Layers" }, hdr, this.menu, tablist, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
     this.panel.hidden = true;
     this.root.append(this.panel, this.bubble);
     // documentElement (not body): GitHub's Turbo navigation replaces <body>.
@@ -92,7 +133,23 @@ export class Widget {
       this.toggle("bubble");
     });
     closeBtn.addEventListener("click", () => this.toggle("close"));
-    this.refreshBtn.addEventListener("click", () => void this.analyze(true));
+    this.refreshBtn.addEventListener("click", () => (this.demo ? this.loadDemo() : void this.analyze(true)));
+    this.helpBtn.addEventListener("click", () => this.toggleMenu());
+    for (const v of ["review", "graph"] as View[]) this.tabs[v].addEventListener("click", () => this.setView(v, true));
+    tablist.addEventListener("keydown", (e) => {
+      const order: View[] = ["review", "graph"];
+      const i = order.indexOf(this.view);
+      let next: View | null = null;
+      if (e.key === "ArrowRight") next = order[(i + 1) % order.length];
+      else if (e.key === "ArrowLeft") next = order[(i + order.length - 1) % order.length];
+      else if (e.key === "Home") next = order[0];
+      else if (e.key === "End") next = order[order.length - 1];
+      if (next) {
+        e.preventDefault();
+        this.setView(next, true);
+        this.tabs[next].focus();
+      }
+    });
     this.enableDrag(this.bubble, true);
     this.enableDrag(hdr, false);
 
@@ -102,7 +159,12 @@ export class Widget {
       const a = document.activeElement as HTMLElement | null;
       // Don't steal Esc from GitHub's own text fields (e.g. cancelling a comment).
       const typingInPage = !!a && a !== this.host && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable);
-      if (inWidget || !typingInPage) this.toggle("escape");
+      if (!inWidget && typingInPage) return;
+      e.stopPropagation();
+      if (this.tour?.isActive()) this.tour.end(false);
+      else if (!this.menu.hidden) this.toggleMenu(false);
+      else if (this.overlay) this.closeOverlay();
+      else this.toggle("escape");
     };
     document.addEventListener("keydown", onKey, true);
     const onResizeWin = () => {
@@ -116,12 +178,11 @@ export class Widget {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const applyTheme = () => this.root.classList.toggle("dark", resolveTheme(document.documentElement.getAttribute("data-color-mode"), mq.matches) === "dark");
     applyTheme();
-    mq.addEventListener("change", applyTheme);
+    mq.addEventListener?.("change", applyTheme);
     const mo = new MutationObserver(applyTheme);
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-color-mode"] });
-    this.cleanups.push(() => mq.removeEventListener("change", applyTheme), () => mo.disconnect());
+    this.cleanups.push(() => mq.removeEventListener?.("change", applyTheme), () => mo.disconnect());
 
-    // Remember a user-resized height for this page session.
     const ro = new ResizeObserver(() => {
       if (!this.panel.hidden && this.panel.style.height) this.preferredHeight = this.panel.getBoundingClientRect().height;
     });
@@ -129,6 +190,8 @@ export class Widget {
     this.cleanups.push(() => ro.disconnect());
 
     this.pos = await loadPosition({ get: () => rpc({ type: "widget:getPosition" }), set: async () => {} }, viewport());
+    const savedView = await getPref<View>("view");
+    this.setView(savedView === "graph" ? "graph" : "review", false);
     this.layout();
     await this.refreshAuth();
   }
@@ -142,6 +205,7 @@ export class Widget {
   }
 
   unmount() {
+    this.tour?.end(false);
     this.cleanups.forEach((f) => f());
     this.cleanups = [];
     this.host?.remove();
@@ -150,9 +214,9 @@ export class Widget {
   setPr(pr: PRRef | null) {
     const changed = !this.pr || !pr || prKey(pr) !== prKey(this.pr);
     this.pr = pr;
-    if (changed) {
+    if (changed && !this.demo) {
       this.result = null;
-      this.bodyEl.replaceChildren();
+      this.panes.review.replaceChildren();
       this.subEl.textContent = "";
       this.titleEl.textContent = pr ? `PR Layers · #${pr.number}` : "PR Layers";
       if (this.open) void this.analyze(false);
@@ -170,8 +234,11 @@ export class Widget {
       void this.refreshAuth().then(() => {
         if (!this.result) void this.analyze(false);
       });
-    } else if (ev === "escape" || ev === "close") {
-      this.bubble.focus({ preventScroll: true });
+    } else {
+      this.tour?.end(false);
+      this.toggleMenu(false);
+      this.closeOverlay();
+      if (ev === "escape" || ev === "close") this.bubble.focus({ preventScroll: true });
     }
   }
 
@@ -183,11 +250,12 @@ export class Widget {
     }
     const none = this.auth?.method !== "pat";
     this.bubble.classList.toggle("needs-setup", none);
-    this.bubble.title = none ? "PR Layers: set up a read-only token" : `PR Layers (@${this.auth?.login ?? "token"}) · Alt+Shift+L`;
-    if (none && this.open) this.renderSetup();
+    this.bubble.title = none ? "PR Layers: set up a read-only token (or try the demo)" : `PR Layers (@${this.auth?.login ?? "token"}) · Alt+Shift+L`;
+    if (none && this.open && !this.demo) this.renderSetup();
   }
 
   onAuthChanged() {
+    if (this.demo) return void this.refreshAuth();
     this.result = null;
     void this.refreshAuth().then(() => {
       if (this.open && this.auth?.method === "pat") void this.analyze(false);
@@ -196,6 +264,43 @@ export class Widget {
 
   progress(pr: PRRef, text: string) {
     if (this.pr && prKey(pr) === prKey(this.pr) && this.busy) this.subEl.textContent = text;
+  }
+
+  // ---------- views ----------
+
+  setView(v: View, persist: boolean) {
+    this.view = v;
+    for (const k of ["review", "graph"] as View[]) {
+      const on = k === v;
+      this.tabs[k].setAttribute("aria-selected", String(on));
+      this.tabs[k].tabIndex = on ? 0 : -1;
+      this.panes[k].hidden = !on;
+    }
+    this.panel.classList.toggle("graph-mode", v === "graph");
+    if (persist) void setPref("view", v);
+    this.layout();
+    if (v === "graph") this.renderGraph();
+  }
+
+  private toggleMenu(force?: boolean) {
+    const show = force ?? this.menu.hidden;
+    this.menu.hidden = !show;
+    this.helpBtn.setAttribute("aria-expanded", String(show));
+    if (!show) return;
+    const item = (label: string, fn: () => void) => {
+      const b = el("button", { type: "button", role: "menuitem" }, label);
+      b.addEventListener("click", () => {
+        this.toggleMenu(false);
+        fn();
+      });
+      return b;
+    };
+    this.menu.replaceChildren(
+      item("Take the Review tour", () => this.startTour()),
+      this.demo ? item("Exit demo", () => this.exitDemo()) : item("Try demo (sample PR, no token needed)", () => this.loadDemo(true)),
+      item("Token & settings…", () => void rpc({ type: "openOnboarding" })),
+    );
+    (this.menu.firstElementChild as HTMLElement | null)?.focus();
   }
 
   // ---------- layout & drag ----------
@@ -215,7 +320,8 @@ export class Widget {
       bottom: place.bottom !== undefined ? `${place.bottom}px` : "auto",
       maxHeight: `${place.maxHeight}px`,
     });
-    if (this.preferredHeight) this.panel.style.height = `${Math.min(this.preferredHeight, place.maxHeight)}px`;
+    const h = this.preferredHeight ?? (this.view === "graph" ? 560 : undefined);
+    this.panel.style.height = h ? `${Math.min(h, place.maxHeight)}px` : "";
   }
 
   private enableDrag(handle: HTMLElement, isBubble: boolean) {
@@ -262,24 +368,29 @@ export class Widget {
     handle.addEventListener("pointercancel", end);
   }
 
-  // ---------- content ----------
+  // ---------- data ----------
 
   private renderSetup() {
     const btn = el("button", { type: "button", class: "btn primary" }, "Set up token");
     btn.addEventListener("click", () => void rpc({ type: "openOnboarding" }));
+    const demo = el("button", { type: "button", class: "btn" }, "Try demo");
+    demo.addEventListener("click", () => this.loadDemo(true));
     this.subEl.textContent = "";
-    this.bodyEl.replaceChildren(
+    this.panes.review.replaceChildren(
       el(
         "div",
         { class: "setup" },
         el("p", {}, "PR Layers needs a fine-grained GitHub token with only ", el("b", {}, "Pull requests: Read-only"), " and ", el("b", {}, "Contents: Read-only"), "."),
         el("p", { class: "muted" }, "The token stays inside the extension. This page never sees it."),
-        btn,
+        el("div", { class: "row" }, btn, demo),
+        el("p", { class: "muted" }, "Try demo loads a real sample (fastapi/fastapi#16403) so you can learn the Review and Graph tabs without a token."),
       ),
     );
+    if (this.view === "graph") this.panes.graph.replaceChildren(el("div", { class: "setup muted" }, "Set up a token or try the demo to see the graph."));
   }
 
   async analyze(force: boolean) {
+    if (this.demo) return;
     if (!this.pr || this.busy) return;
     if (this.auth?.method !== "pat") return this.renderSetup();
     this.busy = true;
@@ -288,82 +399,174 @@ export class Widget {
     const pr = this.pr;
     try {
       const res = await rpc<AnalyzeResult>({ type: "analyze", pr, force });
-      if (!this.pr || prKey(this.pr) !== prKey(pr)) return;
+      if (!this.pr || prKey(this.pr) !== prKey(pr) || this.demo) return;
       this.result = res;
-      await this.renderResult(res);
+      this.review = normalizeReviewState(await rpc({ type: "reviewed:get", key: prKey(res.pr) }).catch(() => ({})));
+      this.renderAll();
+      void this.maybeAutoTour();
     } catch (e) {
       const err = e as Error & { code?: string };
-      if (err.code === "no_token" || err.code === "unauthorized") {
-        this.renderSetup();
-        this.subEl.replaceChildren(el("span", { class: "err" }, err.message));
-      } else {
-        this.subEl.replaceChildren(el("span", { class: "err" }, err.message));
-      }
+      if (err.code === "no_token" || err.code === "unauthorized") this.renderSetup();
+      this.subEl.replaceChildren(el("span", { class: "err" }, err.message));
     } finally {
       this.busy = false;
       this.refreshBtn.disabled = false;
     }
   }
 
-  private async renderResult(res: AnalyzeResult) {
-    this.titleEl.textContent = `#${res.pr.number} ${res.meta.title}`;
-    this.titleEl.title = res.meta.title;
-    const rate = res.rate ? ` · API ${res.rate.remaining}/${res.rate.limit}` : "";
-    this.subEl.replaceChildren(
-      el("div", {}, `${res.plan.stats.files} files · +${res.plan.stats.additions}/−${res.plan.stats.deletions} · ${res.plan.layers.length} layers · ${res.fromCache ? "cached" : "fresh"} @ ${res.meta.headSha.slice(0, 7)}${rate}`),
-      ...res.plan.warnings.map((w) => el("div", { class: "warn" }, "⚠ " + w)),
-    );
-    const key = `${prKey(res.pr)}@${res.meta.headSha}`;
-    const reviewed = await rpc<Record<string, boolean>>({ type: "reviewed:get", key }).catch(() => ({}) as Record<string, boolean>);
-    this.bodyEl.replaceChildren(...res.plan.layers.map((l, i) => this.renderLayer(l, i, reviewed, key)));
+  /** Demo mode: a bundled real plan, no token or network needed. Seeds one stale "reviewed" layer to show the change flag. */
+  loadDemo(withTour = false) {
+    this.demo = true;
+    this.result = DEMO;
+    const core = DEMO.plan.layers.find((l) => l.id === "core") ?? DEMO.plan.layers[0];
+    let state = setReviewed({}, core, true, "demo-old-head", "2026-10-09T12:00:00Z");
+    // Pretend one file in Core was pushed again after the review.
+    const first = core.files[0];
+    if (first) state = { ...state, [core.id]: { ...state[core.id], files: { ...state[core.id].files, [first.path]: "an-older-blob-sha" } } };
+    this.review = state;
+    this.bannerEl.hidden = false;
+    const exit = el("button", { type: "button", class: "btn" }, "Exit demo");
+    exit.addEventListener("click", () => this.exitDemo());
+    this.bannerEl.replaceChildren(el("span", {}, `Demo: real sample ${DEMO.pr.owner}/${DEMO.pr.repo}#${DEMO.pr.number}. Ticks aren't saved.`), exit);
+    this.renderAll();
+    if (withTour) {
+      this.setView("review", false);
+      requestAnimationFrame(() => this.startTour());
+    }
   }
 
-  private renderLayer(l: Layer, i: number, reviewed: Record<string, boolean>, key: string) {
-    const done = !!reviewed[l.id];
-    const d = el("details", { class: "layer" + (done ? " done" : "") });
-    if (!done && i < 2) d.setAttribute("open", "");
-    const cb = el("input", { type: "checkbox", title: "Mark layer reviewed", "aria-label": `Mark ${l.title} reviewed` }) as HTMLInputElement;
-    cb.checked = done;
-    cb.addEventListener("click", (e) => e.stopPropagation());
-    cb.addEventListener("change", () => {
-      reviewed[l.id] = cb.checked;
-      void rpc({ type: "reviewed:set", key, value: reviewed }).catch(() => {});
-      d.classList.toggle("done", cb.checked);
-      if (cb.checked) d.removeAttribute("open");
-    });
-    d.append(
+  exitDemo() {
+    this.demo = false;
+    this.result = null;
+    this.review = {};
+    this.bannerEl.hidden = true;
+    this.panes.review.replaceChildren();
+    this.panes.graph.replaceChildren();
+    this.graphView = null;
+    this.titleEl.textContent = this.pr ? `PR Layers · #${this.pr.number}` : "PR Layers";
+    void this.refreshAuth().then(() => this.analyze(false));
+  }
+
+  private renderAll() {
+    const res = this.result;
+    if (!res) return;
+    this.titleEl.textContent = `#${res.pr.number} ${res.meta.title}`;
+    this.titleEl.title = res.meta.title;
+    const s = summarize(res.plan, this.review);
+    const rate = res.rate ? ` · API ${res.rate.remaining}/${res.rate.limit}` : "";
+    this.subEl.replaceChildren(
       el(
-        "summary",
+        "div",
         {},
-        cb,
-        el("span", { class: "idx" }, `L${i}`),
-        el("span", { class: "ltitle" }, l.title),
-        el("span", { class: "stats" }, `${l.stats.files} · `, el("span", { class: "add" }, `+${l.stats.additions}`), " ", el("span", { class: "del" }, `−${l.stats.deletions}`)),
+        `${res.plan.stats.files} files · +${res.plan.stats.additions}/−${res.plan.stats.deletions} · ${res.plan.layers.length} layers · ${s.reviewedFiles}/${s.totalFiles} reviewed` +
+          (this.demo ? "" : ` · ${res.fromCache ? "cached" : "fresh"} @ ${res.meta.headSha.slice(0, 7)}${rate}`),
       ),
-      el("div", { class: "desc" }, l.description),
+      ...res.plan.warnings.map((w) => el("div", { class: "warn" }, "⚠ " + w)),
     );
-    const ul = el("ul", { class: "files" });
-    for (const f of l.files) {
-      const slash = f.path.lastIndexOf("/");
-      const st = { added: "A", removed: "D", renamed: "R", modified: "M", copied: "C", changed: "M", unchanged: "·" }[f.status];
-      const li = el(
-        "li",
-        { class: "file", tabindex: "0", title: f.previousPath ? `renamed from ${f.previousPath}` : f.path },
-        el("div", { class: "path" }, el("span", { class: "st" }, st), el("span", { class: "dir" }, slash >= 0 ? f.path.slice(0, slash + 1) : ""), f.path.slice(slash + 1), " ", el("span", { class: "add" }, `+${f.additions}`), " ", el("span", { class: "del" }, `−${f.deletions}`)),
-        el("div", { class: "reason" }, f.reason),
-      );
-      const go = () => void jumpTo(f.path);
-      li.addEventListener("click", go);
-      li.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          go();
-        }
+    const scroll = this.panes.review.scrollTop;
+    this.panes.review.replaceChildren(
+      renderReview(res.plan, this.review, {
+        onToggle: (l, on) => this.setLayerReviewed(l, on),
+        onJump: (p) => void this.jump(p),
+      }),
+    );
+    this.panes.review.scrollTop = scroll;
+    if (this.view === "graph") this.renderGraph();
+    this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+  }
+
+  private setLayerReviewed(l: Layer, on: boolean) {
+    if (!this.result) return;
+    this.review = setReviewed(this.review, l, on, this.result.meta.headSha);
+    if (!this.demo) void rpc({ type: "reviewed:set", key: prKey(this.result.pr), value: this.review }).catch(() => {});
+    this.renderAll();
+  }
+
+  private renderGraph() {
+    if (!this.result) return;
+    if (!this.graphView) {
+      this.graphView = new GraphView({
+        compact: true,
+        onJump: (p) => void this.jump(p),
+        onExpand: () => this.openOverlay(),
+        onOpenTab: () => void rpc({ type: "graph:openTab", pr: this.result!.pr, headSha: this.result!.meta.headSha, demo: this.demo }).catch((e) => (this.subEl.textContent = (e as Error).message)),
       });
-      ul.append(li);
+      this.panes.graph.replaceChildren(this.graphView.el);
     }
-    d.append(ul);
-    return d;
+    const s = summarize(this.result.plan, this.review);
+    this.graphView.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+  }
+
+  private openOverlay() {
+    if (!this.result || this.overlay) return;
+    const close = el("button", { type: "button", class: "x", title: "Close (Esc)", "aria-label": "Close graph" }, "✕");
+    close.addEventListener("click", () => this.closeOverlay());
+    this.overlayGraph = new GraphView({ onJump: (p) => void this.jump(p) });
+    const box = el(
+      "div",
+      { class: "ov-box", role: "dialog", "aria-modal": "true", "aria-label": "Dependency graph" },
+      el("div", { class: "hdr" }, el("div", { class: "ttl" }, `Graph · #${this.result.pr.number} ${this.result.meta.title}`), close),
+      this.overlayGraph.el,
+    );
+    this.overlay = el("div", { class: "overlay" }, box);
+    this.overlay.addEventListener("pointerdown", (e) => {
+      if (e.target === this.overlay) this.closeOverlay();
+    });
+    this.root.append(this.overlay);
+    const s = summarize(this.result.plan, this.review);
+    this.overlayGraph.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, changedPaths: s.changedPaths });
+    close.focus();
+  }
+
+  private closeOverlay() {
+    this.overlay?.remove();
+    this.overlay = null;
+    this.overlayGraph = null;
+  }
+
+  private async jump(path: string) {
+    if (this.demo && this.result) {
+      const url = `https://github.com/${this.result.pr.owner}/${this.result.pr.repo}/pull/${this.result.pr.number}/files#${await diffAnchor(path)}`;
+      const a = el("a", { href: url, target: "_blank", rel: "noopener" }, "open it on GitHub");
+      this.subEl.replaceChildren(el("div", { class: "toast" }, `Demo: on a real PR this scrolls Files changed to ${path}. You can `, a, "."));
+      return;
+    }
+    this.closeOverlay();
+    await jumpTo(path);
+  }
+
+  // ---------- tour ----------
+
+  private async maybeAutoTour() {
+    if (this.tour?.isActive() || this.view !== "review") return;
+    if ((await getPref<boolean>("tourDone")) === true) return;
+    requestAnimationFrame(() => this.startTour());
+  }
+
+  startTour() {
+    if (!this.result) {
+      // No PR data yet (e.g. no token): use the demo so every step has something to point at.
+      this.loadDemo(false);
+    }
+    if (!this.open) this.toggle("bubble");
+    this.setView("review", false);
+    this.tour?.end(false);
+    const q = (sel: string) => () => this.panes.review.querySelector(sel);
+    const openFirst = () => (this.panes.review.querySelector('[data-tour="layer"]') as HTMLDetailsElement | null)?.setAttribute("open", "");
+    const T = REVIEW_TOUR_TEXT;
+    const steps: TourStep[] = [
+      { target: q('[data-tour="layer"] > summary'), ...T.layers, before: openFirst },
+      { target: q('[data-tour="reason"]'), ...T.reasons, before: openFirst },
+      { target: q('[data-tour="file"]'), ...T.jump, before: openFirst },
+      { target: q('[data-tour="check"]'), ...T.check },
+      {
+        target: () => this.panes.review.querySelector('[data-tour="changed"]'),
+        ...T.changed,
+        before: () => (this.panes.review.querySelector('[data-tour="changed"]')?.closest("details") as HTMLDetailsElement | null)?.setAttribute("open", ""),
+      },
+    ];
+    this.tour = new Tour(this.root, steps, () => void setPref("tourDone", true));
+    this.tour.start();
   }
 }
 

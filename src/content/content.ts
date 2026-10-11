@@ -5,7 +5,7 @@
  */
 import { parsePrUrl } from "../shared/pr-url";
 import type { TabMessage } from "../shared/messages";
-import { HOST_ID, Widget } from "./widget";
+import { HOST_ID, jumpTo, Widget } from "./widget";
 
 declare global {
   interface Window {
@@ -59,6 +59,7 @@ if (!window.__prLayersLoaded) {
     }
     if (msg?.type === "progress") widget?.progress(msg.pr, msg.text);
     if (msg?.type === "auth:changed") widget?.onAuthChanged();
+    if (msg?.type === "jump") void jumpTo(msg.path);
     if (msg?.type === "ping") sendResponse(true);
     return false;
   });

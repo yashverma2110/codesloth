@@ -57,6 +57,18 @@ export interface LayerFile {
   deletions: number;
   category: Category;
   reason: string;
+  /** Blob SHA at head (null for deletions / unknown); used for "changed since reviewed". */
+  sha?: string | null;
+  /** Visual group: "pkg:<dir>" for a multi-file Go package, "cycle:<n>" for an import cycle. */
+  group?: string;
+}
+
+export interface PlanEdge {
+  /** Importer (or test). */
+  from: string;
+  /** Imported file (or the test's subject). */
+  to: string;
+  kind: "import" | "test";
 }
 
 export interface Layer {
@@ -72,6 +84,8 @@ export interface LayerPlan {
   version: 1;
   engineVersion: string;
   layers: Layer[];
+  /** Dependency edges between changed files (importer -> imported) plus test -> subject pairings. */
+  edges: PlanEdge[];
   warnings: string[];
   stats: { files: number; additions: number; deletions: number; edges: number; contentsUsed: number };
 }

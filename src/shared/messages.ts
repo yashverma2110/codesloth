@@ -34,9 +34,18 @@ export type Request =
   | { type: "widget:getPosition" }
   | { type: "widget:setPosition"; position: { side: "left" | "right"; top: number } }
   | { type: "reviewed:get"; key: string }
-  | { type: "reviewed:set"; key: string; value: Record<string, boolean> }
+  | { type: "reviewed:set"; key: string; value: unknown }
+  | { type: "prefs:get"; key: PrefKey }
+  | { type: "prefs:set"; key: PrefKey; value: unknown }
+  | { type: "graph:openTab"; pr: PRRef; headSha?: string; demo?: boolean }
+  | { type: "graph:getPlan"; pr: PRRef; headSha: string }
+  | { type: "graph:jump"; tabId: number; pr: PRRef; path: string }
   | { type: "analyze"; pr: PRRef; force?: boolean }
   | { type: "cache:clear" };
+
+/** Widget preferences content scripts may read/write (nothing sensitive). */
+export const PREF_KEYS = ["view", "tourDone"] as const;
+export type PrefKey = (typeof PREF_KEYS)[number];
 
 export type Response<T = unknown> = { ok: true; data: T } | { ok: false; error: string; code?: string };
 
@@ -64,6 +73,7 @@ export type TabMessage =
   | { type: "progress"; pr: PRRef; text: string }
   | { type: "widget:toggle"; source: "toolbar" | "shortcut" }
   | { type: "auth:changed" }
+  | { type: "jump"; path: string }
   | { type: "ping" };
 
 /**
@@ -78,6 +88,9 @@ export const CONTENT_ALLOWED: ReadonlySet<Request["type"]> = new Set([
   "widget:setPosition",
   "reviewed:get",
   "reviewed:set",
+  "prefs:get",
+  "prefs:set",
+  "graph:openTab",
 ]);
 
 /** Decide whether a message sender may make a request. Pure for testing. */

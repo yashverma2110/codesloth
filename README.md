@@ -17,7 +17,7 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
 
 ## Install (load unpacked)
 
-1. Get the build. Download `pr-stacks-extension.zip` from the repo's **Releases** (v0.2.0+) and unzip it, or build it yourself (`npm ci && npm run build` gives you `dist/`).
+1. Get the build. Download `pr-stacks-extension.zip` from the repo's **Releases** (v0.3.0+) and unzip it, or build it yourself (`npm ci && npm run build` gives you `dist/`).
 2. Open your browser's extensions page and turn on **Developer mode**:
    - Chrome / Brave: `chrome://extensions` / `brave://extensions`
    - Edge: `edge://extensions` (toggle at the bottom left)
@@ -31,7 +31,9 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
 - **Open/close:** click the bubble, click the toolbar icon (on a PR tab), or press **Alt+Shift+L** (⌥⇧L on macOS). Close with ✕ or **Esc**. Esc is ignored while you're typing in a GitHub text field.
 - **Move it:** drag the bubble or the panel header. On release it snaps to the left or right edge. You can put it anywhere vertically; it's kept below GitHub's header and inside the window. The side and vertical position are remembered across pages and restarts; a resized height lasts until you leave the page. A drag never counts as a click.
 - **Panel:** it opens toward the middle of the screen (downward if the bubble is in the top half, upward otherwise). Drag its bottom edge to resize; lists scroll inside it.
-- **Inside:** layers with file counts and +/−, a reason for each file, and a *reviewed* checkbox per layer (stored per head commit). Click a file (or press Enter on it) to jump to it in Files changed. **Re-analyze** ignores the cache.
+- **Tabs:** **Review** (the layered list with reviewed checkboxes) and **Graph** (dependency graph). They're GitHub-style underline tabs with `tablist`/`tab`/`tabpanel` roles: ←/→ switch, Home/End jump to first/last. The last tab you used is remembered.
+- **Help (`?`):** take the Review tour again, **Try demo** (or exit it), or open token settings.
+- **Re-analyze** ignores the cache.
 - The bubble only appears on `/{owner}/{repo}/pull/{n}` pages. It follows GitHub's in-page navigation and disappears on other pages. A red dot means no token is set yet.
 - Theme follows GitHub's `data-color-mode` (light/dark/auto), or your OS setting.
 - Change the shortcut at `chrome://extensions/shortcuts` (or the equivalent page in your browser).
@@ -44,7 +46,36 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
 | Edge, Brave | Supported (Chromium MV3; same APIs) |
 | Arc | Supported. v0.2 removed the `chrome.sidePanel` dependency because Arc doesn't implement it. The setup page opens with `chrome.runtime.openOptionsPage()`, falling back to a normal tab. |
 
-v0.2.0 hasn't been checked in a real browser yet. See [Known limitations](#known-limitations).
+v0.3.0 was smoke-tested in **headless Chrome 154 on live github.com** (no token, demo mode): the setup page opens on install, the bubble mounts on a PR's Files changed page, the setup prompt, Try demo, the tour and the Graph tab render. Arc, Edge and Brave haven't been tried yet. See [Known limitations](#known-limitations).
+
+## How to use the Review tab
+
+1. Open a PR and click the bubble. Layers are listed in review order, starting with **L0**. Read them top to bottom: contracts and core code first, then the code that uses them, then tests, config and generated files.
+2. Each file shows **why it's in that layer**, e.g. *"imports telemetry/_api.py [Core]; used by fastapi/applications.py"*. If a reason looks wrong, take a closer look at that file.
+3. **Click a file** (or focus it and press Enter) to jump to its diff in Files changed.
+4. **Tick a layer** when you've reviewed it. It collapses and counts toward *n/m reviewed*. Ticks are stored in this browser per PR, together with each file's blob SHA.
+5. **⚠ Changed since you reviewed it.** If later pushes change a ticked layer's files (new content, new files, or files that moved out), the layer gets a ⚠ flag and those files get a *changed* badge, so you only re-read what changed. Tick it again to clear the flag.
+
+**First-run tour:** the first time the panel shows a plan, a 5-step walkthrough covers exactly the steps above. **Skip**, ✕ or Esc dismiss it. Reopen it anytime from **? → Take the Review tour**.
+
+**Try demo:** **? → Try demo**, or **Try demo** on the set-up prompt, loads a bundled plan from a real public PR (`fastapi/fastapi#16403`, 36 files, computed by this engine). It works without a token, on any PR page, and makes no network calls. One Core file is pre-marked as *changed since reviewed* so you can see the flag. Ticks in the demo aren't saved. Clicking a file in the demo shows a link to that file's diff on github.com instead of navigating away.
+
+![Review tab with the first tour step: headless render of the real widget code and the bundled fastapi sample plan](docs/images/review-demo.png)
+
+## Graph view
+
+The **Graph** tab draws the PR's changed files as a layered dependency graph:
+
+- **Nodes** are changed files: file name, +/−, and status. Hover for the full path, layer and reason. They're colored by layer, with a legend that doubles as a **layer filter** (click a chip to hide or show that layer).
+- **Edges** go importer → imported, using the import graph the engine already builds. Dashed green edges link a test to the file it tests.
+- **Layout:** one band per layer, top to bottom in review order, so contracts and core are at the top. Within a band, nodes are ordered by where their neighbors sit, to cut down on crossings. Multi-file **Go packages** and **import cycles** get a dashed box.
+- **Generated files and lockfiles** are collapsed into one node; click it to expand. For big PRs (more than 160 nodes), files are **clustered by directory**, coarsening until they fit. Click a cluster to expand it. Repeated edges between clusters are merged and drawn thicker.
+- **Interactions:** drag to pan, wheel or ± to zoom, **Fit**. Hovering or focusing a node highlights it and its neighbors. **Search** fades out non-matching files; Enter centers the first match. Click a node (or press Enter) to jump to its diff. Files in reviewed layers are dimmed with a ✓. A ● marks files changed since review.
+- **⤢ Expand** opens a near-full-screen overlay inside the same shadow root (Esc or ✕ closes it). **↗ Tab** opens a full extension page (`graph.html`). That page asks the service worker for the cached plan; it gets no token and makes no network calls. Clicking a node there focuses the PR tab and jumps.
+- **Implementation:** a hand-rolled layered layout plus SVG built with `createElementNS`. No `innerHTML` (so GitHub's Trusted Types/CSP don't come into play), no `eval`, no dependencies. Bundle impact: `content.js` went from 23.9 KB to about 88 KB unminified. That includes the graph, the tour, and the 14 KB bundled demo plan. `graph-page.js` is 44 KB.
+
+![Graph overlay for go-gitea/gitea#39426 (57 files): headless render of the real widget code with the engine's plan for that PR](docs/images/graph-sample.png)
+
 
 ## Onboarding: create a read-only fine-grained token
 
@@ -148,9 +179,10 @@ flowchart LR
   subgraph Browser["Browser (your machine) - no third-party servers"]
     subgraph Page["github.com PR page"]
       CS["Content script<br/>PR detection (soft nav), mount/unmount,<br/>jump via #diff-sha256(path)"]
-      W["Floating widget in a closed Shadow DOM<br/>bubble + panel: layers, reasons,<br/>reviewed ticks, drag/snap"]
+      W["Floating widget in a closed Shadow DOM<br/>bubble + panel: Review | Graph tabs,<br/>tour, demo, drag/snap, graph overlay"]
     end
     OB["Onboarding / options page<br/>token link, validate, save"]
+    GP["Graph tab page (graph.html)<br/>plan from SW cache, no token"]
     SW["MV3 service worker<br/>ONLY caller of api.github.com (GET only)<br/>auth, pagination, rate limits, ETags, engine,<br/>toolbar click + Alt+Shift+L"]
     DB[["IndexedDB<br/>analysis by owner/repo/n/headSha,<br/>blobs by sha, etags"]]
     LS[["chrome.storage.local (trusted contexts only)<br/>token, widget position, reviewed state"]]
@@ -159,6 +191,7 @@ flowchart LR
   CS --- W
   CS <-->|"allow-listed messages<br/>(no token ever)"| SW
   OB <-->|validate / save| SW
+  GP <-->|cached plan, jump| SW
   SW -->|"toggle, progress, auth changed"| CS
   SW <--> DB
   SW <--> LS
@@ -166,7 +199,7 @@ flowchart LR
 ```
 
 - **Content script and widget:** the content script runs on `https://github.com/*`, not just `/pull/*`, because GitHub navigates without page reloads. It mounts the widget only on PR URLs and removes it elsewhere. The widget lives in a **closed shadow root** attached to `<html>`, so it survives Turbo swapping `<body>`, and neither GitHub's CSS nor its scripts can reach in. Its `z-index` keeps it above GitHub's UI, and it stays below the global header by default.
-- **Message gating:** the service worker accepts only a small allow-list from content scripts: status (login only), analyze, position, reviewed state, and opening setup. Token validate/save/clear is accepted only from extension pages. The content script never calls the API and never touches `chrome.storage`.
+- **Message gating:** the service worker accepts only a small allow-list from content scripts: status (login only), analyze, position, reviewed state, two UI preferences (`view`, `tourDone`), opening the graph tab, and opening setup. Token validate/save/clear is accepted only from extension pages. The content script never calls the API and never touches `chrome.storage`.
 - **Service worker:** handles auth, API calls (rate-limit errors carry the reset time, secondary limits retry with backoff, 5xx retries), caching, and runs the engine (pure TypeScript, no DOM).
 - **Toolbar icon / shortcut:** `chrome.action.onClicked` and `chrome.commands` (`toggle-widget`, Alt+Shift+L) tell the tab to toggle the widget. If the tab was opened before the extension was installed, the content script is injected on demand with `chrome.scripting`. On non-PR tabs the badge briefly shows "PR?". With no token set, they open setup.
 - **Jump to file:** sets `location.hash` to `diff-<sha256(path)>`, which is GitHub's per-file anchor, and leaves the scrolling to GitHub. If the tab isn't on Files changed, it navigates to `/pull/n/files#diff-…`.
@@ -176,10 +209,12 @@ flowchart LR
 ```bash
 npm ci
 npm run typecheck     # tsc --noEmit
-npm test              # vitest: engine, token validation, API client, widget drag/snap/persistence/toggle (pure + happy-dom DOM tests)
+npm test              # vitest: engine, token validation, API client, widget, graph build/layout, review state, tour (pure + happy-dom DOM tests)
 npm run build         # esbuild -> dist/
 npm run package       # typecheck + test + build + /workspace/pr-stacks-extension.zip
 npm run analyze-pr -- go-gitea/gitea#39426   # run the engine on a real PR via `gh api` (read-only)
+npx tsx scripts/make-demo-plan.ts fastapi/fastapi#16403 src/demo/demo-plan.json   # regenerate the bundled demo plan (needs analyze-pr's .tmp cache)
+node scripts/dev/render-demo.mjs .tmp/render   # headless renders of the real widget (needs Chrome + puppeteer-core)
 ```
 
 Settings are in `config/extension.config.json`: content-fetch limits, the API version, and `defaultTokenOwner` to pre-fill the org on the setup page. Rebuild after editing it.
@@ -190,28 +225,36 @@ Settings are in `config/extension.config.json`: content-fetch limits, the API ve
 config/extension.config.json   build-time settings
 public/manifest.json, icons/   MV3 manifest + icons
 src/background/                sw.ts (messages, analysis pipeline), github.ts (GET-only client), auth.ts (PAT), cache.ts (IndexedDB)
-src/content/                   content.ts (mount/unmount on soft nav), widget.ts (shadow-DOM UI, drag), widget-logic.ts (pure snap/clamp/placement/toggle), widget.css.ts
+src/content/                   content.ts (mount/unmount on soft nav), widget.ts (shadow-DOM UI, tabs, drag, demo), widget-logic.ts (pure snap/clamp/placement/toggle),
+                               review-view.ts + review-logic.ts (Review tab, changed-since-reviewed), tour.ts (coach marks), widget.css.ts
+src/graph/                     build.ts (plan -> nodes/edges, clustering), layout.ts (layered layout), svg.ts + vdom.ts (SVG without innerHTML), view.ts (pan/zoom/search/filter)
+src/graph-page/                full-tab graph page
+src/demo/demo-plan.json        bundled real sample plan (fastapi/fastapi#16403)
+src/dev/harness.ts             dev-only harness for headless renders (not shipped)
 src/options/                   onboarding / options page
 src/shared/                    messages, PR URL + anchor, token-validation (pure, tested)
 src/engine/                    classify, patch, glob(.gitattributes), imports/{js,vue,go,python}, resolve, graph (SCC/depth), analyze (layers + reasons)
 test/                          vitest suites + fixtures
-scripts/                       build.mjs, zip.py, analyze-pr.ts
+scripts/                       build.mjs, zip.py, analyze-pr.ts, make-demo-plan.ts, dev/render-demo.mjs
+docs/images/                   headless renders (real code + real sample plans)
 docs/samples/                  engine output for real public PRs
 ```
 
 ## Known limitations (Week 1)
 
-- **Not yet tested in a real browser.** The engine and API client are tested against real PR data and mocks. The widget is tested in happy-dom. Still to check by hand on github.com:
+- **Only smoke-tested in a real browser.** Headless Chrome on live github.com covered: install → setup page, mounting on a PR, the setup prompt, demo, tour and Graph tab, all without a token. Still to check by hand:
+  - the token flow and a real analysis in the browser;
   - mounting across Turbo navigation;
-  - real pointer/trackpad drags;
-  - the `#diff-…` jump on GitHub's current Files-changed UI;
+  - real pointer/trackpad drags and graph pan/zoom;
+  - the `#diff-…` jump on GitHub's current Files-changed UI (from the list, the graph, and the graph tab);
   - the toolbar click and shortcut in Arc/Edge/Brave;
   - `storage.local.setAccessLevel` support in each browser. If it's missing, the content script still never reads storage, but it no longer can't.
 - **File-level only.** A file whose hunks belong in different layers is placed whole. Splitting by hunk is planned for Week 2.
 - **Partial view for modified files beyond the cap.** Full contents are fetched for up to 150 modified code files. Others are parsed from the diff, so imports outside the changed hunks are missed (a warning is shown).
 - **Alias resolution:** only `@/` and `~/` → `src/` for now. `tsconfig` `paths`, Vite aliases and workspace package names (`@scope/pkg` in monorepos) aren't resolved yet, so cross-package edges are missing.
 - The panel can cover part of the diff while open; drag it to the other edge or close it with Esc.
-- Reviewed ticks are per layer and per head SHA, and stored locally only. Nothing syncs with GitHub's "Viewed" checkboxes.
+- Reviewed ticks are per layer, per PR, and stored locally only. The change flag compares blob SHAs. If a push reshuffles layers (e.g. a file moves from Callers L1 to L2), both layers count as changed. Nothing syncs with GitHub's "Viewed" checkboxes. Ticks from v0.2 (stored per head SHA) aren't migrated.
+- Graph: the small panel graph is a quick overview; use ⤢ Expand for real reading. Positions are recomputed on every filter or expand (no animation).
 - github.com only (no GHES). PRs beyond 3000 files are truncated by GitHub's API.
 - Heuristic categories can be wrong for unusual layouts (e.g. a `schema/` folder that isn't a schema). Reasons make that visible. Overrides are planned for Week 2.
 
@@ -224,7 +267,7 @@ docs/samples/                  engine output for real public PRs
 - drag-to-move overrides;
 - sync reviewed state with GitHub "Viewed" (would need a write, so opt-in or skipped);
 - live UI test pass on Wayground PRs;
-- per-file reviewed state that survives new pushes (by blob SHA).
+- per-file (not just per-layer) reviewed ticks.
 
 **Week 3:**
 - author-pinned plan (hidden PR comment, optional write: needs a separate opt-in token);
