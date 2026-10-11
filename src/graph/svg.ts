@@ -9,15 +9,15 @@ const trunc = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + "…
 /** CSS for graph SVG; variables come from the widget theme (or are inlined for standalone export). */
 export const GRAPH_CSS = `
 .g-band rect { fill-opacity:.07; }
-.g-band text { font:600 12.5px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
+.g-band text { font:600 12.5px var(--cs-ui, -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif); fill:var(--muted,#59636e); }
 .g-group rect { fill:none; stroke:var(--muted,#8c959f); stroke-dasharray:4 3; stroke-opacity:.7; rx:10; }
-.g-group text { font:italic 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
+.g-group text { font:italic 11px var(--cs-ui, -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif); fill:var(--muted,#59636e); }
 .g-edge { fill:none; stroke:var(--edge,#8c959f); stroke-opacity:.5; stroke-width:1.4; stroke-linecap:round; pointer-events:none; }
 .g-edge.test { stroke-dasharray:6 5; stroke:var(--add,#1a7f37); stroke-opacity:.65; }
 .g-hit { fill:none; stroke:transparent; stroke-width:10; pointer-events:stroke; }
 .g-node rect.box { fill:var(--bg,#fff); stroke:var(--border,#d1d9e0); rx:7; }
 .g-node .lbl { font:600 13.5px var(--cs-mono, ui-monospace,SFMono-Regular,Menlo,monospace); font-variant-ligatures:var(--cs-lig, normal); fill:var(--fg,#1f2328); }
-.g-node .meta { font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; fill:var(--muted,#59636e); }
+.g-node .meta { font:12px var(--cs-ui, -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif); fill:var(--muted,#59636e); }
 .g-node .meta .a { fill:var(--add,#1a7f37); } .g-node .meta .d { fill:var(--del,#d1242f); }
 .g-node.cluster rect.box, .g-node.generated rect.box { stroke-dasharray:4 2; }
 .g-node.reviewed { opacity:.45; }

@@ -704,19 +704,25 @@ export class Widget {
     }
     const lig = el("input", { type: "checkbox", id: "prl-fp-lig" }) as HTMLInputElement;
     lig.checked = ligaturesOn(p);
-    lig.disabled = p.codeFont === "default";
     lig.addEventListener("change", () => this.setFontPref("ligatures", lig.checked));
+    const ui = el("input", { type: "checkbox", id: "prl-fp-ui" }) as HTMLInputElement;
+    ui.checked = p.uiFont;
+    ui.addEventListener("change", () => this.setFontPref("uiFont", ui.checked));
+    const bundled = p.codeFont !== "default";
     const diff = el("input", { type: "checkbox", id: "prl-fp-diff" }) as HTMLInputElement;
     diff.checked = p.diffFont;
     diff.addEventListener("change", () => this.setFontPref("diffFont", diff.checked));
-    this.fontPop.replaceChildren(
+    const kids: (HTMLElement | false)[] = [
       el("div", { class: "fp-h" }, "Code font"),
       fontGroup,
       el("div", { class: "fp-h" }, "Size"),
       sizeGroup,
-      el("label", { class: "fp-chk", title: lig.disabled ? "Pick a bundled font to use ligatures" : "Combine sequences like => and != into one glyph" }, lig, el("span", {}, "Ligatures")),
+      // Only fonts with ligature features get the toggle; "all panel text" only makes sense for a bundled font.
+      FONTS[p.codeFont].hasLigatures && el("label", { class: "fp-chk", title: "Combine sequences like => and != into one glyph" }, lig, el("span", {}, "Ligatures")),
+      bundled && el("label", { class: "fp-chk", title: `Also use ${FONTS[p.codeFont].label} for headings, why-lines and reasons, not just file names and SHAs` }, ui, el("span", {}, "Use for all panel text")),
       el("label", { class: "fp-chk", title: "Best effort: restyles GitHub's diff lines with this font (classic and new view)" }, diff, el("span", {}, "Also use in GitHub diffs")),
-    );
+    ];
+    this.fontPop.replaceChildren(...kids.filter((k): k is HTMLElement => !!k));
     if (focusSel) (this.fontPop.querySelector(focusSel) as HTMLElement | null)?.focus();
   }
 

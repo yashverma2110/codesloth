@@ -2,7 +2,7 @@
 export const WIDGET_CSS = `
 :host { all: initial; }
 .root { --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --bg:#ffffff; --bg2:#f6f8fa; --accent:#0969da; --sel-bg:#ddf4ff; --add:#1a7f37; --del:#d1242f; --warn:#9a6700; --btn:#1f883d; --shadow:0 8px 24px rgba(140,149,159,.25);
-  font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif; color:var(--fg); }
+  font:13px/1.45 var(--cs-ui); color:var(--fg); }
 .root.dark { --fg:#f0f6fc; --muted:#9198a1; --border:#3d444d; --bg:#151b23; --bg2:#212830; --accent:#4493f8; --sel-bg:rgba(56,139,253,.15); --add:#3fb950; --del:#f85149; --warn:#d29922; --btn:#238636; --shadow:0 8px 24px rgba(1,4,9,.6); }
 * { box-sizing: border-box; }
 .bubble { position:fixed; width:48px; height:48px; border-radius:50%; border:none; background:var(--btn); color:#fff; box-shadow:var(--shadow);
@@ -46,7 +46,7 @@ export const WIDGET_CSS_V3 = `
 .banner { display:flex; gap:8px; align-items:center; justify-content:space-between; padding:6px 12px; background:rgba(84,174,255,.12); border-bottom:1px solid var(--border); font-size:12px; }
 .banner[hidden] { display:none; }
 .flag { margin:0 0 6px; padding:6px 8px; border-radius:6px; background:rgba(212,167,44,.15); color:var(--fg); font-size:12px; border:1px solid rgba(212,167,44,.5); }
-.badge { margin-left:6px; font:600 10px -apple-system,sans-serif; padding:1px 6px; border-radius:999px; background:#d4a72c; color:#1f2328; }
+.badge { margin-left:6px; font:600 10px var(--cs-ui); padding:1px 6px; border-radius:999px; background:#d4a72c; color:#1f2328; }
 .toast { font-size:12px; }
 .toast a { color:var(--accent); }
 .setup .row { display:flex; gap:8px; margin-bottom:10px; }
@@ -215,7 +215,7 @@ li.file.chg .fname { color:var(--fg); }
 .bubble.stale .dot { display:block; background:#d4a72c; }
 
 /* ---- v0.6.3 code font ---- */
-.root { --cs-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; --cs-lig: none; --cs-zoom: 1; }
+.root { --cs-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; --cs-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; --cs-lig: none; --cs-zoom: 1; }
 .review, .sub .plbl { zoom: var(--cs-zoom); }
 .fontbtn { flex:none; display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:26px; font:inherit; font-size:12px; font-weight:600; color:var(--muted); background:transparent; border:1px solid transparent; border-radius:6px; padding:0 6px; cursor:pointer; }
 .fontbtn:hover, .fontbtn[aria-expanded=true] { color:var(--fg); background:var(--bg2); border-color:var(--border); }

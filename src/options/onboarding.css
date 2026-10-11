@@ -30,3 +30,5 @@ ol ul { margin:4px 0; }
 .trouble h3 { font-size:14px; margin:8px 0 2px; }
 .trouble li { margin:3px 0; }
 .privacy { border-left:3px solid var(--ok); padding:6px 10px; background:var(--chip); border-radius:0 6px 6px 0; color:var(--fg); }
+
+label.check[hidden] { display:none; }

@@ -1,4 +1,4 @@
-import { FONT_PREF_KEYS, ligaturesOn, normalizeFontPrefs } from "../shared/fonts";
+import { FONT_PREF_KEYS, FONTS, ligaturesOn, normalizeFontPrefs } from "../shared/fonts";
 import type { AuthStatus, TokenValidationResponse } from "../shared/messages";
 import { send } from "../shared/messages";
 import { ORG_TOKEN_URL, tokenCreationUrl } from "../shared/token-validation";
@@ -111,14 +111,24 @@ async function init() {
   const sizeSel = $<HTMLSelectElement>("fontSize");
   const lig = $<HTMLInputElement>("ligatures");
   const diff = $<HTMLInputElement>("diffFont");
+  const uiFont = $<HTMLInputElement>("uiFont");
+  uiFont.checked = fp.uiFont;
+  uiFont.addEventListener("change", () => void chrome.storage.local.set({ "pref.uiFont": uiFont.checked }));
+  // Same rules as the panel's Aa picker: no ligature toggle for fonts without ligatures, no "all text" for the system font.
+  const syncRows = () => {
+    $("ligRow").hidden = !FONTS[fp.codeFont].hasLigatures;
+    $("uiRow").hidden = fp.codeFont === "default";
+  };
   fontSel.value = fp.codeFont;
   sizeSel.value = fp.fontSize;
   lig.checked = ligaturesOn(fp);
   diff.checked = fp.diffFont;
+  syncRows();
   fontSel.addEventListener("change", () => {
     void chrome.storage.local.set({ "pref.codeFont": fontSel.value });
     fp.codeFont = fontSel.value as typeof fp.codeFont;
     lig.checked = ligaturesOn(fp);
+    syncRows();
   });
   sizeSel.addEventListener("change", () => void chrome.storage.local.set({ "pref.fontSize": sizeSel.value }));
   lig.addEventListener("change", () => {

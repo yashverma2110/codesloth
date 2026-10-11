@@ -65,14 +65,19 @@ for (const data of ["real", "stress"])
         for (const extra of ["fontpop", "graph-fontpop"]) cases.push({ data, vw, forced, theme, story: "expanded", extra, font: "jetbrains", size: "large" });
       }
 // v0.6.3: every bundled font at every size (light theme, both widths, worst-case data)
-for (const font of ["default", "jetbrains", "fira", "iosevka"])
+for (const font of ["default", "jetbrains", "fira", "iosevka", "opendyslexic"])
   for (const size of ["small", "default", "large"])
-    for (const vw of [320, 1280]) for (const data of ["real", "stress"]) cases.push({ data, vw, forced: null, theme: "light", story: "expanded", font, size });
+    for (const vw of [320, 1280])
+      for (const data of ["real", "stress"]) {
+        cases.push({ data, vw, forced: null, theme: "light", story: "expanded", font, size });
+        // v0.6.6: "Use for all panel text" (headings, why-lines, reasons in the font too)
+        if (font !== "default") cases.push({ data, vw, forced: null, theme: "light", story: "expanded", font, size, ui: true });
+      }
 for (const c of cases) {
   const p = await browser.newPage({ viewport: { width: c.vw, height: 900 }, deviceScaleFactor: 1 });
   p.on("pageerror", (e) => (console.error("pageerror", e.message), failures++));
   const pre = c.data === "stress" ? "stress-" : "";
-  await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}${c.extra === "banner" ? "&stale=1" : ""}${c.font ? `&font=${c.font}&size=${c.size}` : ""}`);
+  await p.goto(`http://localhost:${port}/?plan=/${pre}plan.json&history=/${pre}history.json&story=${c.story === "collapsed" ? 0 : 1}${c.extra === "banner" ? "&stale=1" : ""}${c.font ? `&font=${c.font}&size=${c.size}` : ""}${c.ui ? "&ui=1" : ""}`);
   await p.waitForFunction(() => window.__ready);
   if (c.theme === "dark") await p.evaluate(() => document.documentElement.setAttribute("data-color-mode", "dark"));
   await p.evaluate(() => window.__w.toggle("bubble"));
@@ -110,11 +115,17 @@ for (const c of cases) {
   }
   await p.evaluate(() => document.fonts.ready.then(() => true));
   await sleep(150);
-  const fontOk = await p.evaluate((font) => {
-    const fam = { jetbrains: "CodeSloth JetBrains Mono", fira: "CodeSloth Fira Code", iosevka: "CodeSloth Iosevka" }[font];
+  const fontOk = await p.evaluate(([font, ui]) => {
+    const fam = { jetbrains: "CodeSloth JetBrains Mono", fira: "CodeSloth Fira Code", iosevka: "CodeSloth Iosevka", opendyslexic: "CodeSloth OpenDyslexic Mono" }[font];
     if (!fam) return true;
-    return document.fonts.check(`12px "${fam}"`) && [...document.fonts].some((f) => f.family.replace(/"/g, "") === fam && f.status === "loaded") && getComputedStyle(window.__shadow.querySelector(".fname")).fontFamily.includes(fam);
-  }, c.font);
+    const loaded = (f) => document.fonts.check(`12px "${f}"`) && [...document.fonts].some((x) => x.family.replace(/"/g, "") === f && x.status === "loaded");
+    const s = window.__shadow;
+    const code = loaded(fam) && getComputedStyle(s.querySelector(".fname")).fontFamily.includes(fam);
+    const uiFam = font === "opendyslexic" ? "CodeSloth OpenDyslexic" : fam;
+    const whyFam = getComputedStyle(s.querySelector(".why, .step .sh .h")).fontFamily;
+    const uiOk = ui ? loaded(uiFam) && whyFam.startsWith(`"${uiFam}"`) : !whyFam.includes("CodeSloth");
+    return code && uiOk;
+  }, [c.font, !!c.ui]);
   const r = await p.evaluate(() => {
     const s = window.__shadow;
     const panel = s.querySelector(".panel").getBoundingClientRect();
@@ -137,7 +148,7 @@ for (const c of cases) {
       banner: !!s.querySelector(".stalebar #prl-stale-list:not([hidden])"),
       confirm: !!s.querySelector(".restart-note [data-act=clear]"),
       fontBtn: (() => { const b = s.querySelector(".tabbar .fontbtn"); return !!b && b.getBoundingClientRect().width > 0; })(),
-      fontPop: (() => { const fp = s.querySelector(".fontpop"); return !!fp && !fp.hidden && fp.querySelectorAll('[role="radio"]').length === 7 && fp.contains(s.activeElement); })(),
+      fontPop: (() => { const fp = s.querySelector(".fontpop"); return !!fp && !fp.hidden && fp.querySelectorAll('[role="radio"]').length === 8 && fp.contains(s.activeElement); })(),
     };
     // Rects are in zoomed px (Large/Small text size uses CSS zoom), line-height is not.
     const zoom = parseFloat(getComputedStyle(s.querySelector(".review")).zoom) || 1;
@@ -152,8 +163,8 @@ for (const c of cases) {
   const extraOk = r.state.restart === (onGraph ? "hidden" : panelW <= 320 ? "icon" : "label") && r.state.fontBtn && fontOk && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm) && (!c.extra?.endsWith("fontpop") || r.state.fontPop) && graphOk === true;
   const ok = extraOk && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
   if (!ok) failures++;
-  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}` : ""} restart=${r.state.restart} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
-  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}` : ""}.png` });
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}${c.ui ? "/ui" : ""}` : ""} restart=${r.state.restart} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}${c.ui ? "-ui" : ""}` : ""}.png` });
   await p.close();
 }
 await browser.close();

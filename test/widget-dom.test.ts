@@ -799,12 +799,14 @@ describe("Widget (DOM)", () => {
     expect(pop.hidden).toBe(false);
     expect(btn.getAttribute("aria-expanded")).toBe("true");
     const fonts = [...pop.querySelectorAll<HTMLButtonElement>(".fp-font")];
-    expect(fonts.map((b) => b.querySelector(".fp-name")!.textContent)).toEqual(["GitHub default", "JetBrains Mono", "Fira Code", "Iosevka"]);
+    expect(fonts.map((b) => b.querySelector(".fp-name")!.textContent)).toEqual(["GitHub default", "JetBrains Mono", "Fira Code", "Iosevka", "OpenDyslexic"]);
+    expect(fonts[4].style.fontFamily).toContain("CodeSloth OpenDyslexic Mono");
     expect(fonts[1].style.fontFamily).toContain("CodeSloth JetBrains Mono"); // each name in its own font
     expect(s.activeElement).toBe(fonts[0]); // focus moves into the popover (checked radio)
     expect(document.getElementById("codesloth-font-faces")?.textContent).toContain("chrome-extension://test/fonts/jetbrains-mono/jetbrains-mono-400.woff2");
-    // Ligatures disabled for the system stack.
-    expect((pop.querySelector("#prl-fp-lig") as HTMLInputElement).disabled).toBe(true);
+    // No ligature or "all panel text" toggle for the system stack.
+    expect(pop.querySelector("#prl-fp-lig")).toBeNull();
+    expect(pop.querySelector("#prl-fp-ui")).toBeNull();
 
     // Pick JetBrains Mono -> CSS var applied live, saved, ligatures on by default.
     fonts[1].click();
@@ -813,7 +815,7 @@ describe("Widget (DOM)", () => {
     expect(root.style.getPropertyValue("--cs-lig")).toBe("normal");
     expect(calls.some((c) => c.type === "prefs:set" && c.key === "codeFont" && c.value === "jetbrains")).toBe(true);
     const lig = pop.querySelector("#prl-fp-lig") as HTMLInputElement;
-    expect(lig.disabled).toBe(false);
+    expect(pop.querySelector("#prl-fp-ui")).not.toBeNull();
     expect(lig.checked).toBe(true);
     lig.click();
     expect(root.style.getPropertyValue("--cs-lig")).toBe("none");
@@ -862,6 +864,34 @@ describe("Widget (DOM)", () => {
     await w.loadFontPrefs();
     expect(root.style.getPropertyValue("--cs-mono")).not.toContain("CodeSloth");
     expect(document.getElementById("codesloth-diff-font")).toBeNull(); // default font: GitHub's diffs untouched
+    w.unmount();
+  });
+
+  it("OpenDyslexic: in the picker in its own font, no ligature toggle, 'Use for all panel text' switches UI text to it", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    (s.querySelector(".tabbar .fontbtn") as HTMLButtonElement).click();
+    const pop = s.querySelector(".fontpop") as HTMLElement;
+    (pop.querySelector('[data-font="opendyslexic"]') as HTMLButtonElement).click();
+    const root = s.querySelector(".root") as HTMLElement;
+    expect(root.style.getPropertyValue("--cs-mono")).toMatch(/^"CodeSloth OpenDyslexic Mono"/);
+    expect(root.style.getPropertyValue("--cs-lig")).toBe("none");
+    expect(root.style.getPropertyValue("--cs-ui")).not.toContain("CodeSloth");
+    expect(pop.querySelector("#prl-fp-lig")).toBeNull();
+    expect(document.getElementById("codesloth-font-faces")!.textContent).toContain("fonts/opendyslexic/opendyslexic-mono-400.woff2");
+    const ui = pop.querySelector("#prl-fp-ui") as HTMLInputElement;
+    expect(ui.checked).toBe(false);
+    ui.click();
+    expect(root.style.getPropertyValue("--cs-ui")).toMatch(/^"CodeSloth OpenDyslexic", /);
+    expect(calls.some((c) => c.type === "prefs:set" && c.key === "uiFont" && c.value === true)).toBe(true);
+    // Back to a ligature font: toggle reappears; all-text stays on and now uses that font.
+    (pop.querySelector('[data-font="fira"]') as HTMLButtonElement).click();
+    expect(pop.querySelector("#prl-fp-lig")).not.toBeNull();
+    expect(root.style.getPropertyValue("--cs-ui")).toMatch(/^"CodeSloth Fira Code", /);
     w.unmount();
   });
 });

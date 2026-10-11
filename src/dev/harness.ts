@@ -5,7 +5,7 @@ export {};
  */
 const params = new URLSearchParams(location.search);
 const planUrl = params.get("plan");
-const prefs: Record<string, unknown> = { tourDone: params.get("tour") !== "1", storyOpen: params.get("story") === "1", codeFont: params.get("font"), fontSize: params.get("size") };
+const prefs: Record<string, unknown> = { tourDone: params.get("tour") !== "1", storyOpen: params.get("story") === "1", codeFont: params.get("font"), fontSize: params.get("size"), uiFont: params.get("ui") === "1" };
 const origAttach = HTMLElement.prototype.attachShadow;
 HTMLElement.prototype.attachShadow = function (init) {
   const s = origAttach.call(this, init);

@@ -48,7 +48,7 @@ export type Request =
   | { type: "cache:clear" };
 
 /** Widget preferences content scripts may read/write (nothing sensitive). */
-export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen", "codeFont", "fontSize", "ligatures", "diffFont"] as const;
+export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen", "codeFont", "fontSize", "ligatures", "diffFont", "uiFont"] as const;
 /** Preferences kept only for the browser session (chrome.storage.session). */
 export const SESSION_PREF_KEYS: readonly string[] = ["storyOpen"];
 export type PrefKey = (typeof PREF_KEYS)[number];

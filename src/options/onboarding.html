@@ -92,19 +92,21 @@
     <h2>Settings</h2>
     <label class="check"><input type="checkbox" id="syncViewed" /> <span><b>Sync with GitHub Viewed</b> (off by default). When you mark a file reviewed in the panel, CodeSloth also ticks GitHub's own <i>Viewed</i> checkbox for that file on the Files changed page, and unticks it when you unmark. It does this by clicking the checkbox in the page, like you would. It never calls a GitHub API, and the token stays read-only. It's best effort: if the checkbox can't be found or doesn't change, the file gets a ⊘ icon in the panel.</span></label>
     <fieldset class="fonts">
-      <legend><b>Code font</b> (file names, folders, SHAs and graph labels in the panel)</legend>
+      <legend><b>Code font</b> (file names, folders, SHAs and graph labels in the panel; OpenDyslexic is a dyslexia-friendly option)</legend>
       <label>Font <select id="codeFont">
         <option value="default">GitHub default</option>
         <option value="jetbrains">JetBrains Mono</option>
         <option value="fira">Fira Code</option>
         <option value="iosevka">Iosevka</option>
+        <option value="opendyslexic">OpenDyslexic</option>
       </select></label>
       <label>Size <select id="fontSize">
         <option value="small">Small</option>
         <option value="default">Default</option>
         <option value="large">Large</option>
       </select></label>
-      <label class="check"><input type="checkbox" id="ligatures" /> <span>Ligatures (on by default for JetBrains Mono and Fira Code)</span></label>
+      <label class="check" id="ligRow"><input type="checkbox" id="ligatures" /> <span>Ligatures (on by default for JetBrains Mono and Fira Code)</span></label>
+      <label class="check" id="uiRow"><input type="checkbox" id="uiFont" /> <span>Use for all panel text (headings, why-lines and reasons too; off by default). With OpenDyslexic this uses its proportional cut.</span></label>
       <label class="check"><input type="checkbox" id="diffFont" /> <span>Also use in GitHub diffs (off by default; best effort)</span></label>
       <p class="muted small">The fonts ship inside the extension (SIL Open Font License); nothing is loaded from the web. Also available from <b>Aa</b> in the panel's tab row. Changes apply to open PR tabs right away.</p>
     </fieldset>
