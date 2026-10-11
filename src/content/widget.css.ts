@@ -81,6 +81,7 @@ ol.steps { list-style:none; margin:0; padding:0; }
 .chev { color:var(--muted); transition:transform .15s; display:inline-block; }
 .step.open .chev { transform:rotate(90deg); }
 .chg-ico { color:#d4a72c; font-size:12px; }
+.unsync { color:var(--muted); font-size:12px; cursor:help; }
 .tick { flex:none; width:15px; height:15px; cursor:pointer; }
 .sbody { padding:0 12px 10px 44px; }
 .why { margin:0 0 8px; color:var(--muted); font-size:12.5px; }

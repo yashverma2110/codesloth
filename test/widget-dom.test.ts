@@ -386,4 +386,62 @@ describe("Widget (DOM)", () => {
     key("n", input);
     expect(s.querySelector('[aria-current="true"]')?.getAttribute("data-path")).toBe("src/ui/b.ts");
   });
+
+  it("with 'Sync with GitHub Viewed' on, marking clicks GitHub's Viewed control; failures show a not-synced icon", async () => {
+    prefs.syncViewed = true;
+    // GitHub's classic file for src/a.ts with an unchecked Viewed checkbox; nothing rendered for b.ts
+    const f = document.createElement("div");
+    f.className = "file";
+    f.setAttribute("data-tagsearch-path", "src/a.ts");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.name = "viewed";
+    f.append(cb);
+    document.body.append(f);
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const ft = s.querySelector('.ftick[data-path="src/a.ts"]') as HTMLInputElement;
+    ft.checked = true;
+    ft.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(cb.checked).toBe(true));
+    // unmark unchecks it
+    (s.querySelector('.ftick[data-path="src/a.ts"]') as HTMLInputElement).checked = false;
+    s.querySelector('.ftick[data-path="src/a.ts"]')!.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(cb.checked).toBe(false));
+    // a file GitHub hasn't rendered ends up flagged (after the wait times out)
+    (s.querySelectorAll(".sh")[1] as HTMLButtonElement).click();
+    const fb = s.querySelector('.ftick[data-path="src/ui/b.ts"]') as HTMLInputElement;
+    fb.checked = true;
+    fb.dispatchEvent(new Event("change"));
+    await vi.waitFor(() => expect(s.querySelector('.fbtn[data-path="src/ui/b.ts"] .unsync')).not.toBeNull(), { timeout: 6000 });
+    expect(s.querySelector('.fbtn[data-path="src/ui/b.ts"] .unsync')!.getAttribute("title")).toMatch(/Not synced/);
+    // never any write API from the extension
+    expect(calls.every((c) => ["widget:getPosition", "auth:status", "analyze", "reviewed:get", "reviewed:set", "prefs:get", "prefs:set"].includes(c.type))).toBe(true);
+    f.remove();
+    delete prefs.syncViewed;
+  }, 10000);
+
+  it("sync is off by default: GitHub's Viewed checkbox is left alone", async () => {
+    const f = document.createElement("div");
+    f.setAttribute("data-tagsearch-path", "src/a.ts");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.name = "viewed";
+    f.append(cb);
+    document.body.append(f);
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    (s.querySelector(".step.open .next") as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(cb.checked).toBe(false);
+    f.remove();
+  });
 });

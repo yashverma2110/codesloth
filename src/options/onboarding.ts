@@ -81,6 +81,9 @@ async function init() {
     chrome.storage.local.set({ [OWNER_KEY]: $<HTMLInputElement>("owner").value.trim() });
   });
   $("create").addEventListener("click", () => chrome.tabs.create({ url: tokenCreationUrl({ owner: $<HTMLInputElement>("owner").value, expiresInDays: config.tokenExpiresInDays }) }));
+  const sync = $<HTMLInputElement>("syncViewed");
+  sync.checked = (await chrome.storage.local.get("pref.syncViewed"))["pref.syncViewed"] === true;
+  sync.addEventListener("change", () => void chrome.storage.local.set({ "pref.syncViewed": sync.checked }));
   $("validate").addEventListener("click", () => go(false));
   $("save").addEventListener("click", () => go(true));
   $("clear").addEventListener("click", async () => {

@@ -7,6 +7,8 @@ export interface ReviewHandlers {
   open: ReadonlySet<string>;
   /** Selected file path (highlighted, aria-current). */
   selected: string | null;
+  /** Files whose GitHub "Viewed" sync failed: path -> tooltip. */
+  unsynced?: ReadonlyMap<string, string>;
   onSelect(path: string): void;
   onToggleFile(file: LayerFile, reviewed: boolean): void;
   onToggleStep(layer: Layer, reviewed: boolean): void;
@@ -82,6 +84,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
         for (const f of g.files) {
           const fr = fileReview(state, f);
           const sel = h.selected === f.path;
+          const unsync = h.unsynced?.get(f.path);
           const st = STATUS_LABEL[f.status] ?? "Modified";
           const stTitle = f.previousPath ? `${st} from ${f.previousPath}` : st;
           const bar = el("span", { class: "bar", "aria-hidden": "true" });
@@ -96,12 +99,13 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
               type: "button",
               class: "fbtn",
               "data-path": f.path,
-              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? ", changed since reviewed" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}`,
+              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? ", changed since reviewed" : ""}${unsync ? ", not synced with GitHub Viewed" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}`,
               ...(sel ? { "aria-current": "true" } : {}),
             },
             icon,
             el("span", { class: "fname" }, f.name),
             fr === "changed" ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
+            unsync ? el("span", { class: "unsync", title: unsync, "aria-hidden": "true" }, "⊘") : "",
             el("span", { class: "nums" }, bar, el("span", { class: "add" }, `+${f.additions}`), f.deletions > 0 ? el("span", { class: "del" }, `−${f.deletions}`) : ""),
             el("span", { class: "reason" }, f.reason),
           );

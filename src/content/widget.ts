@@ -1,5 +1,7 @@
 import type { AnalyzeResult, AuthStatus, PrefKey, PRRef, Request, Response } from "../shared/messages";
 import { diffAnchor, prKey } from "../shared/pr-url";
+import { scrollToDiff } from "./scroll";
+import { SYNC_MESSAGES, syncViewed } from "./viewed-sync";
 import type { Layer } from "../engine/types";
 import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
 import { GRAPH_CSS } from "../graph/svg";
@@ -88,6 +90,10 @@ export class Widget {
   private review: ReviewState = emptyReview();
   /** Selected file (highlighted; target of "Mark file as reviewed & next"). */
   private selected: string | null = null;
+  /** "Sync with GitHub Viewed" (options page / ⋯ menu); off by default. */
+  private syncOn = false;
+  /** Files whose GitHub Viewed state couldn't be synced: path -> tooltip. */
+  private unsynced = new Map<string, string>();
   private demo = false;
   private auth: AuthStatus | null = null;
   private busy = false;
@@ -194,6 +200,7 @@ export class Widget {
     this.cleanups.push(() => ro.disconnect());
 
     this.pos = await loadPosition({ get: () => rpc({ type: "widget:getPosition" }), set: async () => {} }, viewport());
+    void this.loadSyncPref();
     const savedView = await getPref<View>("view");
     this.setView(savedView === "graph" ? "graph" : "review", false);
     this.layout();
@@ -235,6 +242,7 @@ export class Widget {
     this.bubble.setAttribute("aria-expanded", String(want));
     this.layout();
     if (want) {
+      void this.loadSyncPref();
       void this.refreshAuth().then(() => {
         if (!this.result) void this.analyze(false);
       });
@@ -312,6 +320,7 @@ export class Widget {
       item(this.demo ? "Reload demo" : "Re-analyze", () => (this.demo ? this.loadDemo() : void this.analyze(true))),
       item("Take the tour", () => this.startTour()),
       this.demo ? item("Exit demo", () => this.exitDemo()) : item("Try demo (sample PR, no token needed)", () => this.loadDemo(true)),
+      this.syncItem(),
       item("Token & settings…", () => void rpc({ type: "openOnboarding" })),
       ...(meta.length ? [el("div", { class: "sep", role: "separator" }), ...meta] : []),
     );
@@ -484,6 +493,7 @@ export class Widget {
       renderReview(res.plan, this.review, {
         open: this.openSteps,
         selected: this.selected,
+        unsynced: this.unsynced,
         onSelect: (p) => this.select(p),
         onToggleFile: (f, on) => this.setFileReviewed(f, on),
         onToggleStep: (l, on) => this.setStepReviewed(l, on),
@@ -517,6 +527,7 @@ export class Widget {
     if (!res) return;
     this.review = setFilesReviewed(this.review, l.files, on, res.meta.headSha);
     this.saveReview();
+    void this.syncFiles(l.files, on);
     if (on) {
       this.openSteps.delete(l.id);
       const cur = currentStep(res.plan, this.review);
@@ -529,6 +540,7 @@ export class Widget {
     if (!this.result) return;
     this.review = setFilesReviewed(this.review, [f], on, this.result.meta.headSha);
     this.saveReview();
+    void this.syncFiles([f], on);
     this.renderAll();
     this.focusIn(`.ftick[data-path="${CSS.escape(f.path)}"]`);
   }
@@ -569,10 +581,53 @@ export class Widget {
       const step = `[data-layer="${CSS.escape(res.plan.layers[next.layer].id)}"]`;
       if (focusCta) this.focusIn(`${step} .next`);
       this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(next.path)}"]`)?.scrollIntoView?.({ block: "nearest" });
-      void this.jump(next.path);
     } else {
       this.focusIn(".alldone");
     }
+    // Tick GitHub's Viewed first (if enabled), let the page settle, then scroll to the next file.
+    void this.syncFiles([file], true).then(() => (next ? this.jump(next.path) : undefined));
+  }
+
+  private async loadSyncPref() {
+    this.syncOn = (await getPref<boolean>("syncViewed")) === true;
+    if (!this.syncOn && this.unsynced.size) {
+      this.unsynced.clear();
+      this.renderAll();
+    }
+  }
+
+  private syncItem() {
+    const b = el("button", { type: "button", role: "menuitemcheckbox", "aria-checked": String(this.syncOn), title: "Best effort: ticks GitHub's own per-file Viewed checkbox when you mark a file reviewed here" }, `${this.syncOn ? "✓ " : ""}Sync with GitHub Viewed`);
+    b.addEventListener("click", () => {
+      this.toggleMenu(false);
+      this.syncOn = !this.syncOn;
+      void setPref("syncViewed", this.syncOn);
+      if (!this.syncOn && this.unsynced.size) {
+        this.unsynced.clear();
+        this.renderAll();
+      }
+    });
+    return b;
+  }
+
+  /**
+   * Best-effort: mirror reviewed ticks onto GitHub's per-file Viewed control by clicking it in the page.
+   * Resolves once the clicks for rendered files have happened (not when GitHub confirms them).
+   */
+  private async syncFiles(files: readonly LayerFile[], want: boolean): Promise<void> {
+    if (this.demo || !this.syncOn || !files.length) return;
+    const env = { doc: document, win: window };
+    const anchors = await Promise.all(files.map((f) => diffAnchor(f.path)));
+    const results = files.map((f, i) =>
+      syncViewed(f.path, anchors[i], want, env).then((r) => {
+        const had = this.unsynced.has(f.path);
+        if (r === "missing" || r === "failed") this.unsynced.set(f.path, SYNC_MESSAGES[r]);
+        else this.unsynced.delete(f.path);
+        if (had !== this.unsynced.has(f.path) || r === "missing" || r === "failed") this.renderAll();
+      }),
+    );
+    void Promise.all(results);
+    await new Promise<void>((r) => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
   }
 
   /** j / k: move the selection through files in review order. */
@@ -700,12 +755,5 @@ export async function jumpTo(path: string): Promise<void> {
   const m = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)/.exec(location.pathname);
   if (!m) return;
   const onFiles = /\/pull\/\d+\/(files|changes)(\/|$)/.test(location.pathname);
-  if (!onFiles) {
-    location.href = `https://github.com/${m[1]}/${m[2]}/pull/${m[3]}/files#${anchor}`;
-    return;
-  }
-  if (location.hash === `#${anchor}`) history.replaceState(null, "", location.pathname + location.search);
-  location.hash = anchor;
-  const target = document.getElementById(anchor) ?? document.querySelector(`[data-tagsearch-path="${CSS.escape(path)}"]`);
-  target?.scrollIntoView({ block: "start" });
+  await scrollToDiff(path, anchor, `https://github.com/${m[1]}/${m[2]}/pull/${m[3]}/files`, onFiles, { doc: document, win: window });
 }

@@ -6,6 +6,7 @@
 import { parsePrUrl } from "../shared/pr-url";
 import type { TabMessage } from "../shared/messages";
 import { HOST_ID, jumpTo, Widget } from "./widget";
+import { settleInitialHash } from "./scroll";
 
 declare global {
   interface Window {
@@ -69,4 +70,6 @@ if (!window.__prLayersLoaded) {
   window.addEventListener("popstate", check);
   setInterval(check, 800);
   check();
+  // Arrived on Files changed with a file anchor (e.g. from the full-tab graph): settle below the sticky bars.
+  void settleInitialHash({ doc: document, win: window });
 }

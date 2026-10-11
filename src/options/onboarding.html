@@ -48,6 +48,11 @@
     <div id="result"></div>
   </section>
 
+  <section>
+    <h2>Settings</h2>
+    <label class="check"><input type="checkbox" id="syncViewed" /> <span><b>Sync with GitHub Viewed</b> (off by default). When you mark a file reviewed in the panel, PR Layers also ticks GitHub's own <i>Viewed</i> checkbox for that file on the Files changed page, and unticks it when you unmark. It does this by clicking the checkbox in the page, like you would. It never calls a GitHub API, and the token stays read-only. It's best effort: if the checkbox can't be found or doesn't change, the file gets a ⊘ icon in the panel.</span></label>
+  </section>
+
   <section class="muted small">
     <h2>Privacy</h2>
     <p>The token is stored in <code>chrome.storage.local</code> on this device (restricted to the extension itself, not readable by github.com pages or the in-page widget) and sent only as the Authorization header of GET requests to <code>api.github.com</code>. PR code is processed locally and never sent anywhere else.</p>

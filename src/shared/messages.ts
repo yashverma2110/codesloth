@@ -44,7 +44,7 @@ export type Request =
   | { type: "cache:clear" };
 
 /** Widget preferences content scripts may read/write (nothing sensitive). */
-export const PREF_KEYS = ["view", "tourDone"] as const;
+export const PREF_KEYS = ["view", "tourDone", "syncViewed"] as const;
 export type PrefKey = (typeof PREF_KEYS)[number];
 
 export type Response<T = unknown> = { ok: true; data: T } | { ok: false; error: string; code?: string };
