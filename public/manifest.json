@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "PR Layers",
-  "version": "0.5.2",
-  "description": "Review big GitHub pull requests layer by layer: contracts \u2192 core \u2192 callers \u2192 tests \u2192 config \u2192 generated. Read-only, local, no AI.",
+  "name": "CodeSloth",
+  "version": "0.6.0",
+  "short_name": "CodeSloth",
+  "description": "Take your time and actually read the code. Review big GitHub PRs in a sensible order. Read-only, local, no AI.",
   "minimum_chrome_version": "110",
   "icons": {
     "16": "icons/icon16.png",
@@ -10,7 +11,7 @@
     "128": "icons/icon128.png"
   },
   "action": {
-    "default_title": "PR Layers",
+    "default_title": "CodeSloth",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"
@@ -49,7 +50,7 @@
         "default": "Alt+Shift+L",
         "mac": "Alt+Shift+L"
       },
-      "description": "Toggle the PR Layers widget on the current pull request"
+      "description": "Toggle the CodeSloth widget on the current pull request"
     }
   }
 }

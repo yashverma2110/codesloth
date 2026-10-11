@@ -32,7 +32,7 @@ import {
   type WidgetPosition,
 } from "./widget-logic";
 
-export const HOST_ID = "pr-layers-widget-host";
+export const HOST_ID = "codesloth-widget-host";
 export type View = "review" | "graph";
 const DEMO = demoData as unknown as AnalyzeResult;
 const DEMO_HISTORY = demoHistory as unknown as CommitHistory;
@@ -119,17 +119,17 @@ export class Widget {
     this.root = el("div", { class: "root" });
     shadow.append(this.root);
 
-    this.bubble = el("button", { class: "bubble", type: "button", title: "PR Layers (Alt+Shift+L)", "aria-label": "Toggle PR Layers", "aria-expanded": "false" }) as HTMLButtonElement;
+    this.bubble = el("button", { class: "bubble", type: "button", title: "CodeSloth (Alt+Shift+L)", "aria-label": "Toggle CodeSloth", "aria-expanded": "false" }) as HTMLButtonElement;
     this.bubble.append(toDom(ICON), el("span", { class: "dot" }));
 
-    this.titleEl = el("div", { class: "ttl" }, "PR Layers");
+    this.titleEl = el("div", { class: "ttl" }, "CodeSloth");
     this.menuBtn = el("button", { type: "button", class: "icon", title: "More: re-analyze, tour, demo, settings, details", "aria-label": "More options", "aria-haspopup": "menu", "aria-expanded": "false" }, "⋯") as HTMLButtonElement;
     const closeBtn = el("button", { type: "button", class: "x", title: "Close (Esc)", "aria-label": "Close" }, "✕");
     const hdr = el("div", { class: "hdr" }, this.titleEl, this.menuBtn, closeBtn);
     this.menu = el("div", { class: "menu", role: "menu", hidden: "" });
 
     // GitHub-style underline tabs with full ARIA tab semantics.
-    const tablist = el("div", { class: "tabs", role: "tablist", "aria-label": "PR Layers views" });
+    const tablist = el("div", { class: "tabs", role: "tablist", "aria-label": "CodeSloth views" });
     const mkTab = (v: View, label: string) => el("button", { type: "button", role: "tab", id: `prl-tab-${v}`, "aria-controls": `prl-pane-${v}`, "aria-selected": "false", tabindex: "-1", class: "tab" }, label) as HTMLButtonElement;
     this.tabs = { review: mkTab("review", "Review"), graph: mkTab("graph", "Graph") };
     tablist.append(this.tabs.review, this.tabs.graph);
@@ -139,7 +139,7 @@ export class Widget {
     };
     this.bannerEl = el("div", { class: "banner", hidden: "" });
     this.subEl = el("div", { class: "sub", "aria-live": "polite" });
-    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "PR Layers" }, hdr, this.menu, tablist, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
+    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tablist, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
     this.panel.hidden = true;
     this.root.append(this.panel, this.bubble);
     // documentElement (not body): GitHub's Turbo navigation replaces <body>.
@@ -239,7 +239,7 @@ export class Widget {
       this.result = null;
       this.panes.review.replaceChildren();
       this.subEl.textContent = "";
-      this.titleEl.textContent = pr ? `PR Layers · #${pr.number}` : "PR Layers";
+      this.titleEl.textContent = pr ? `CodeSloth · #${pr.number}` : "CodeSloth";
       if (this.open) void this.analyze(false);
     }
   }
@@ -272,7 +272,7 @@ export class Widget {
     }
     const none = this.auth?.method !== "pat";
     this.bubble.classList.toggle("needs-setup", none);
-    this.bubble.title = none ? "PR Layers: set up a read-only token (or try the demo)" : `PR Layers (@${this.auth?.login ?? "token"}) · Alt+Shift+L`;
+    this.bubble.title = none ? "CodeSloth: set up a read-only token (or try the demo)" : `CodeSloth (@${this.auth?.login ?? "token"}) · Alt+Shift+L`;
     if (none && this.open && !this.demo) this.renderSetup();
   }
 
@@ -416,7 +416,7 @@ export class Widget {
       el(
         "div",
         { class: "setup" },
-        el("p", {}, "PR Layers needs a fine-grained GitHub token with only ", el("b", {}, "Pull requests: Read-only"), " and ", el("b", {}, "Contents: Read-only"), "."),
+        el("p", {}, "CodeSloth needs a fine-grained GitHub token with only ", el("b", {}, "Pull requests: Read-only"), " and ", el("b", {}, "Contents: Read-only"), "."),
         el("p", { class: "muted" }, "The token stays inside the extension. This page never sees it."),
         el("div", { class: "row" }, btn, demo),
         el("p", { class: "muted" }, "Try demo loads a real sample (fastapi/fastapi#16403) so you can learn the Review and Graph tabs without a token."),
@@ -482,7 +482,7 @@ export class Widget {
     this.panes.review.replaceChildren();
     this.panes.graph.replaceChildren();
     this.graphView = null;
-    this.titleEl.textContent = this.pr ? `PR Layers · #${this.pr.number}` : "PR Layers";
+    this.titleEl.textContent = this.pr ? `CodeSloth · #${this.pr.number}` : "CodeSloth";
     void this.refreshAuth().then(() => this.analyze(false));
   }
 

@@ -10,7 +10,7 @@ const out = process.argv[2] ?? ".tmp/render";
 mkdirSync(out, { recursive: true });
 mkdirSync(".tmp/harness", { recursive: true });
 await build({ entryPoints: ["src/dev/harness.ts"], bundle: true, format: "esm", outfile: ".tmp/harness/harness.js", target: "chrome120", logLevel: "warning" });
-const page0 = `<!doctype html><html data-color-mode="light"><head><meta charset="utf-8"><style>body{margin:0;font:14px -apple-system,sans-serif;background:#fff;color:#59636e}</style></head><body><p style="padding:16px">Headless render of the PR Layers widget (real code, real sample plan; chrome.runtime mocked).</p><script type="module" src="/.tmp/harness/harness.js"></script></body></html>`;
+const page0 = `<!doctype html><html data-color-mode="light"><head><meta charset="utf-8"><style>body{margin:0;font:14px -apple-system,sans-serif;background:#fff;color:#59636e}</style></head><body><p style="padding:16px">Headless render of the CodeSloth widget (real code, real sample plan; chrome.runtime mocked).</p><script type="module" src="/.tmp/harness/harness.js"></script></body></html>`;
 const srv = createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   if (u.pathname === "/") return res.writeHead(200, { "content-type": "text/html" }).end(page0);

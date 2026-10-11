@@ -1,5 +1,5 @@
 /**
- * Content script on github.com. Mounts the floating PR Layers widget (shadow DOM) on PR pages only,
+ * Content script on github.com. Mounts the floating CodeSloth widget (shadow DOM) on PR pages only,
  * following GitHub's soft (Turbo) navigation, and removes it elsewhere. It never touches the token
  * or chrome.storage; all data comes from the background worker via messages.
  */
@@ -10,12 +10,12 @@ import { settleInitialHash } from "./scroll";
 
 declare global {
   interface Window {
-    __prLayersLoaded?: boolean;
+    __codeslothLoaded?: boolean;
   }
 }
 
-if (!window.__prLayersLoaded) {
-  window.__prLayersLoaded = true;
+if (!window.__codeslothLoaded) {
+  window.__codeslothLoaded = true;
   let widget: Widget | null = null;
   let mounting: Promise<void> | null = null;
   let lastUrl = "";

@@ -52,7 +52,7 @@ describe("scroll offset", () => {
     rect(fh, 0, 300);
     document.body.append(f);
     const host = sticky("js-sticky", 0, 500, "fixed");
-    host.id = "pr-layers-widget-host";
+    host.id = "codesloth-widget-host";
     expect(stickyOffset(env(), f)).toBe(112);
   });
   it("caps the offset", () => {

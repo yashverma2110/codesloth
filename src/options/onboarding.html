@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PR Layers · Setup</title>
+  <title>CodeSloth · Setup</title>
   <link rel="stylesheet" href="onboarding.css" />
 </head>
 <body>
 <main>
-  <h1>PR Layers setup</h1>
-  <p class="lead">PR Layers groups a large pull request into ordered layers so you can review it bottom-up. It runs entirely in your browser and only <b>reads</b> from GitHub, using a fine-grained personal access token that you create and paste here. No app registration, no backend.</p>
+  <h1>CodeSloth setup</h1>
+  <p class="lead">CodeSloth groups a large pull request into ordered layers so you can review it bottom-up. It runs entirely in your browser and only <b>reads</b> from GitHub, using a fine-grained personal access token that you create and paste here. No app registration, no backend.</p>
 
   <section id="current" hidden>
     <h2>Current token</h2>
@@ -24,7 +24,7 @@
     <p><button id="create" class="primary">Open GitHub token page (pre-filled) ↗</button></p>
     <p class="muted">Opens <code id="createUrl"></code></p>
     <ol>
-      <li><b>Token name</b>: pre-filled as <code>PR Layers (read-only)</code>.</li>
+      <li><b>Token name</b>: pre-filled as <code>CodeSloth (read-only)</code>.</li>
       <li><b>Expiration</b>: pre-filled to 90 days. Shorter is fine; avoid "No expiration".</li>
       <li><b>Resource owner</b>: pick your organization (e.g. Wayground). If it isn't listed and the org uses SAML SSO, first open the org on github.com and sign in through SSO, then reload the token page. Fine-grained tokens are SSO-authorized at creation, so there's no separate "Configure SSO" step.</li>
       <li><b>Repository access</b>: <i>Only select repositories</i> and choose the repos you review (GitHub can't pre-fill this). "All repositories" also works but grants more than needed.</li>
@@ -43,14 +43,14 @@
       <input id="testRepo" placeholder="owner/repo" autocomplete="off" />
     </label>
     <label class="check"><input type="checkbox" id="attest" /> I confirm this token has only <b>Pull requests: Read-only</b> and <b>Contents: Read-only</b> (plus automatic Metadata), and no write permissions.</label>
-    <p class="muted">Why the checkbox? GitHub doesn't let an extension read a fine-grained token's permissions, so write access can't be detected automatically. Classic tokens are rejected outright. PR Layers itself only ever sends GET requests.</p>
+    <p class="muted">Why the checkbox? GitHub doesn't let an extension read a fine-grained token's permissions, so write access can't be detected automatically. Classic tokens are rejected outright. CodeSloth itself only ever sends GET requests.</p>
     <p><button id="validate">Validate</button> <button id="save" class="primary">Validate &amp; save</button></p>
     <div id="result"></div>
   </section>
 
   <section>
     <h2>Settings</h2>
-    <label class="check"><input type="checkbox" id="syncViewed" /> <span><b>Sync with GitHub Viewed</b> (off by default). When you mark a file reviewed in the panel, PR Layers also ticks GitHub's own <i>Viewed</i> checkbox for that file on the Files changed page, and unticks it when you unmark. It does this by clicking the checkbox in the page, like you would. It never calls a GitHub API, and the token stays read-only. It's best effort: if the checkbox can't be found or doesn't change, the file gets a ⊘ icon in the panel.</span></label>
+    <label class="check"><input type="checkbox" id="syncViewed" /> <span><b>Sync with GitHub Viewed</b> (off by default). When you mark a file reviewed in the panel, CodeSloth also ticks GitHub's own <i>Viewed</i> checkbox for that file on the Files changed page, and unticks it when you unmark. It does this by clicking the checkbox in the page, like you would. It never calls a GitHub API, and the token stays read-only. It's best effort: if the checkbox can't be found or doesn't change, the file gets a ⊘ icon in the panel.</span></label>
   </section>
 
   <section class="muted small">

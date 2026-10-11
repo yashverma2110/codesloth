@@ -76,7 +76,7 @@ export function headerOf(el: HTMLElement): HTMLElement {
  * Height covered by GitHub's sticky/fixed bars at the top of the viewport (header, PR toolbar, file tree bar).
  * Ignores the target itself and anything inside it, and our own widget host.
  */
-export function stickyOffset(env: ScrollEnv, target?: Element | null, excludeId = "pr-layers-widget-host"): number {
+export function stickyOffset(env: ScrollEnv, target?: Element | null, excludeId = "codesloth-widget-host"): number {
   // excludeId: the widget host (see HOST_ID in widget.ts).
   const { doc, win } = env;
   let bottom = 0;

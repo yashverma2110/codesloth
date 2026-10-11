@@ -527,7 +527,7 @@ describe("Widget (DOM)", () => {
     (s.querySelector('.fbtn[data-path="src/a.ts"]') as HTMLButtonElement).click();
     expect(s.querySelector(".cm, .story, .tl, .latest")).toBeNull();
     w.unmount();
-    document.getElementById("pr-layers-widget-host")?.remove();
+    document.getElementById("codesloth-widget-host")?.remove();
     replies["history:get"] = () => {
       throw new Error("rate limited");
     };

@@ -1,6 +1,8 @@
-# PR Layers: review big GitHub PRs layer by layer
+# CodeSloth
 
-PR Layers is a browser extension (Manifest V3; Chrome, Arc, Edge, Brave) for **human** code review. It reads a large GitHub pull request and groups its files into ordered **layers**:
+**Take your time and actually read the code.** Review big GitHub PRs in a sensible order.
+
+CodeSloth is a browser extension (Manifest V3; Chrome, Arc, Edge, Brave) for **human** code review. It reads a large GitHub pull request and groups its files into ordered **layers**:
 
 > mechanical → contracts & schemas → core → callers (by import depth) → standalone → deleted code → tests → config/docs/assets → generated & lockfiles
 
@@ -15,9 +17,11 @@ This is the Week-1 MVP of the reviewer-side "virtual stack" described in the pro
 
 ---
 
+> **Renamed from PR Layers (v0.6.0).** The extension, repo (`yashverma2110/codesloth`) and zip (`codesloth.zip`) are now called CodeSloth. Nothing about how it works changed. Storage keys were never named after the product (`auth.pat`, `widget.position`, `reviewed.*`, `pref.*`) and the IndexedDB cache keeps its internal name, so your token, ticks and settings carry over. One catch: Chrome ties an unpacked extension's data to the folder it was loaded from. To keep them, **unzip the new build over your existing folder and click ↻ Reload** on the extensions page instead of loading a new folder. Loading it from a new folder gives it a new ID and a fresh start (you'd paste your token again).
+
 ## Install (load unpacked)
 
-1. Get the build. Download `pr-stacks-extension.zip` from the repo's **Releases** (v0.3.0+) and unzip it, or build it yourself (`npm ci && npm run build` gives you `dist/`).
+1. Get the build. Download `codesloth.zip` from the repo's **Releases** (v0.6.0+; older releases call it `pr-stacks-extension.zip`) and unzip it, or build it yourself (`npm ci && npm run build` gives you `dist/`).
 2. Open your browser's extensions page and turn on **Developer mode**:
    - Chrome / Brave: `chrome://extensions` / `brave://extensions`
    - Edge: `edge://extensions` (toggle at the bottom left)
@@ -79,10 +83,10 @@ The Review tab is a **checklist of numbered steps** in reading order. At the top
 4. **Keyboard:** everything is a real button or checkbox (Tab, Enter, Space). While focus is in the panel, and not in a text field like the graph search, **n** = mark & next, **j / k** = select the next / previous file (in review order, opening steps as needed). These keys never fire while you're typing in GitHub.
 5. **⚠ Changed since you reviewed it.** Each reviewed file stores its blob SHA. If a later push changes a reviewed file, the file loses its ✓ and gets a ⚠, and its step shows ⚠ and becomes current again, so you only re-read what moved. Review state is stored in this browser per PR. Per-step ticks from v0.3/v0.4 are carried over as per-file ticks with the same SHAs.
 
-**Smooth scrolling to a file.** Selecting a file (list, graph, the CTA, **n**, **j/k**) scrolls GitHub's Files changed page smoothly to that file's diff. The file header ends up just below GitHub's sticky header and PR toolbar, and gets a brief ~1 s outline. The URL hash is updated with `history.replaceState`, so GitHub doesn't do its own instant jump. GitHub's React Files changed view only renders the files near what's on screen, so a file may not be in the page yet. In that case PR Layers uses GitHub's own `#diff-…` anchor jump, waits for the file to appear (up to 4 s), then makes a final smooth adjustment. On another PR tab (Conversation, Commits) it opens Files changed at that file. With **prefers-reduced-motion** the scroll is instant and there's no outline. The panel's selection and keyboard focus stay where they are.
+**Smooth scrolling to a file.** Selecting a file (list, graph, the CTA, **n**, **j/k**) scrolls GitHub's Files changed page smoothly to that file's diff. The file header ends up just below GitHub's sticky header and PR toolbar, and gets a brief ~1 s outline. The URL hash is updated with `history.replaceState`, so GitHub doesn't do its own instant jump. GitHub's React Files changed view only renders the files near what's on screen, so a file may not be in the page yet. In that case CodeSloth uses GitHub's own `#diff-…` anchor jump, waits for the file to appear (up to 4 s), then makes a final smooth adjustment. On another PR tab (Conversation, Commits) it opens Files changed at that file. With **prefers-reduced-motion** the scroll is instant and there's no outline. The panel's selection and keyboard focus stay where they are.
 
 **Sync with GitHub Viewed (optional, off by default).** Turn it on under **⋯ → Sync with GitHub Viewed** or in **Token & settings**. Then marking a file reviewed in the panel (the CTA, **n**, the row checkbox or the step checkbox) also ticks GitHub's own per-file **Viewed** checkbox, and unmarking unticks it. Details:
-- **It's a best-effort DOM sync.** PR Layers finds that file's Viewed control on the Files changed page and clicks it, exactly as if you had. It finds the file by its `#diff-<sha256(path)>` anchor or path attribute, and the control by its checkbox name, label or `aria-pressed`, not by class names. That works for both the classic and the React view.
+- **It's a best-effort DOM sync.** CodeSloth finds that file's Viewed control on the Files changed page and clicks it, exactly as if you had. It finds the file by its `#diff-<sha256(path)>` anchor or path attribute, and the control by its checkbox name, label or `aria-pressed`, not by class names. That works for both the classic and the React view.
 - It clicks only when GitHub's state differs, so a file that's already Viewed is left alone.
 - **No API writes.** The extension never calls `markFileAsViewed` or any other GitHub write API, and the token stays read-only. The write is GitHub's own page doing what it always does when you tick Viewed.
 - If the file isn't rendered yet (virtualized), it waits for it to mount (up to 4 s). If the control can't be found, or GitHub's state doesn't change after the click, nothing breaks: the row shows a small **⊘** with a tooltip saying it wasn't synced. GitHub's Viewed state never flows back into the panel.
@@ -90,7 +94,7 @@ The Review tab is a **checklist of numbered steps** in reading order. At the top
 
 ### Commit story
 
-Once the plan is on screen, PR Layers loads the PR's commit history in the background and shows how each file got to its final state:
+Once the plan is on screen, CodeSloth loads the PR's commit history in the background and shows how each file got to its final state:
 
 - **File rows** get a small **N commits** chip (how many of the PR's commits changed that file). Hover, focus or select a file to see **Latest: <message> · <relative time>** under its reason.
 - **The selected file** gets a **Commit history · N** toggle, closed by default (the *Latest* line stays visible). Click it, or press Enter/Space on it, to expand. The expanded/collapsed choice applies to every file and lasts for the browser session (`chrome.storage.session`). Expanded, it shows the **3 most recent** commits (still oldest → newest), plus **+ K earlier commits · Show all N** to reveal the rest inline and **Show fewer** to go back; files with 3 or fewer commits have no show-all link. The toggle never jumps to the file, and n / j / k keep working. Each entry is a mini timeline row, one-line message, author initials (full name on hover), relative time, that commit's +/− for this file, and the short SHA, which links to the commit on github.com. The PR's newest commit is tagged **newest**. If the file had another name in an older commit (renamed later), that entry says *as old_name*.
@@ -151,7 +155,7 @@ https://github.com/settings/personal-access-tokens/new
 
 On GitHub:
 
-1. **Token name:** pre-filled as `PR Layers (read-only)`.
+1. **Token name:** pre-filled as `CodeSloth (read-only)`.
 2. **Expiration:** pre-filled to 90 days. Avoid "No expiration".
 3. **Resource owner:** your organization. Type its slug on the setup page to pre-fill `target_name`.
    - **SAML SSO orgs:** fine-grained tokens are SSO-authorized *during creation* ([docs](https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-single-sign-on/authorizing-a-personal-access-token-for-use-with-single-sign-on)). If the org doesn't appear under Resource owner, first open the org on github.com and sign in through SSO, then reload the token page. Fine-grained tokens have no separate "Configure SSO" step; that step only exists for classic tokens.
@@ -169,7 +173,7 @@ The token is stored in `chrome.storage.local` on this device. Access is restrict
 
 ## Why write tokens are rejected, and what can and can't be detected
 
-PR Layers needs read access only, so it refuses tokens it can tell are write-capable. Every check uses read-only `GET` requests. **The extension never sends a write request to probe a token.**
+CodeSloth needs read access only, so it refuses tokens it can tell are write-capable. Every check uses read-only `GET` requests. **The extension never sends a write request to probe a token.**
 
 | Check | How | Reliable? |
 |---|---|---|
@@ -183,9 +187,9 @@ PR Layers needs read access only, so it refuses tokens it can tell are write-cap
 | Expiry date | `GitHub-Authentication-Token-Expiration` response header, when present | ⚠️ Shown if present. Not relied on: I couldn't find this header in the docs I checked. |
 | **Fine-grained token (`github_pat_…`) has write permissions** (e.g. *Pull requests: Read and write*, *Contents: Read and write*, or anything extra) | — | ❌ **Not detectable without a write.** |
 
-**Why the fine-grained case can't be detected.** Fine-grained tokens don't report their permissions in any header ([no `X-OAuth-Scopes`](https://github.com/github/github-mcp-server/blob/main/docs/scope-filtering.md)). `X-Accepted-GitHub-Permissions` only says what an endpoint *requires*, not what the token *has* ([docs](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api)). The repo endpoint's `permissions` field describes the **user's** role, not the token's, so PR Layers ignores it. The API that lists fine-grained tokens and their permissions is only for org admins, and only GitHub Apps can call it ([docs](https://docs.github.com/en/rest/orgs/personal-access-tokens)). The only other way to find out would be to attempt a write, and the extension never does that.
+**Why the fine-grained case can't be detected.** Fine-grained tokens don't report their permissions in any header ([no `X-OAuth-Scopes`](https://github.com/github/github-mcp-server/blob/main/docs/scope-filtering.md)). `X-Accepted-GitHub-Permissions` only says what an endpoint *requires*, not what the token *has* ([docs](https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api)). The repo endpoint's `permissions` field describes the **user's** role, not the token's, so CodeSloth ignores it. The API that lists fine-grained tokens and their permissions is only for org admins, and only GitHub Apps can call it ([docs](https://docs.github.com/en/rest/orgs/personal-access-tokens)). The only other way to find out would be to attempt a write, and the extension never does that.
 
-**What PR Layers does instead:**
+**What CodeSloth does instead:**
 
 1. The pre-filled link requests only `pull_requests=read` and `contents=read`.
 2. You confirm with a checkbox that the token has only those permissions. Saving is blocked until you do.
@@ -269,7 +273,7 @@ npm ci
 npm run typecheck     # tsc --noEmit
 npm test              # vitest: engine, token validation, API client, widget, graph build/layout, review state, tour (pure + happy-dom DOM tests)
 npm run build         # esbuild -> dist/
-npm run package       # typecheck + test + build + /workspace/pr-stacks-extension.zip
+npm run package       # typecheck + test + build + /workspace/codesloth.zip
 npm run analyze-pr -- go-gitea/gitea#39426   # run the engine on a real PR via `gh api` (read-only)
 npx tsx scripts/make-demo-plan.ts fastapi/fastapi#16403 src/demo/demo-plan.json   # regenerate the bundled demo plan (needs analyze-pr's .tmp cache)
 node scripts/dev/render-demo.mjs .tmp/render   # headless renders of the real widget (needs Chrome + puppeteer-core)

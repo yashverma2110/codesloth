@@ -88,7 +88,7 @@ async function refreshBadge() {
   const s = await getStatus();
   await chrome.action.setBadgeText({ text: s.method === "none" ? "!" : "" });
   await chrome.action.setBadgeBackgroundColor({ color: "#d1242f" });
-  await chrome.action.setTitle({ title: s.method === "none" ? "PR Layers: set up a read-only token" : `PR Layers (@${s.login ?? "token set"})` });
+  await chrome.action.setTitle({ title: s.method === "none" ? "CodeSloth: set up a read-only token" : `CodeSloth (@${s.login ?? "token set"})` });
 }
 
 
@@ -238,7 +238,7 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
     }
     case "graph:getPlan": {
       const cached = await cacheGet<CachedAnalysis>("analysis", analysisKey(msg.pr.owner, msg.pr.repo, msg.pr.number, msg.headSha));
-      if (!cached) throw new Error("No analysis cached for this PR yet. Open the PR and run PR Layers first.");
+      if (!cached) throw new Error("No analysis cached for this PR yet. Open the PR and run CodeSloth first.");
       return { pr: msg.pr, meta: cached.meta, plan: cached.plan, fromCache: true } satisfies AnalyzeResult;
     }
     case "graph:jump": {

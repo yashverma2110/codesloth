@@ -1,4 +1,5 @@
 /** Tiny IndexedDB wrapper. Stores: "analysis" (key owner/repo/number/headSha), "blobs" (key blob sha), "etags" (key url). */
+// Internal name kept from the "PR Layers" days so existing caches stay valid after the CodeSloth rename.
 const DB_NAME = "pr-layers";
 const DB_VERSION = 1;
 const STORES = ["analysis", "blobs", "etags"] as const;

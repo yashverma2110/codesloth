@@ -112,7 +112,7 @@ export function validateTokenFormat(token: string): ValidationResult {
   } else if (kind === "classic") {
     errors.push({
       code: "classic_token",
-      message: "This is a classic personal access token (ghp_…). Classic tokens can't be limited to read-only pull request access, so PR Layers doesn't accept them.",
+      message: "This is a classic personal access token (ghp_…). Classic tokens can't be limited to read-only pull request access, so CodeSloth doesn't accept them.",
       fix: CREATE_FIX + " You can delete the classic token afterwards.",
     });
   } else if (kind === "oauth" || kind === "app-user" || kind === "app-installation" || kind === "refresh") {
@@ -187,8 +187,8 @@ export function validateTokenProbe(token: string, probe: TokenProbe, now = Date.
 /** Pre-filled fine-grained token creation URL (documented query params: name, description, target_name, expires_in, <permission>=<level>). */
 export function tokenCreationUrl(opts: { owner?: string; expiresInDays?: number } = {}): string {
   const p = new URLSearchParams();
-  p.set("name", "PR Layers (read-only)");
-  p.set("description", "Read-only token for the PR Layers Chrome extension: reads pull request files and file contents. Never used to write.");
+  p.set("name", "CodeSloth (read-only)");
+  p.set("description", "Read-only token for the CodeSloth Chrome extension: reads pull request files and file contents. Never used to write.");
   if (opts.owner?.trim()) p.set("target_name", opts.owner.trim());
   p.set("expires_in", String(opts.expiresInDays ?? 90));
   p.set("pull_requests", "read");
