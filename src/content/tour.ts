@@ -146,6 +146,10 @@ export const REVIEW_TOUR_TEXT = {
     title: "Mark file as reviewed & next",
     body: "When you've read the selected file, this marks it reviewed (\u2713), selects the next file and jumps to its diff. After the last file in a step, it opens the next step. ← Previous undoes the last one: it unticks that file and takes you back to it. Shortcuts while the panel has focus: n = mark & next, p = previous (undo), j / k = move the selection. Each file and step also has a checkbox. Reviews are saved only in this browser.",
   },
+  risk: {
+    title: "Risky changes",
+    body: "Rule-based flags for SQL and migrations, config and env, the data layer and API contracts. \u26d4 Likely breaking means the compiler and tests probably won't catch it; \u26a0 Review carefully means it's checked or additive but worth a closer look. Show only risky filters the steps, List jumps to each file, and r goes to the next risky file. Select a file to see each reason with a line link (e.g. R178) into the diff; Not breaking dismisses one for this PR. Sensitivity and categories are in \u22ef and Token & settings.",
+  },
   changed: {
     title: "Changed since you reviewed it",
     body: "If new commits change files you already reviewed, their ticks turn into an amber \u26a0 (stale) and this banner asks what to do: Untick changed files to re-read just those, or Keep my ticks. To start over, use \u21ba Restart review in the tab row. You can reopen this tour from \u22ef \u2192 Take the tour.",

@@ -1,7 +1,7 @@
 /**
  * Token validation. Pure functions so they can be unit tested.
  *
- * What GitHub exposes (see README "Token validation: what can and can't be detected"):
+ * What GitHub exposes (see docs/DEVELOPMENT.md "Why write tokens are rejected, and what can and can't be detected"):
  *  - Token type is visible from the prefix: ghp_ (classic PAT), github_pat_ (fine-grained PAT),
  *    gho_ (OAuth app), ghu_ (GitHub App user-to-server), ghs_ (App installation), ghr_ (refresh).
  *  - Classic PATs / OAuth tokens report their scopes in the X-OAuth-Scopes response header.

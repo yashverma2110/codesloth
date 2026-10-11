@@ -49,8 +49,8 @@ async function shot(p, name) {
   await sleep(300);
   await shot(p, "01-setup");
   await sh(p, () => [...window.__shadow.querySelectorAll(".setup .btn")].find((b) => b.textContent === "Try demo").click());
-  for (let i = 0; i < 5; i++) {
-    await shot(p, `0${2 + i}-tour-${i + 1}`);
+  for (let i = 0; i < 6; i++) {
+    await shot(p, `0${2 + i}-tour-${i + 1}`.replace(/^0(\d\d)/, "$1"));
     await sh(p, () => [...window.__shadow.querySelectorAll(".tour-card button")].find((b) => /Next|Done/.test(b.textContent)).click());
   }
   await shot(p, "07-review");

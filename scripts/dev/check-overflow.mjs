@@ -28,7 +28,15 @@ stress.history.files[longPath] = stress.history.files[target];
 delete stress.history.files[target];
 stress.history.commits[stress.history.files[longPath][0].c].message = "fix(document-analysis): degrade on unopenable PDFs, bound pageLimit, tidy comments and " + "x".repeat(140);
 stress.history.commits.at(-1).message = "Supercalifragilisticexpialidocious_".repeat(8);
+// v0.7.0 risky changes: the stress plan's amber file gets a long unbroken name, title and excerpt.
+const riskyPath = plan.risk.findings.find((f) => f.severity === "medium").path;
+const longRisky = riskyPath.replace(/[^/]+$/, "an_unreasonably_long_risky_file_name_with_no_natural_break_points_at_all_v3.go");
+for (const l of stress.plan.plan.layers) for (const f of l.files) if (f.path === riskyPath) f.path = longRisky;
+stress.plan.risk = structuredClone(plan.risk);
+for (const f of stress.plan.risk.findings) if (f.path === riskyPath) Object.assign(f, { path: longRisky, title: f.title + " ThisIsAVeryLongIdentifierWithoutSpacesThatShouldWrapSomewhere", excerpt: "x".repeat(300), why: f.why + " " + "y".repeat(120) });
+const red = JSON.parse(readFileSync("test/fixtures/risk/red-plan.json", "utf8"));
 const files = {
+  "/red-plan.json": JSON.stringify(red),
   "/plan.json": JSON.stringify(plan),
   "/history.json": JSON.stringify(history),
   "/stress-plan.json": JSON.stringify(stress.plan),
@@ -174,6 +182,57 @@ for (const c of cases) {
   if (!ok) failures++;
   console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}${c.ui ? "/ui" : ""}` : ""} restart=${r.state.restart} prev=${r.prev} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
   if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}${c.ui ? "-ui" : ""}` : ""}.png` });
+  await p.close();
+}
+// v0.7.0: risky-changes banner (list open), filter, selected file's findings card, row chips.
+const riskCases = [];
+for (const data of ["real", "stress", "red"])
+  for (const vw of [320, 1280])
+    for (const forced of vw === 1280 ? [null, 640] : [null])
+      for (const theme of ["light", "dark"]) for (const extra of ["risk-list", "risk-card", "risk-filter"]) riskCases.push({ data, vw, forced, theme, extra });
+for (const c of riskCases) {
+  const p = await browser.newPage({ viewport: { width: c.vw, height: 900 }, deviceScaleFactor: 1 });
+  p.on("pageerror", (e) => (console.error("pageerror", e.message), failures++));
+  const q = c.data === "red" ? "plan=/red-plan.json" : `plan=/${c.data === "stress" ? "stress-" : ""}plan.json&history=/${c.data === "stress" ? "stress-" : ""}history.json`;
+  await p.goto(`http://localhost:${port}/?${q}&story=1`);
+  await p.waitForFunction(() => window.__ready);
+  if (c.theme === "dark") await p.evaluate(() => document.documentElement.setAttribute("data-color-mode", "dark"));
+  await p.evaluate(() => window.__w.toggle("bubble"));
+  await p.waitForFunction(() => window.__shadow.querySelector(".riskbar"), undefined, { timeout: 5000 });
+  if (c.forced) await p.evaluate((w) => (window.__shadow.querySelector(".panel").style.width = w + "px"), c.forced);
+  if (c.extra === "risk-list") await p.evaluate(() => window.__shadow.querySelector('[data-act="risk-list"]').click());
+  if (c.extra === "risk-filter") await p.evaluate(() => window.__shadow.querySelector('[data-act="risk-filter"]').click());
+  if (c.extra === "risk-card") {
+    await p.evaluate(() => window.__shadow.querySelector('[data-act="risk-list"]').click());
+    await p.evaluate(() => window.__shadow.querySelector(".rlist .rrow").click());
+  }
+  await sleep(150);
+  const r = await p.evaluate((extra) => {
+    const s = window.__shadow;
+    const panel = s.querySelector(".panel").getBoundingClientRect();
+    const body = s.querySelector(".pane.body");
+    const bad = [];
+    for (const e of s.querySelectorAll(".panel *")) {
+      const b = e.getBoundingClientRect();
+      if (!b.width || !b.height || e.closest("[hidden]")) continue;
+      if (b.right > panel.right + 0.5 || b.left < panel.left - 0.5) bad.push(`${e.tagName.toLowerCase()}.${[...e.classList].join(".")} [${Math.round(b.left - panel.left)}..${Math.round(b.right - panel.left)}] of ${Math.round(panel.width)}`);
+    }
+    const chips = [...s.querySelectorAll(".fbtn .rchip, .rrow .rchip")];
+    const chipsOk = chips.length > 0 && chips.every((c) => c.getBoundingClientRect().height < 22 && c.title);
+    const files = [...s.querySelectorAll("li.file")];
+    const state = {
+      list: !!s.querySelector("#prl-risk-list:not([hidden]) .rrow"),
+      card: !!s.querySelector("li.file.sel .rcard .fd .lref") && [...s.querySelectorAll("li.file.sel .rcard .ex")].every((x) => x.getBoundingClientRect().height < 24),
+      filter: files.length > 0 && files.every((f) => /risk-(high|medium|low)/.test(f.className)),
+      stepCount: !!s.querySelector(".sh .rcnt"),
+    };
+    const want = extra === "risk-list" ? state.list : extra === "risk-card" ? state.card : state.filter;
+    return { bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], chipsOk, state, want };
+  }, c.extra);
+  const ok = !r.bad.length && r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0 && r.chipsOk && r.want && r.state.stepCount;
+  if (!ok) failures++;
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra}: scroll ${r.scroll.join("/")}, chips ${r.chipsOk}, ${JSON.stringify(r.state)}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra}.png` });
   await p.close();
 }
 await browser.close();

@@ -110,6 +110,22 @@
       <label class="check"><input type="checkbox" id="diffFont" /> <span>Also use in GitHub diffs (off by default; best effort)</span></label>
       <p class="muted small">The fonts ship inside the extension (SIL Open Font License); nothing is loaded from the web. Also available from <b>Aa</b> in the panel's tab row. Changes apply to open PR tabs right away.</p>
     </fieldset>
+    <fieldset class="fonts risk" id="riskSettings">
+      <legend><b>Risky changes</b> (rule-based flags for SQL/migrations, config, the data layer and API contracts)</legend>
+      <div role="radiogroup" aria-label="Sensitivity" class="sens">
+        <label><input type="radio" name="riskSensitivity" value="relaxed" /> Relaxed <span class="muted small">(likely breaking only)</span></label>
+        <label><input type="radio" name="riskSensitivity" value="normal" /> Normal <span class="muted small">(+ review carefully)</span></label>
+        <label><input type="radio" name="riskSensitivity" value="strict" /> Strict <span class="muted small">(+ worth a look)</span></label>
+      </div>
+      <div class="cats">
+        <label class="check"><input type="checkbox" data-cat="sql" /> <span>SQL &amp; migrations</span></label>
+        <label class="check"><input type="checkbox" data-cat="config" /> <span>Config &amp; infra</span></label>
+        <label class="check"><input type="checkbox" data-cat="data" /> <span>Data layer</span></label>
+        <label class="check"><input type="checkbox" data-cat="api" /> <span>API contracts</span></label>
+        <label class="check"><input type="checkbox" data-cat="deps" /> <span>Dependencies</span></label>
+      </div>
+      <p class="muted small">A repo can tune rules with an optional <code>.codesloth.yml</code>, read from the PR's <b>base</b> branch so a PR can't silence its own warnings (see the README). If the repo asks for a stricter sensitivity, the stricter one applies. Also in the panel's ⋯ menu. Changes apply to open PR tabs right away.</p>
+    </fieldset>
   </section>
 
   <section class="muted small">

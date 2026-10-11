@@ -1,3 +1,4 @@
+import { normalizeRiskPrefs } from "../engine/risk/prefs";
 import { FONT_PREF_KEYS, FONTS, ligaturesOn, normalizeFontPrefs } from "../shared/fonts";
 import type { AuthStatus, TokenValidationResponse } from "../shared/messages";
 import { send } from "../shared/messages";
@@ -136,6 +137,18 @@ async function init() {
     void chrome.storage.local.set({ "pref.ligatures": lig.checked });
   });
   diff.addEventListener("change", () => void chrome.storage.local.set({ "pref.diffFont": diff.checked }));
+  // Risky changes: sensitivity + category toggles (pref.riskSensitivity, pref.riskOff = disabled categories).
+  const rs = await chrome.storage.local.get(["pref.riskSensitivity", "pref.riskOff"]);
+  const rp = normalizeRiskPrefs(rs["pref.riskSensitivity"], rs["pref.riskOff"]);
+  for (const r of document.querySelectorAll<HTMLInputElement>('input[name="riskSensitivity"]')) {
+    r.checked = r.value === rp.sensitivity;
+    r.addEventListener("change", () => r.checked && void chrome.storage.local.set({ "pref.riskSensitivity": r.value }));
+  }
+  const cats = [...document.querySelectorAll<HTMLInputElement>("input[data-cat]")];
+  for (const c of cats) {
+    c.checked = !rp.off.includes(c.dataset.cat as never);
+    c.addEventListener("change", () => void chrome.storage.local.set({ "pref.riskOff": cats.filter((x) => !x.checked).map((x) => x.dataset.cat) }));
+  }
   $("validate").addEventListener("click", () => go(false));
   $("save").addEventListener("click", () => go(true));
   $("clear").addEventListener("click", async () => {

@@ -2,6 +2,7 @@
 import type { Layer, LayerFile, LayerPlan } from "../engine/types";
 import { authored, fileStory, relTime, stepCommits, storyActive, type CommitHistory } from "../shared/history";
 import type { StaleSummary } from "./review-logic";
+import { activeRisk, findingsCard, riskBanner, riskChip, type RiskView, SEV_LABEL, stepRiskCount } from "./risk-view";
 import { ctaTarget, currentStep, fileReview, groupByFolder, isLastUnreviewed, layerReview, summarize, type ReviewState } from "./review-logic";
 
 export interface ReviewHandlers {
@@ -41,6 +42,8 @@ export interface ReviewHandlers {
   canPrevious?: boolean;
   /** File "← Previous" would untick, for its tooltip. */
   previousPath?: string | null;
+  /** Risky changes (undefined = not available). */
+  risk?: RiskView;
 }
 
 function prevButton(h: ReviewHandlers): HTMLElement {
@@ -186,9 +189,13 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
     if (h.canPrevious && h.onPrevious) done.append(prevButton(h));
     root.append(done);
   }
-  const wrap = el("ol", { class: "steps", "aria-label": "Review steps" });
+  const banner = h.risk ? riskBanner(plan, h.risk) : null;
+  if (banner) root.append(banner);
+  const filtering = !!(banner && h.risk?.filter);
+  const wrap = el("ol", { class: "steps", "aria-label": filtering ? "Review steps, risky files only" : "Review steps" });
   const cur = currentStep(plan, state);
   plan.layers.forEach((l, i) => {
+    if (filtering && !l.files.some((f) => activeRisk(h.risk, f.path))) return;
     const lr = layerReview(l, state);
     const done = lr.state === "done";
     const isOpen = h.open.has(l.id);
@@ -204,6 +211,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
       num,
       el("span", { class: "h" }, el("span", { class: "sr" }, `Step ${i + 1}${done ? ", reviewed" : lr.state === "partial" ? `, ${lr.reviewed} of ${files(l.files.length)} reviewed` : ""}${lr.changed.length ? ", changed since reviewed" : ""}: `), l.title),
       lr.changed.length ? el("span", { class: "chg-ico", title: "Changed since you reviewed it", "aria-hidden": "true" }, "⚠") : "",
+      stepRiskCount(h.risk, l.files.map((f) => f.path)),
       el("span", { class: "cnt" }, count),
       el("span", { class: "chev", "aria-hidden": "true" }, "›"),
     );
@@ -224,7 +232,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
       }
       if (hist) body.append(stepStory(hist, l.files.map((f) => f.path)));
       const max = Math.max(1, ...l.files.map((f) => f.additions));
-      for (const g of groupByFolder(l.files)) {
+      for (const g of groupByFolder(filtering ? l.files.filter((f) => activeRisk(h.risk, f.path)) : l.files)) {
         if (g.dir) body.append(el("div", { class: "folder", title: g.dir }, g.dir));
         const ul = el("ul", { class: "files" });
         for (const f of g.files) {
@@ -238,6 +246,8 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
           const stTitle = f.previousPath ? `${st} from ${f.previousPath}` : st;
           const bar = el("span", { class: "bar", "aria-hidden": "true" });
           bar.style.width = `${Math.max(2, Math.round((f.additions / max) * 40))}px`;
+          const risk = activeRisk(h.risk, f.path);
+          const riskTitle = risk ? risk.findings.map((x) => `${x.title}${x.line ? ` (${x.line.side}${x.line.n})` : ""}`).join("\n") : "";
           const staleMsgs = fr === "changed" ? (h.staleCommits?.get(f.path) ?? []) : [];
           const staleTitle = `Changed since you reviewed${staleMsgs.length ? ` · new commits: ${staleMsgs.join(" · ")}` : ""}`;
           const icon =
@@ -252,12 +262,13 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
               type: "button",
               class: "fbtn",
               "data-path": f.path,
-              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? `, reviewed but stale: ${staleTitle.toLowerCase()}` : ""}${unsync ? ", not synced with GitHub Viewed" : ""}${n ? `, ${commits(n)}` : ""}${story?.afterReview ? ", after review" : ""}${story?.lateChange ? ", late change" : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}${latest ? `. Latest commit: ${latest.message}, ${relTime(latest.date, h.now)}` : ""}`,
+              "aria-label": `${f.path}, ${st.toLowerCase()}${fr === "reviewed" ? ", reviewed" : fr === "changed" ? `, reviewed but stale: ${staleTitle.toLowerCase()}` : ""}${unsync ? ", not synced with GitHub Viewed" : ""}${n ? `, ${commits(n)}` : ""}${story?.afterReview ? ", after review" : ""}${story?.lateChange ? ", late change" : ""}${risk ? `, ${SEV_LABEL[risk.severity].toLowerCase()}: ${risk.findings.map((x) => x.title).join("; ")}` : ""}, ${f.additions} added, ${f.deletions} removed. ${f.reason}${latest ? `. Latest commit: ${latest.message}, ${relTime(latest.date, h.now)}` : ""}`,
               ...(sel ? { "aria-current": "true" } : {}),
             },
             icon,
             el("span", { class: "fname", title: f.path }, f.name),
             unsync ? el("span", { class: "unsync", title: unsync, "aria-hidden": "true" }, "⊘") : "",
+            risk ? riskChip(risk.severity, `${SEV_LABEL[risk.severity]}:\n${riskTitle}`) : "",
             n ? el("span", { class: "cm", title: story!.touches.map((t) => t.commit.message).join("\n") }, commits(n)) : "",
             story?.afterReview ? chip("After review", "A commit that changed this file looks like a review follow-up") : "",
             story?.lateChange ? chip("Late change", "Only changed in the PR's newest commit", "dash") : "",
@@ -268,7 +279,11 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
           const ft = el("input", { type: "checkbox", class: "ftick" + (fr === "changed" ? " stale" : ""), "data-path": f.path, title: fr === "reviewed" ? "Unmark reviewed" : fr === "changed" ? `${staleTitle}. Uncheck to remove the tick` : "Mark reviewed", "aria-label": `Mark ${f.name} reviewed` }) as HTMLInputElement;
           ft.checked = fr !== "none"; // stale ticks stay ticked (amber) until you decide
           ft.addEventListener("change", () => h.onToggleFile(f, ft.checked));
-          const row = el("li", { class: ["file", sel ? "sel" : "", fr === "reviewed" ? "rev" : "", fr === "changed" ? "chg" : ""].filter(Boolean).join(" ") }, btn, ft);
+          const row = el("li", { class: ["file", sel ? "sel" : "", fr === "reviewed" ? "rev" : "", fr === "changed" ? "chg" : "", risk ? `risk-${risk.severity}` : ""].filter(Boolean).join(" ") }, btn, ft);
+          if (sel && h.risk) {
+            const card = findingsCard(f.path, h.risk.byFile.get(f.path), h.risk);
+            if (card) row.append(card);
+          }
           if (sel && hist && n) row.append(timeline(hist, f, h));
           if (!root.querySelector('[data-tour="file"]') && !body.querySelector('[data-tour="file"]')) row.setAttribute("data-tour", "file");
           ul.append(row);
@@ -281,7 +296,7 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
         const name = target.path.slice(target.path.lastIndexOf("/") + 1);
         const btn = el("button", { type: "button", class: "btn primary next", "data-tour": "next", title: `Marks ${name} reviewed (shortcut: n)` }, last ? "Mark file as reviewed ✓" : "Mark file as reviewed & next →");
         btn.addEventListener("click", () => h.onMarkNext(l));
-        body.append(el("div", { class: "sfoot" }, el("div", { class: "ctarow" }, prevButton(h), btn), el("div", { class: "hint", title: `For ${name} · n next · p previous · j/k move` }, `For ${name} · n next · p previous · j/k move`)));
+        body.append(el("div", { class: "sfoot" }, el("div", { class: "ctarow" }, prevButton(h), btn), el("div", { class: "hint", title: `For ${name} · n next · p previous${banner ? " · r next risky" : ""} · j/k move` }, `For ${name} · n next · p previous${banner ? " · r next risky" : ""} · j/k move`)));
       }
       li.append(body);
     }

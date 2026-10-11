@@ -163,6 +163,15 @@ export class GitHubClient {
     return { status: st, aheadBy: j.ahead_by ?? 0 };
   }
 
+  /** File names in a directory at a ref (one GET), or undefined if missing. */
+  async listDir(pr: PRRef, dir: string, ref: string): Promise<string[] | undefined> {
+    const enc = dir.split("/").map(encodeURIComponent).join("/");
+    const res = await this.request(`/repos/${pr.owner}/${pr.repo}/contents/${enc}?ref=${ref}`, { allow404: true });
+    if (res.status === 404) return undefined;
+    const j = (await res.json()) as { name?: string; type?: string }[] | unknown;
+    return Array.isArray(j) ? j.filter((x) => x && x.type === "file" && typeof x.name === "string").map((x) => x.name as string) : undefined;
+  }
+
   /** Raw file contents at a ref, or undefined if missing / too large. */
   async getRaw(pr: PRRef, path: string, ref: string): Promise<string | undefined> {
     const enc = path.split("/").map(encodeURIComponent).join("/");

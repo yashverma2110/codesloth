@@ -1,6 +1,9 @@
 import config from "../../config/extension.config.json";
 import { analyze, ENGINE_VERSION, filesNeedingContents } from "../engine/analyze";
 import type { LayerPlan, PRFile } from "../engine/types";
+import { analyzeRisk } from "../engine/risk";
+import type { RiskReport } from "../engine/risk/types";
+import { isMigration, isSchemaFile } from "../engine/risk/paths";
 import type { AnalyzeResult, PRMeta, PRRef, Request, Response, TabMessage } from "../shared/messages";
 import { isAllowedSender, PREF_KEYS, SESSION_PREF_KEYS } from "../shared/messages";
 
@@ -77,9 +80,9 @@ async function notifyGitHubTabs(msg: TabMessage) {
   await Promise.all(tabs.map((t) => (t.id ? chrome.tabs.sendMessage(t.id, msg).catch(() => {}) : undefined)));
 }
 
-// Font settings changed (widget popover or settings page): tell open GitHub tabs to re-apply live.
+// Font or risk settings changed (widget popover or settings page): tell open GitHub tabs to re-apply live.
 chrome.storage.onChanged.addListener(async (changes, area) => {
-  if (area !== "local" || !Object.keys(changes).some((k) => FONT_PREF_KEYS.some((f) => k === `pref.${f}`))) return;
+  if (area !== "local" || !Object.keys(changes).some((k) => [...FONT_PREF_KEYS, "riskSensitivity", "riskOff"].some((f) => k === `pref.${f}`))) return;
   for (const t of await chrome.tabs.query({ url: "https://github.com/*" })) if (t.id !== undefined) chrome.tabs.sendMessage(t.id, { type: "prefs:changed" } satisfies TabMessage).catch(() => {});
 });
 
@@ -106,6 +109,7 @@ interface CachedAnalysis {
   gitattributes?: string;
   goMods: Record<string, string>;
   plan: LayerPlan;
+  risk?: RiskReport;
   engineVersion: string;
   at: number;
 }
@@ -136,7 +140,7 @@ async function runAnalysis(pr: PRRef, force = false, tabId?: number): Promise<An
   const key = analysisKey(pr.owner, pr.repo, pr.number, meta.headSha);
   if (!force) {
     const cached = await cacheGet<CachedAnalysis>("analysis", key);
-    if (cached && cached.engineVersion === ENGINE_VERSION) return { pr, meta, plan: cached.plan, fromCache: true, rate: client.rate };
+    if (cached && cached.engineVersion === ENGINE_VERSION) return { pr, meta, plan: cached.plan, risk: cached.risk, fromCache: true, rate: client.rate };
   }
 
   progress(`Listing ${meta.changedFiles} changed files…`);
@@ -174,8 +178,50 @@ async function runAnalysis(pr: PRRef, force = false, tabId?: number): Promise<An
   if (want.length >= config.maxFilesToFetchContents)
     plan.warnings.push(`Read full contents for the first ${config.maxFilesToFetchContents} modified code files only (configurable).`);
 
-  await cachePut<CachedAnalysis>("analysis", key, { meta, files, contents, gitattributes, goMods, plan, engineVersion: ENGINE_VERSION, at: Date.now() });
-  return { pr, meta, plan, fromCache: false, rate: client.rate };
+  progress("Checking for risky changes…");
+  const risk = await riskPass(pr, meta, files, contents, plan);
+
+  await cachePut<CachedAnalysis>("analysis", key, { meta, files, contents, gitattributes, goMods, plan, risk, engineVersion: ENGINE_VERSION, at: Date.now() });
+  return { pr, meta, plan, risk, fromCache: false, rate: client.rate };
+}
+
+/**
+ * Read-only context for the risk rules (a handful of GETs, all at the base or head SHA):
+ * .codesloth.yml from the base branch, base versions of changed schema files, head versions of schema
+ * files we didn't already read, and base listings of migration directories that gain files.
+ */
+async function riskPass(pr: PRRef, meta: PRMeta, files: PRFile[], contents: Record<string, string>, plan: LayerPlan): Promise<RiskReport | undefined> {
+  try {
+    const soft = <T>(p: Promise<T>) => p.catch((e) => {
+      if (e instanceof GitHubError && e.code.includes("rate_limited")) throw e;
+      return undefined;
+    });
+    const configText = await soft(client.getRaw(pr, ".codesloth.yml", meta.baseSha));
+    const schema = files.filter((f) => (isSchemaFile(f.filename) || /\.prisma$/.test(f.filename)) && f.status !== "removed").slice(0, 4);
+    const baseContents: Record<string, string> = {};
+    const head: Record<string, string> = { ...contents };
+    await pool(schema, 4, async (f) => {
+      if (f.status !== "added") {
+        const t = await soft(getRawCached(pr, f.previous_filename ?? f.filename, meta.baseSha));
+        if (t !== undefined) baseContents[f.previous_filename ?? f.filename] = t;
+      }
+      if (head[f.filename] === undefined) {
+        const t = await soft(getRawCached(pr, f.filename, meta.headSha, f.sha));
+        if (t !== undefined) head[f.filename] = t;
+      }
+    });
+    const dirs = [...new Set(files.filter((f) => f.status === "added" && isMigration(f.filename, f.patch)).map((f) => f.filename.slice(0, f.filename.lastIndexOf("/"))))].slice(0, 3);
+    const baseDirs: Record<string, string[]> = {};
+    for (const d of dirs) {
+      const names = await soft(client.listDir(pr, d, meta.baseSha));
+      if (names) baseDirs[d] = names;
+    }
+    return analyzeRisk({ files, contents: head, baseContents, baseDirs, configText }, plan);
+  } catch (e) {
+    // Layers still work without it (e.g. rate-limited mid-pass); the widget says risk checks didn't run.
+    console.warn("CodeSloth: risk pass failed", e);
+    return undefined;
+  }
 }
 
 async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promise<unknown> {
@@ -249,7 +295,7 @@ async function handle(msg: Request, sender: chrome.runtime.MessageSender): Promi
     case "graph:getPlan": {
       const cached = await cacheGet<CachedAnalysis>("analysis", analysisKey(msg.pr.owner, msg.pr.repo, msg.pr.number, msg.headSha));
       if (!cached) throw new Error("No analysis cached for this PR yet. Open the PR and run CodeSloth first.");
-      return { pr: msg.pr, meta: cached.meta, plan: cached.plan, fromCache: true } satisfies AnalyzeResult;
+      return { pr: msg.pr, meta: cached.meta, plan: cached.plan, risk: cached.risk, fromCache: true } satisfies AnalyzeResult;
     }
     case "graph:jump": {
       try {

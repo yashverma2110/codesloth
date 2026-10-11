@@ -28,6 +28,13 @@ export const GRAPH_CSS = `
 .g-root.hovering .g-edge.hl { stroke-opacity:1; stroke-width:2.4; }
 .g-node.match rect.box { stroke:var(--accent,#0969da); stroke-width:2; }
 .g-node { cursor:pointer; }
+.g-node .ring { fill:none; stroke-width:2.5; rx:9; }
+.g-node.risk-high .ring { stroke:var(--risk-high,#cf222e); }
+.g-node.risk-medium .ring { stroke:var(--risk-med,#bf8700); }
+.g-node.risk-high rect.box { stroke:var(--risk-high,#cf222e); }
+.g-node.risk-medium rect.box { stroke:var(--risk-med,#bf8700); }
+.g-node .rg { font:13px sans-serif; }
+.g-node.risk-high .rg { fill:var(--risk-high,#cf222e); } .g-node.risk-medium .rg { fill:var(--risk-med,#bf8700); }
 `;
 
 export interface SvgOptions {
@@ -38,17 +45,20 @@ export interface SvgOptions {
 
 function nodeTree(n: GNode, x: number, y: number, w: number, hh: number): VNode {
   const color = layerColor(n.layerId);
-  const tip = [n.kind === "file" ? n.paths[0] : n.label, `+${n.additions} / −${n.deletions} · Step ${n.layerIndex + 1}: ${n.layerTitle}`, n.reason ?? "", n.reviewed ? "✓ reviewed" : "", n.changed ? "⚠ changed since reviewed" : ""]
+  const tip = [n.kind === "file" ? n.paths[0] : n.label, `+${n.additions} / −${n.deletions} · Step ${n.layerIndex + 1}: ${n.layerTitle}`, n.reason ?? "", n.reviewed ? "✓ reviewed" : "", n.changed ? "⚠ changed since reviewed" : "", n.risk === "high" ? "⛔ likely breaking (see the Review tab)" : n.risk === "medium" ? "⚠ review carefully (see the Review tab)" : ""]
     .filter(Boolean)
     .join("\n");
-  const cls = ["g-node", n.kind, n.reviewed ? "reviewed" : ""].filter(Boolean).join(" ");
+  const risky = n.risk === "high" || n.risk === "medium";
+  const cls = ["g-node", n.kind, n.reviewed ? "reviewed" : "", risky ? `risk-${n.risk}` : ""].filter(Boolean).join(" ");
   return h(
     "g",
-    { class: cls, "data-id": n.id, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`, tabindex: 0, role: "button", "aria-label": n.kind === "file" ? n.paths[0] : n.label },
+    { class: cls, "data-id": n.id, transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`, tabindex: 0, role: "button", "aria-label": `${n.kind === "file" ? n.paths[0] : n.label}${n.risk === "high" ? ", likely breaking" : n.risk === "medium" ? ", review carefully" : ""}` },
     h("title", {}, tip),
+    risky && h("rect", { class: "ring", x: -3.5, y: -3.5, width: w + 7, height: hh + 7 }),
     h("rect", { class: "box", width: w, height: hh }),
     h("rect", { width: 5, height: hh, rx: 2, fill: color }),
-    h("text", { class: "lbl", x: 14, y: 20 }, trunc(n.label, Math.floor((w - 36) / 8.2))),
+    risky && h("text", { class: "rg", x: 12, y: 20, "aria-hidden": "true" }, n.risk === "high" ? "⛔" : "⚠"),
+    h("text", { class: "lbl", x: risky ? 30 : 14, y: 20 }, trunc(n.label, Math.floor((w - (risky ? 52 : 36)) / 8.2))),
     h("text", { class: "meta", x: 14, y: hh - 10 }, h("tspan", { class: "a" }, `+${n.additions}`), " ", h("tspan", { class: "d" }, `−${n.deletions}`), n.kind === "file" && n.status ? ` · ${n.status}` : ""),
     n.reviewed && h("text", { class: "chk", x: w - 18, y: 20 }, "✓"),
     n.changed && h("circle", { class: "chg", cx: w - 11, cy: hh - 12, r: 4.5 }, h("title", {}, "changed since reviewed")),

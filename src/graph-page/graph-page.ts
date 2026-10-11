@@ -6,6 +6,8 @@ import { GRAPH_CSS } from "../graph/svg";
 import { emptyReview, normalizeReviewState, summarize } from "../content/review-logic";
 import demoData from "../demo/demo-plan.json";
 import { diffAnchor } from "../shared/pr-url";
+import { normalizeRiskPrefs, riskByFile, visibleFindings } from "../engine/risk";
+import { normalizeDismissed, riskKey } from "../shared/risk-keys";
 import { FONT_PREF_KEYS, fontFaceCss, fontVars, normalizeFontPrefs } from "../shared/fonts";
 
 /** Code font for node labels (same setting as the panel). */
@@ -53,7 +55,11 @@ async function main() {
     status.remove();
     document.getElementById("app")!.append(view.el);
     const s = summarize(res.plan, review);
-    view.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
+    // Same risky files as the panel: the user's sensitivity/categories minus "Not breaking" dismissals.
+    const [sens, off, dis] = await Promise.all([rpc({ type: "prefs:get", key: "riskSensitivity" }).catch(() => null), rpc({ type: "prefs:get", key: "riskOff" }).catch(() => null), demo ? {} : rpc({ type: "reviewed:get", key: riskKey(res.pr) }).catch(() => ({}))]);
+    const risk = new Map<string, "high" | "medium" | "low">();
+    for (const [p, v] of riskByFile(visibleFindings(res.risk, normalizeRiskPrefs(sens, off), res.risk?.sensitivity), normalizeDismissed(dis))) if (v.findings.length) risk.set(p, v.severity);
+    view.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths, risk });
   } catch (e) {
     status.textContent = (e as Error).message;
   }

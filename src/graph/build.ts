@@ -22,6 +22,8 @@ export interface GNode {
   group?: string;
   reviewed: boolean;
   changed: boolean;
+  /** Worst risky-change severity among the node's files (amber/red ring). */
+  risk?: "high" | "medium" | "low";
 }
 
 /**
@@ -72,6 +74,8 @@ export interface BuildOptions {
   /** Files marked reviewed (a node is dimmed when all its files are). */
   reviewedPaths?: ReadonlySet<string>;
   changedPaths?: ReadonlySet<string>;
+  /** Risky files: path -> worst active severity. */
+  risk?: ReadonlyMap<string, "high" | "medium" | "low">;
   /** Above this many nodes, files are clustered by directory (default 160). */
   maxNodes?: number;
 }
@@ -223,6 +227,11 @@ export function buildGraph(plan: LayerPlan, opts: BuildOptions = {}): Graph {
     neighbors.get(e.from)!.add(e.to);
     neighbors.get(e.to)!.add(e.from);
   }
+  if (opts.risk?.size)
+    for (const n of nodes) {
+      const sev = n.paths.map((p) => opts.risk!.get(p)).filter(Boolean);
+      n.risk = sev.includes("high") ? "high" : sev.includes("medium") ? "medium" : sev.length ? "low" : undefined;
+    }
   if (opts.reviewedPaths?.size) for (const n of nodes) if (!n.reviewed && n.paths.length && n.paths.every((p) => opts.reviewedPaths!.has(p))) n.reviewed = true;
   return { nodes, edges, layers, neighbors, clusteredFiles, totalFiles: plan.layers.reduce((s, l) => s + l.files.length, 0) };
 }

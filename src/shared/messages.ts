@@ -23,6 +23,8 @@ export interface AnalyzeResult {
   pr: PRRef;
   meta: PRMeta;
   plan: LayerPlan;
+  /** Risky-changes findings (rule-based). Missing on old caches or when the risk pass failed. */
+  risk?: import("../engine/risk/types").RiskReport;
   fromCache: boolean;
   rate?: { remaining: number; limit: number; reset: number };
 }
@@ -48,7 +50,7 @@ export type Request =
   | { type: "cache:clear" };
 
 /** Widget preferences content scripts may read/write (nothing sensitive). */
-export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen", "codeFont", "fontSize", "ligatures", "diffFont", "uiFont"] as const;
+export const PREF_KEYS = ["view", "tourDone", "syncViewed", "storyOpen", "codeFont", "fontSize", "ligatures", "diffFont", "uiFont", "riskSensitivity", "riskOff"] as const;
 /** Preferences kept only for the browser session (chrome.storage.session). */
 export const SESSION_PREF_KEYS: readonly string[] = ["storyOpen"];
 export type PrefKey = (typeof PREF_KEYS)[number];

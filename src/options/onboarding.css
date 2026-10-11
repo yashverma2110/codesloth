@@ -32,3 +32,6 @@ ol ul { margin:4px 0; }
 .privacy { border-left:3px solid var(--ok); padding:6px 10px; background:var(--chip); border-radius:0 6px 6px 0; color:var(--fg); }
 
 label.check[hidden] { display:none; }
+fieldset.risk .sens label { margin-right:14px; }
+fieldset.risk .cats { display:flex; flex-wrap:wrap; gap:2px 16px; margin-top:6px; }
+fieldset.risk .cats label.check { margin:0; }

@@ -138,3 +138,47 @@ describe("scrollToDiff", () => {
     expect(f.scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "start" });
   });
 });
+
+describe("line jumps (risky-change line refs)", () => {
+  it("classic view: finds GitHub's own #diff-<hash>R<n> cell, scrolls its row to the centre and sets the hash", async () => {
+    const { f } = fileEl();
+    const table = document.createElement("table");
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.id = `${ANCHOR}R12`;
+    tr.append(td);
+    table.append(tr);
+    f.append(table);
+    tr.scrollIntoView = vi.fn();
+    tr.animate = vi.fn() as never;
+    document.body.append(f);
+    const { scrollToLine } = await import("../src/content/scroll");
+    expect(await scrollToLine("src/a.ts", ANCHOR, "R", 12, "/o/r/pull/1/files", true, env({ reducedMotion: true }))).toBe("line");
+    expect(tr.scrollIntoView).toHaveBeenCalledWith({ behavior: "auto", block: "center" });
+    expect(location.hash).toBe(`#${ANCHOR}R12`);
+  });
+  it("React-view fallback: the line-number cell on the requested side; else stays on the file", async () => {
+    const { findLineElement, scrollToLine } = await import("../src/content/scroll");
+    const { f } = fileEl();
+    const row = document.createElement("div");
+    row.setAttribute("role", "row");
+    for (const n of ["7", "9"]) {
+      const c = document.createElement("div");
+      c.setAttribute("data-line-number", n);
+      row.append(c);
+    }
+    f.append(row);
+    document.body.append(f);
+    expect(findLineElement(document, f, ANCHOR, "R", 9)?.getAttribute("data-line-number")).toBe("9");
+    expect(findLineElement(document, f, ANCHOR, "L", 7)?.getAttribute("data-line-number")).toBe("7");
+    expect(findLineElement(document, f, ANCHOR, "R", 7)).toBeNull(); // 7 is the old-side number in that row
+    expect(await scrollToLine("src/a.ts", ANCHOR, "R", 400, "/o/r/pull/1/files", true, env({ reducedMotion: true, timeoutMs: 50 }))).toBe("file");
+  });
+  it("from another PR tab it navigates to the Files URL with the line anchor", async () => {
+    const { scrollToLine } = await import("../src/content/scroll");
+    const loc = { href: "" };
+    const win = { location: loc } as unknown as Window;
+    expect(await scrollToLine("src/a.ts", ANCHOR, "L", 3, "https://github.com/o/r/pull/1/files", false, { doc: document, win })).toBe("navigate");
+    expect(loc.href).toBe(`https://github.com/o/r/pull/1/files#${ANCHOR}L3`);
+  });
+});

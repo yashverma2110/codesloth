@@ -10,7 +10,7 @@ import { buildResolveContext, dirname, resolveGo, resolveJs, resolvePython } fro
 import { computeDepths } from "./graph";
 import { capitalize, contractKind, fileLabel, joinWords, isLockfile, namesList, plural } from "./copy";
 
-export const ENGINE_VERSION = "0.5.0";
+export const ENGINE_VERSION = "0.6.0";
 
 const MAX_CALLER_LEVELS = 4;
 const SPLIT_LAYER_FILES = 25;

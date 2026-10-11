@@ -4,6 +4,7 @@
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { analyze } from "../src/engine/analyze";
+import { analyzeRisk } from "../src/engine/risk";
 import type { PRFile } from "../src/engine/types";
 
 const [, , ref, out] = process.argv;
@@ -20,10 +21,14 @@ for (const f of files) {
 const ga = `${dir}/raw_.gitattributes`;
 const gm = `${dir}/raw_go.mod`;
 const plan = analyze({ files, contents, gitattributes: existsSync(ga) ? readFileSync(ga, "utf8") : undefined, goMods: existsSync(gm) ? { "go.mod": readFileSync(gm, "utf8") } : {} });
+// Risky changes from the same real data (no .codesloth.yml / base context: the demo has no network).
+const risk = analyzeRisk({ files, contents }, plan);
+risk.config = "Demo: computed from the sample's real diff; uses Strict so its low-level flags show.";
 const demo = {
   pr: { owner: m[1], repo: m[2], number: Number(m[3]) },
   meta: { title: pr.title, headSha: pr.head.sha, baseSha: pr.base.sha, changedFiles: pr.changed_files, additions: pr.additions, deletions: pr.deletions, htmlUrl: pr.html_url, state: pr.merged_at ? "merged" : pr.state },
   plan,
+  risk,
 };
 writeFileSync(out, JSON.stringify(demo));
-console.log(`wrote ${out}: ${plan.layers.length} layers, ${plan.edges.length} edges, ${JSON.stringify(demo).length} bytes`);
+console.log(`wrote ${out}: ${plan.layers.length} layers, ${plan.edges.length} edges, ${risk.findings.length} risk findings, ${JSON.stringify(demo).length} bytes`);

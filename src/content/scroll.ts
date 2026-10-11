@@ -191,3 +191,53 @@ export async function settleInitialHash(env: ScrollEnv): Promise<boolean> {
   flash(el, env);
   return true;
 }
+
+/* ---------------- line jumps (risky-change line refs) ---------------- */
+
+const NUM_CELL = "[data-line-number], td.blob-num, [class*='line-number' i], [class*='LineNumber']";
+
+/**
+ * A diff line's element. Classic view: GitHub's own `#diff-<sha256(path)>R<n>` / `L<n>` cell id (verified).
+ * Fallbacks for the React view (not verified signed-in): a `data-line-anchor` with that id, then the line-number
+ * cell whose number matches, taking the right-most number cell of its row for R and the left-most for L.
+ */
+export function findLineElement(doc: Document, fileEl: HTMLElement | null, anchor: string, side: "R" | "L", n: number): HTMLElement | null {
+  const id = `${anchor}${side}${n}`;
+  const byId = doc.getElementById(id);
+  if (byId) return byId;
+  for (const e of doc.querySelectorAll("[data-line-anchor]")) if (e.getAttribute("data-line-anchor") === id) return e as HTMLElement;
+  if (!fileEl) return null;
+  const want = String(n);
+  for (const cell of fileEl.querySelectorAll(NUM_CELL)) {
+    const num = (cell.getAttribute("data-line-number") ?? cell.textContent ?? "").trim();
+    if (num !== want) continue;
+    const row = cell.closest("tr, [role='row']") ?? cell.parentElement;
+    const cells = row ? [...row.querySelectorAll(NUM_CELL)].filter((c) => /^\d+$/.test((c.getAttribute("data-line-number") ?? c.textContent ?? "").trim())) : [cell];
+    if (cells.length < 2 || (side === "R" ? cells[cells.length - 1] === cell : cells[0] === cell)) return cell as HTMLElement;
+  }
+  return null;
+}
+
+export type LineResult = "line" | "file" | "navigate" | "missing" | "superseded";
+
+/** Jump to one diff line: file first (smooth or GitHub's anchor fallback), then the line; else stay on the file. */
+export async function scrollToLine(path: string, anchor: string, side: "R" | "L", n: number, filesUrl: string, onFilesTab: boolean, env: ScrollEnv): Promise<LineResult> {
+  if (!onFilesTab) {
+    env.win.location.href = `${filesUrl}#${anchor}${side}${n}`;
+    return "navigate";
+  }
+  const file = await scrollToDiff(path, anchor, filesUrl, true, env);
+  if (file === "superseded") return "superseded";
+  const gen = generation;
+  const fileEl = findDiffElement(env.doc, path, anchor);
+  const line = await waitForElement({ ...env, timeoutMs: Math.min(env.timeoutMs ?? 2500, 2500) }, () => findLineElement(env.doc, findDiffElement(env.doc, path, anchor), anchor, side, n));
+  if (gen !== generation) return "superseded";
+  if (!line) return fileEl ? "file" : "missing";
+  const row = (line.closest("tr, [role='row']") as HTMLElement | null) ?? line;
+  env.win.history.replaceState(env.win.history.state, "", `${env.win.location.pathname}${env.win.location.search}#${anchor}${side}${n}`);
+  const reduce = env.reducedMotion ?? prefersReducedMotion(env.win);
+  row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  if (!reduce && typeof row.animate === "function")
+    row.animate([{ backgroundColor: "rgba(212,167,44,.45)" }, { backgroundColor: "rgba(212,167,44,.45)", offset: 0.4 }, { backgroundColor: "rgba(212,167,44,0)" }], { duration: 1400, easing: "ease-out" });
+  return "line";
+}

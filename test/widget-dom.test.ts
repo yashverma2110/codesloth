@@ -198,7 +198,7 @@ describe("Widget (DOM)", () => {
     expect(set.value.files["src/a.ts"].headSha).toBe("abcdef1234");
   });
 
-  it("Try demo works without a token, shows the change flag and runs the 5-step tour once", async () => {
+  it("Try demo works without a token, shows the change flag and runs the 6-step tour once", async () => {
     replies["auth:status"] = () => ({ method: "none" });
     prefs = {};
     const w = new Widget();
@@ -221,13 +221,14 @@ describe("Widget (DOM)", () => {
     expect(s.querySelector(".step.current.changed.open")).not.toBeNull();
     await vi.waitFor(() => expect(s.querySelector(".tour-card")).not.toBeNull());
     const titles: string[] = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       titles.push(s.querySelector(".tour-card h4")!.textContent!);
       const next = [...s.querySelectorAll(".tour-card button")].find((b) => /Next|Done/.test(b.textContent!)) as HTMLButtonElement;
       next.click();
     }
-    expect(titles).toHaveLength(5);
-    expect(titles[4]).toMatch(/Changed since/);
+    expect(titles).toHaveLength(6);
+    expect(titles[4]).toBe("Risky changes");
+    expect(titles[5]).toMatch(/Changed since/);
     expect(s.querySelector(".tour-card")).toBeNull();
     expect(prefs.tourDone).toBe(true);
     // ticking in demo mode is not persisted, and no GitHub analysis was requested

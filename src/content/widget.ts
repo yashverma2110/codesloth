@@ -1,6 +1,10 @@
 import type { AnalyzeResult, AuthStatus, PrefKey, PRRef, Request, Response } from "../shared/messages";
 import { diffAnchor, prKey } from "../shared/pr-url";
-import { scrollToDiff } from "./scroll";
+import { scrollToDiff, scrollToLine } from "./scroll";
+import { dismissKey, normalizeRiskPrefs, riskByFile, visibleFindings, type FileRisk, type RiskPrefs, DEFAULT_RISK_PREFS } from "../engine/risk";
+import type { Finding } from "../engine/risk/types";
+import type { RiskView } from "./risk-view";
+import { normalizeDismissed, riskKey } from "../shared/risk-keys";
 import { SYNC_MESSAGES, syncViewed } from "./viewed-sync";
 import type { Layer } from "../engine/types";
 import { WIDGET_CSS, WIDGET_CSS_V3 } from "./widget.css";
@@ -140,6 +144,11 @@ export class Widget {
   private fontBtn!: HTMLButtonElement;
   private fontPop!: HTMLElement;
   private demo = false;
+  /** Risky changes: user settings, per-PR "Not breaking" dismissals, filter/list state. */
+  private riskPrefs: RiskPrefs = { ...DEFAULT_RISK_PREFS };
+  private dismissed: Record<string, string> = {};
+  private riskFilter = false;
+  private riskListOpen = false;
   private auth: AuthStatus | null = null;
   private busy = false;
   private preferredHeight?: number;
@@ -237,6 +246,7 @@ export class Widget {
       if (!this.fontPop.hidden && !e.composedPath().some((n) => n === this.fontPop || n === this.fontBtn)) this.toggleFontPop(false, false);
     });
     void this.loadFontPrefs();
+    void this.loadRiskPrefs();
     const onResizeWin = () => {
       this.pos = onResize(this.pos, viewport());
       this.layout();
@@ -380,6 +390,8 @@ export class Widget {
       for (const w of res.plan.warnings) meta.push(el("div", { class: "meta warn" }, "⚠ " + w));
       if (this.historyNote) meta.push(el("div", { class: "meta" }, this.historyNote));
       for (const n of this.history?.notes ?? []) meta.push(el("div", { class: "meta" }, `Commit story: ${n}`));
+      if (!res.risk && !this.demo) meta.push(el("div", { class: "meta warn" }, "⚠ Risky changes: checks didn't run for this analysis. Re-analyze to try again."));
+      else if (res.risk?.config) meta.push(el("div", { class: "meta" }, `Risky changes: ${res.risk.config}`));
     }
     this.menu.replaceChildren(
       item(this.demo ? "Reload demo" : "Re-analyze", () => (this.demo ? this.loadDemo() : void this.analyze(true))),
@@ -387,6 +399,7 @@ export class Widget {
       ...(this.result ? [item("Restart review…", () => this.askRestart())] : []),
       this.demo ? item("Exit demo", () => this.exitDemo()) : item("Try demo (sample PR, no token needed)", () => this.loadDemo(true)),
       this.syncItem(),
+      ...(this.result && !this.demo ? [item(`Risk sensitivity: ${this.riskPrefs.sensitivity[0].toUpperCase()}${this.riskPrefs.sensitivity.slice(1)} (click to change)`, () => this.cycleSensitivity())] : []),
       item("Token & settings…", () => void rpc({ type: "openOnboarding" })),
       ...(meta.length ? [el("div", { class: "sep", role: "separator" }), ...meta] : []),
     );
@@ -492,6 +505,7 @@ export class Widget {
       if (!this.pr || prKey(this.pr) !== prKey(pr) || this.demo) return;
       this.result = res;
       this.review = normalizeReviewState(await rpc({ type: "reviewed:get", key: prKey(res.pr) }).catch(() => ({})));
+      this.dismissed = normalizeDismissed(await rpc({ type: "reviewed:get", key: riskKey(res.pr) }).catch(() => ({})));
       this.renderAll();
       void this.maybeAutoTour();
       void this.loadHistory(res);
@@ -512,6 +526,9 @@ export class Widget {
     this.historyNote = null;
     this.historyKey = "demo";
     this.review = demoReview();
+    this.dismissed = {};
+    this.riskFilter = false;
+    this.riskListOpen = false;
     this.staleListOpen = false;
     this.compare = null;
     this.clearNotice();
@@ -535,6 +552,8 @@ export class Widget {
     this.history = null;
     this.historyKey = "";
     this.review = emptyReview();
+    this.dismissed = {};
+    this.riskFilter = false;
     this.bannerEl.hidden = true;
     this.panes.review.replaceChildren();
     this.panes.graph.replaceChildren();
@@ -554,6 +573,8 @@ export class Widget {
       this.openFor = key;
       this.openSteps = new Set();
       this.selected = null;
+      this.riskFilter = false;
+      this.riskListOpen = false;
       const cur = currentStep(res.plan, this.review);
       if (cur >= 0) this.openSteps.add(res.plan.layers[cur].id);
     }
@@ -617,6 +638,7 @@ export class Widget {
           this.saveReview();
           this.renderAll();
         },
+        risk: this.riskView(),
       }),
     );
     const top = this.panes.review.firstElementChild;
@@ -625,7 +647,118 @@ export class Widget {
     this.updateBubble();
     this.panes.review.scrollTop = scroll;
     if (this.view === "graph") this.renderGraph();
-    this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
+    this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths, risk: this.riskSeverities() });
+  }
+
+  /* ---------------- risky changes ---------------- */
+
+  /** Active (visible, not dismissed) findings grouped by file. */
+  private riskFiles(): Map<string, FileRisk> {
+    const r = this.result?.risk;
+    // The demo sample only has low-level flags, so demo mode shows Strict (it says so in the list).
+    const prefs = this.demo ? { ...this.riskPrefs, sensitivity: "strict" as const } : this.riskPrefs;
+    return riskByFile(visibleFindings(r, prefs, r?.sensitivity), this.dismissed);
+  }
+
+  private riskSeverities(): Map<string, "high" | "medium" | "low"> {
+    const out = new Map<string, "high" | "medium" | "low">();
+    for (const [p, v] of this.riskFiles()) if (v.findings.length) out.set(p, v.severity);
+    return out;
+  }
+
+  private riskView(): RiskView | undefined {
+    const res = this.result;
+    if (!res) return undefined;
+    const r = res.risk;
+    const notes: string[] = [];
+    if (!r) {
+      if (!this.demo) notes.push("Risk checks didn't run for this analysis. Re-analyze to try again.");
+    } else {
+      if (r.config) notes.push(r.config);
+      if (r.notChecked.length) notes.push(`Not checked (GitHub sent no diff): ${r.notChecked.length} file${r.notChecked.length === 1 ? "" : "s"}`);
+      const s = this.riskPrefs.sensitivity;
+      if (!this.demo) notes.push(`Sensitivity: ${s[0].toUpperCase()}${s.slice(1)}${r.sensitivity && r.sensitivity !== s ? ` (repo asks for ${r.sensitivity}; the stricter applies)` : ""}${this.riskPrefs.off.length ? ` · off: ${this.riskPrefs.off.join(", ")}` : ""}`);
+    }
+    return {
+      byFile: this.riskFiles(),
+      passed: r?.passed ?? [],
+      filter: this.riskFilter,
+      listOpen: this.riskListOpen,
+      notes,
+      onFilter: (on) => {
+        this.riskFilter = on;
+        if (on) for (const l of res.plan.layers) if (l.files.some((f) => this.riskFiles().get(f.path)?.findings.length)) this.openSteps.add(l.id);
+        this.renderAll();
+        this.focusIn('[data-act="risk-filter"]');
+      },
+      onList: (open) => {
+        this.riskListOpen = open;
+        this.renderAll();
+        this.focusIn('[data-act="risk-list"]');
+      },
+      onSelect: (p) => this.select(p, true),
+      onDismiss: (f) => this.setDismissed(f, true),
+      onRestore: (f) => this.setDismissed(f, false),
+      onLine: (f, line) => void this.jumpLine(f.path, line),
+    };
+  }
+
+  private setDismissed(f: Finding, on: boolean) {
+    const k = dismissKey(f);
+    const next = { ...this.dismissed };
+    if (on) next[k] = new Date().toISOString();
+    else delete next[k];
+    this.dismissed = next;
+    if (!this.demo && this.result) void rpc({ type: "reviewed:set", key: riskKey(this.result.pr), value: next }).catch(() => {});
+    this.renderAll();
+    this.focusIn(`li.file.sel .rcard .fd[data-rule="${CSS.escape(f.rule)}"] .linkbtn, li.file.sel .rcard .linkbtn, li.file.sel .fbtn`);
+  }
+
+  /** r: select the next file with an active finding, in review order (wraps). */
+  nextRisky() {
+    const res = this.result;
+    if (!res) return;
+    const risky = this.riskFiles();
+    const all = allFiles(res.plan).filter((f) => risky.get(f.path)?.findings.length);
+    if (!all.length) return;
+    const order = allFiles(res.plan).map((f) => f.path);
+    const at = this.selected ? order.indexOf(this.selected) : -1;
+    const next = all.find((f) => order.indexOf(f.path) > at) ?? all[0];
+    this.select(next.path, true);
+  }
+
+  /** Risk sensitivity / category settings (also on the settings page). */
+  async loadRiskPrefs() {
+    const [s, off] = await Promise.all([getPref<string>("riskSensitivity"), getPref<string[]>("riskOff")]);
+    this.riskPrefs = normalizeRiskPrefs(s, off);
+    if (this.result) this.renderAll();
+  }
+
+  private cycleSensitivity() {
+    const order = ["relaxed", "normal", "strict"] as const;
+    const next = order[(order.indexOf(this.riskPrefs.sensitivity) + 1) % order.length];
+    this.riskPrefs = { ...this.riskPrefs, sensitivity: next };
+    void setPref("riskSensitivity", next);
+    this.renderAll();
+  }
+
+  private async jumpLine(path: string, line: { side: "R" | "L"; n: number }) {
+    const res = this.result;
+    if (!res) return;
+    const anchor = await diffAnchor(path);
+    const filesUrl = `https://github.com/${res.pr.owner}/${res.pr.repo}/pull/${res.pr.number}/files`;
+    if (this.demo) {
+      const a = el("a", { href: `${filesUrl}#${anchor}${line.side}${line.n}`, target: "_blank", rel: "noopener" }, "open that line on GitHub");
+      const exit = el("button", { type: "button", class: "btn" }, "Exit demo");
+      exit.addEventListener("click", () => this.exitDemo());
+      this.bannerEl.replaceChildren(el("span", { class: "toast" }, `Demo: on a real PR this scrolls to ${line.side}${line.n} in ${path.slice(path.lastIndexOf("/") + 1)}. You can `, a, "."), exit);
+      return;
+    }
+    this.closeOverlay();
+    const onFiles = /\/pull\/\d+\/(files|changes)(\/|$)/.test(location.pathname);
+    const r = await scrollToLine(path, anchor, line.side, line.n, filesUrl, onFiles, { doc: document, win: window });
+    if (r === "file" || r === "missing") this.setNotice(`Line ${line.side}${line.n} isn't loaded in GitHub's diff (collapsed or not rendered yet); scrolled to the file instead.`);
+    if (r === "file" || r === "missing") this.renderAll();
   }
 
   private focusIn(sel: string) {
@@ -1106,6 +1239,7 @@ export class Widget {
     else if (k === "p") this.previous(false);
     else if (k === "j") this.moveSelection(1);
     else if (k === "k") this.moveSelection(-1);
+    else if (k === "r") this.nextRisky();
     else return;
     e.preventDefault();
     e.stopPropagation();
@@ -1123,7 +1257,7 @@ export class Widget {
       this.panes.graph.replaceChildren(this.graphView.el);
     }
     const s = summarize(this.result.plan, this.review);
-    this.graphView.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
+    this.graphView.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths, risk: this.riskSeverities() });
   }
 
   private openOverlay() {
@@ -1143,7 +1277,7 @@ export class Widget {
     });
     this.root.append(this.overlay);
     const s = summarize(this.result.plan, this.review);
-    this.overlayGraph.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths });
+    this.overlayGraph.setData(this.result.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths, risk: this.riskSeverities() });
     close.focus();
   }
 
@@ -1190,6 +1324,8 @@ export class Widget {
       { target: q('.step.open [data-tour="why"]'), ...T.reasons, before: peek(false) },
       { target: q('[data-tour="file"]'), ...T.jump, before: peek(true) },
       { target: q('.step.open [data-tour="next"]'), ...T.check, before: peek(false) },
+      // Only when this PR has flags to point at (always true in the demo).
+      ...(this.panes.review.querySelector('[data-tour="risk"]') ? [{ target: q('[data-tour="risk"]'), ...T.risk, before: peek(false) }] : []),
       { target: q('[data-tour="changed"]'), ...T.changed, before: peek(false) },
     ];
     this.tour = new Tour(this.root, steps, () => {

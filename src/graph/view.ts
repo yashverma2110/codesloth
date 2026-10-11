@@ -41,6 +41,7 @@ interface ReviewInfo {
   reviewedLayers: ReadonlySet<string>;
   reviewedPaths?: ReadonlySet<string>;
   changedPaths: ReadonlySet<string>;
+  risk?: ReadonlyMap<string, "high" | "medium" | "low">;
 }
 
 export class GraphView {
@@ -93,7 +94,7 @@ export class GraphView {
     this.note = mk("div", { class: "gv-note" });
     this.canvas = mk("div", { class: "gv-canvas" });
     const key = mk("div", { class: "gv-key" });
-    const more = "One line per file pair; hover a line for the count · thicker = more links · dimmed = reviewed · ● changed since reviewed · dashed box = Go package / import cycle · wheel scrolls, Ctrl/⌘ + wheel or pinch zooms";
+    const more = "One line per file pair; hover a line for the count · thicker = more links · dimmed = reviewed · ● changed since reviewed · ⛔ red / ⚠ amber ring = risky change · dashed box = Go package / import cycle · wheel scrolls, Ctrl/⌘ + wheel or pinch zooms";
     key.append(this.keyItem(opts.compact ? "imports" : "imports (the lower file uses the upper one)", false), this.keyItem(opts.compact ? "test" : "test and the file it tests", true));
     // The small panel keeps the canvas tall: the long key moves into a tooltip.
     if (opts.compact) {
@@ -125,7 +126,7 @@ export class GraphView {
 
   setData(plan: LayerPlan, info?: Partial<ReviewInfo>) {
     this.plan = plan;
-    this.info = { reviewedLayers: info?.reviewedLayers ?? new Set(), reviewedPaths: info?.reviewedPaths, changedPaths: info?.changedPaths ?? new Set() };
+    this.info = { reviewedLayers: info?.reviewedLayers ?? new Set(), reviewedPaths: info?.reviewedPaths, changedPaths: info?.changedPaths ?? new Set(), risk: info?.risk };
     this.render(true);
   }
 
@@ -134,7 +135,7 @@ export class GraphView {
     const width = this.canvas.clientWidth || 380;
     // As many full-size nodes per row as fit at a readable zoom (the panel may scale down to 80%).
     const maxPerRow = this.opts.compact ? perRowFor(width / 0.8, 3) : perRowFor(width, 8);
-    this.graph = buildGraph(this.plan, { hiddenLayers: this.hidden, expanded: this.expanded, reviewedLayers: this.info.reviewedLayers, reviewedPaths: this.info.reviewedPaths, changedPaths: this.info.changedPaths });
+    this.graph = buildGraph(this.plan, { hiddenLayers: this.hidden, expanded: this.expanded, reviewedLayers: this.info.reviewedLayers, reviewedPaths: this.info.reviewedPaths, changedPaths: this.info.changedPaths, risk: this.info.risk });
     this.layout = layoutGraph(this.graph, { maxPerRow });
     this.renderLegend();
     const parts: string[] = [];
