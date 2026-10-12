@@ -1,6 +1,6 @@
 {
   "name": "codesloth",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Reviewer-side PR layering for GitHub (Chrome MV3). Read-only, no backend, no AI.",
   "type": "module",

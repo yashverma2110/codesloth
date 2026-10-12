@@ -100,7 +100,7 @@ for (const c of cases) {
   }
   if (c.extra === "confirm") {
     await p.evaluate((path) => window.__w.select(path, true), path); // tick something so Restart is enabled
-    await p.evaluate(() => window.__shadow.querySelector(".step.open .next").click());
+    await p.evaluate(() => window.__shadow.querySelector(".rfoot .next").click());
     await p.evaluate(() => window.__shadow.querySelector(".tabbar .restart").click());
   }
   if (c.extra === "graph") {
@@ -134,7 +134,7 @@ for (const c of cases) {
     const uiOk = ui ? loaded(uiFam) && whyFam.startsWith(`"${uiFam}"`) : !whyFam.includes("CodeSloth");
     return code && uiOk;
   }, [c.font, !!c.ui]);
-  const r = await p.evaluate(() => {
+  const r = await p.evaluate((extra) => {
     const s = window.__shadow;
     const panel = s.querySelector(".panel").getBoundingClientRect();
     const body = s.querySelector(".pane.body");
@@ -163,24 +163,51 @@ for (const c of cases) {
     const clamp = [...s.querySelectorAll(".tmsg")].every((m) => m.getBoundingClientRect().height <= (2 * parseFloat(getComputedStyle(m).lineHeight || "18") + 2) * zoom && m.title);
     const latest = s.querySelector("li.file.sel .latest");
     // "← Previous" sits on the CTA's row, to its left; label or icon-only, never wrapping or overflowing.
-    const nx = s.querySelector(".step.open .next");
-    const pv = s.querySelector(".step.open .prev");
+    const nx = s.querySelector(".rfoot .next");
+    const pv = s.querySelector(".rfoot .prev");
     const prev = !nx ? "n/a" : !pv ? "missing" : (() => {
       const a = pv.getBoundingClientRect(), b = nx.getBoundingClientRect(), row = pv.parentElement.getBoundingClientRect();
       const sameRow = Math.abs(a.top - b.top) < 2 && a.right <= b.left + 0.5 && a.left >= row.left - 0.5 && b.right <= row.right + 0.5;
       const l = pv.querySelector(".lbl");
       return sameRow ? (getComputedStyle(l).display === "none" ? "icon" : "label") : "broken";
     })();
-    return { prev, state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".step.open .next") };
-  });
+    // v0.7.1 pinned footer: visible below the list (never over it), inside the panel; the selected file and the last row
+    // are reachable above it; hidden on the Graph tab.
+    const fe = s.querySelector(".rfoot");
+    const graphOn = !s.querySelector("#prl-pane-graph").hidden;
+    const foot = (() => {
+      if (graphOn) return fe.hidden ? "hidden" : "shown-on-graph";
+      if (fe.hidden || !fe.childElementCount) return s.querySelector(".steps") ? "missing" : "n/a";
+      const f = fe.getBoundingClientRect(), b = body.getBoundingClientRect();
+      if (!(f.height > 20 && f.top >= b.bottom - 0.5 && f.bottom <= panel.bottom + 0.5)) return `overlap f=${Math.round(f.top)}..${Math.round(f.bottom)} list..${Math.round(b.bottom)} panel..${Math.round(panel.bottom)}`;
+      const sel = s.querySelector("li.file.sel");
+      // (the banner case opens the stale list after selecting, which pushes the selection down on purpose)
+      if (sel && extra !== "banner") {
+        const r = sel.getBoundingClientRect();
+        if (!(r.top >= b.top - 1 && r.top + 20 <= f.top)) return `selected hidden ${Math.round(r.top)} vs foot ${Math.round(f.top)}`;
+      }
+      const keep = body.scrollTop;
+      body.scrollTop = body.scrollHeight;
+      const rows = [...body.querySelectorAll("li.file, .step")].filter((e) => e.getBoundingClientRect().height > 0);
+      const last = rows[rows.length - 1]?.getBoundingClientRect();
+      const atEnd = body.scrollHeight - body.clientHeight - body.scrollTop <= 1;
+      // 1.5px: with Small/Large text (CSS zoom) row edges land on fractional px
+      const lastOk = !last || (last.bottom <= b.bottom + 1.5 && last.bottom <= f.top + 1.5);
+      body.scrollTop = keep;
+      if (!atEnd || !lastOk) return `last row ${last ? Math.round(last.bottom) : "-"} vs foot ${Math.round(f.top)} atEnd=${atEnd}`;
+      return "ok";
+    })();
+    return { foot, prev, state, bad: bad.slice(0, 6), scroll: [body.scrollWidth, body.clientWidth, body.scrollLeft], tl, clamp, latestOneLine: latest ? latest.getBoundingClientRect().height < 24 && !!latest.title : false, cta: !!s.querySelector(".rfoot .next") };
+  }, c.extra ?? null);
   const onGraph = c.extra === "graph-fontpop" || c.extra === "graph";
   const wantTl = c.extra === "confirm" || onGraph ? r.tl : { collapsed: 0, expanded: 3, all: 13 }[c.story];
   const wantMore = c.extra === "confirm" || onGraph ? r.state.more : { collapsed: null, expanded: "+ 10 earlier commits · Show all 13", all: "Show fewer" }[c.story];
   const panelW = c.forced ?? Math.min(400, c.vw - 32);
   const extraOk = r.state.restart === (onGraph ? "hidden" : panelW <= 320 ? "icon" : "label") && r.state.fontBtn && fontOk && (c.extra !== "banner" || r.state.banner) && (c.extra !== "confirm" || r.state.confirm) && (!c.extra?.endsWith("fontpop") || r.state.fontPop) && graphOk === true;
-  const ok = extraOk && (onGraph || c.extra === "confirm" || r.prev === "label" || r.prev === "icon" || (r.prev === "n/a" && !r.cta)) && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
+  const footOk = onGraph ? r.foot === "hidden" : r.foot === "ok" || (c.extra === "confirm" && r.foot !== "missing" && !r.foot.startsWith("overlap"));
+  const ok = footOk && extraOk && (onGraph || c.extra === "confirm" || r.prev === "label" || r.prev === "icon" || (r.prev === "n/a" && !r.cta)) && !r.bad.length && (onGraph || (r.scroll[0] <= r.scroll[1] && r.scroll[2] === 0)) && r.tl === wantTl && r.state.more === wantMore && (c.extra === "confirm" || onGraph || (r.state.expanded === String(c.story !== "collapsed") && r.latestOneLine)) && r.clamp;
   if (!ok) failures++;
-  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}${c.ui ? "/ui" : ""}` : ""} restart=${r.state.restart} prev=${r.prev} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
+  console.log(`${ok ? "ok  " : "FAIL"} ${c.data} vw=${c.vw}${c.forced ? ` panel=${c.forced}` : ""} ${c.theme} ${c.extra ?? c.story}${c.font ? ` ${c.font}/${c.size}${c.ui ? "/ui" : ""}` : ""} restart=${r.state.restart} prev=${r.prev} foot=${r.foot} font=${fontOk}${graphOk === true ? "" : ` graph=${graphOk}`}: scroll ${r.scroll.join("/")}, timeline ${r.tl}, clamp ${r.clamp}, latest ${r.latestOneLine}, cta ${r.cta}${r.bad.length ? "\n     " + r.bad.join("\n     ") : ""}`);
   if (shotsDir) await p.screenshot({ path: `${shotsDir}/${c.data}-${c.vw}${c.forced ? "-" + c.forced : ""}-${c.theme}-${c.extra ?? c.story}${c.font ? `-${c.font}-${c.size}${c.ui ? "-ui" : ""}` : ""}.png` });
   await p.close();
 }

@@ -103,6 +103,8 @@ export class Widget {
   private bannerEl!: HTMLElement;
   private tabs!: Record<View, HTMLButtonElement>;
   private panes!: Record<View, HTMLElement>;
+  /** Pinned Review footer (CTA row + hint, or the done message), outside the scrolling list. */
+  private footEl!: HTMLElement;
   private menuBtn!: HTMLButtonElement;
   /** Steps the user has expanded; reset per plan and seeded with the current step. */
   private openSteps = new Set<string>();
@@ -190,9 +192,11 @@ export class Widget {
       review: el("div", { class: "pane body", role: "tabpanel", id: "prl-pane-review", "aria-labelledby": "prl-tab-review", tabindex: "0" }),
       graph: el("div", { class: "pane graph", role: "tabpanel", id: "prl-pane-graph", "aria-labelledby": "prl-tab-graph", hidden: "" }),
     };
+    this.footEl = el("div", { class: "rfoot", role: "group", "aria-label": "Review actions", hidden: "" });
+    this.panes.review.addEventListener("scroll", () => this.updateFootShade(), { passive: true });
     this.bannerEl = el("div", { class: "banner", hidden: "" });
     this.subEl = el("div", { class: "sub", "aria-live": "polite" });
-    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tabbar, this.fontPop, this.bannerEl, this.subEl, this.panes.review, this.panes.graph);
+    this.panel = el("div", { class: "panel", role: "dialog", "aria-label": "CodeSloth" }, hdr, this.menu, tabbar, this.fontPop, this.bannerEl, this.subEl, this.panes.review, this.footEl, this.panes.graph);
     this.panel.hidden = true;
     this.root.append(this.panel, this.bubble);
     // documentElement (not body): GitHub's Turbo navigation replaces <body>.
@@ -298,7 +302,8 @@ export class Widget {
     this.pr = pr;
     if (changed && !this.demo) {
       this.result = null;
-      this.panes.review.replaceChildren();
+      this.footEl.replaceChildren();
+    this.panes.review.replaceChildren();
       this.subEl.textContent = "";
       this.titleEl.textContent = pr ? `CodeSloth · #${pr.number}` : "CodeSloth";
       if (this.open) void this.analyze(false);
@@ -362,6 +367,7 @@ export class Widget {
     }
     this.panel.classList.toggle("graph-mode", v === "graph");
     this.updateRestart();
+    this.syncFoot();
     if (persist) void setPref("view", v);
     this.layout();
     if (v === "graph") this.renderGraph();
@@ -426,6 +432,7 @@ export class Widget {
     // The Graph tab takes the full available panel height unless the user resized the panel.
     const h = this.preferredHeight ?? (this.view === "graph" ? place.maxHeight : undefined);
     this.panel.style.height = h ? `${Math.min(h, place.maxHeight)}px` : "";
+    this.updateFootShade();
   }
 
   private enableDrag(handle: HTMLElement, isBubble: boolean) {
@@ -480,6 +487,7 @@ export class Widget {
     const demo = el("button", { type: "button", class: "btn" }, "Try demo");
     demo.addEventListener("click", () => this.loadDemo(true));
     this.subEl.textContent = "";
+    this.footEl.replaceChildren();
     this.panes.review.replaceChildren(
       el(
         "div",
@@ -555,6 +563,7 @@ export class Widget {
     this.dismissed = {};
     this.riskFilter = false;
     this.bannerEl.hidden = true;
+    this.footEl.replaceChildren();
     this.panes.review.replaceChildren();
     this.panes.graph.replaceChildren();
     this.graphView = null;
@@ -590,6 +599,7 @@ export class Widget {
     this.menuBtn.classList.toggle("has-warn", res.plan.warnings.length > 0);
     const scroll = this.panes.review.scrollTop;
     const undoStack = this.undoStack();
+    this.footEl.replaceChildren();
     this.panes.review.replaceChildren(
       renderReview(res.plan, this.review, {
         open: this.openSteps,
@@ -641,6 +651,10 @@ export class Widget {
         risk: this.riskView(),
       }),
     );
+    const src = this.panes.review.querySelector(".rfoot-src");
+    this.footEl.replaceChildren(...(src ? [...src.children] : []));
+    src?.remove();
+    this.syncFoot();
     const top = this.panes.review.firstElementChild;
     if (this.confirmRestart || this.notice) top?.prepend(this.restartNotice(Object.keys(this.review.files).length));
     this.updateRestart();
@@ -648,6 +662,18 @@ export class Widget {
     this.panes.review.scrollTop = scroll;
     if (this.view === "graph") this.renderGraph();
     this.overlayGraph?.setData(res.plan, { reviewedLayers: s.reviewedLayers, reviewedPaths: s.reviewedPaths, changedPaths: s.changedPaths, risk: this.riskSeverities() });
+  }
+
+  /** The footer shows only on the Review tab, when it has a CTA or the done message. */
+  private syncFoot() {
+    this.footEl.hidden = this.view !== "review" || !this.footEl.childElementCount;
+    this.updateFootShade();
+  }
+
+  /** Top border/shadow on the footer while list content continues beneath it. */
+  private updateFootShade() {
+    const p = this.panes.review;
+    this.footEl.classList.toggle("shade", !this.footEl.hidden && p.scrollHeight - p.scrollTop - p.clientHeight > 1);
   }
 
   /* ---------------- risky changes ---------------- */
@@ -762,6 +788,8 @@ export class Widget {
   }
 
   private focusIn(sel: string) {
+    const f = this.footEl.querySelector(sel) as HTMLElement | null;
+    if (f) return f.focus({ preventScroll: true });
     const e = this.panes.review.querySelector(sel) as HTMLElement | null;
     e?.focus({ preventScroll: true });
     if (e) this.reveal(e);
@@ -1089,7 +1117,7 @@ export class Widget {
     this.renderAll();
     if (next) {
       const step = `[data-layer="${CSS.escape(res.plan.layers[next.layer].id)}"]`;
-      if (focusCta) this.focusIn(`${step} .next`);
+      if (focusCta) this.focusIn(`.rfoot ${step} .next`);
       const row = this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(next.path)}"]`);
       if (row) this.reveal(row as HTMLElement);
     } else {
@@ -1143,7 +1171,7 @@ export class Widget {
     this.openSteps.add(res.plan.layers[at.layer].id);
     this.renderAll();
     const step = `[data-layer="${CSS.escape(res.plan.layers[at.layer].id)}"]`;
-    if (focusCta) this.focusIn(this.undoStack().length ? `${step} .prev` : `${step} .next`);
+    if (focusCta) this.focusIn(this.undoStack().length ? `.rfoot ${step} .prev` : `.rfoot ${step} .next`);
     const row = this.panes.review.querySelector(`.fbtn[data-path="${CSS.escape(file.path)}"]`);
     if (row) this.reveal(row as HTMLElement);
     const unview = r.entry.viewed ? this.syncFiles([file], false) : Promise.resolve();
@@ -1323,7 +1351,7 @@ export class Widget {
       { target: q('[data-tour="step"] .sh'), ...T.layers, before: peek(false) },
       { target: q('.step.open [data-tour="why"]'), ...T.reasons, before: peek(false) },
       { target: q('[data-tour="file"]'), ...T.jump, before: peek(true) },
-      { target: q('.step.open [data-tour="next"]'), ...T.check, before: peek(false) },
+      { target: () => this.footEl.querySelector('[data-tour="next"]'), ...T.check, before: peek(false) },
       // Only when this PR has flags to point at (always true in the demo).
       ...(this.panes.review.querySelector('[data-tour="risk"]') ? [{ target: q('[data-tour="risk"]'), ...T.risk, before: peek(false) }] : []),
       { target: q('[data-tour="changed"]'), ...T.changed, before: peek(false) },

@@ -21,7 +21,13 @@ export const WIDGET_CSS = `
 .btn.primary { background:var(--btn); border-color:var(--btn); color:#fff; }
 .hdr .x { border:none; background:transparent; font-size:16px; line-height:1; padding:2px 6px; color:var(--muted); }
 .sub { padding:6px 12px; border-bottom:1px solid var(--border); color:var(--muted); font-size:12px; }
-.body { overflow:auto; flex:1; overscroll-behavior:contain; }
+.body { overflow:auto; flex:1; min-height:0; overscroll-behavior:contain; }
+/* Pinned Review footer: header/tabs/progress fixed, list scrolls, this stays at the bottom. */
+.rfoot { flex:none; padding:8px 12px 9px; border-top:1px solid transparent; background:var(--bg); border-radius:0 0 12px 12px; min-width:0; container-type:inline-size; position:relative; z-index:1; transition:border-color .15s, box-shadow .15s; }
+.rfoot[hidden] { display:none; }
+.rfoot.shade { border-top-color:var(--border); box-shadow:0 -6px 10px -8px rgba(0,0,0,.28); }
+.rfoot .sfoot { padding-top:0; }
+.rfoot .alldone { margin:0; }
 .muted { color:var(--muted); font-size:12px; }
 .warn { color:var(--warn); font-size:12px; margin:2px 0; }
 .err { color:var(--del); }
@@ -216,7 +222,7 @@ li.file.chg .fname { color:var(--fg); }
 
 /* ---- v0.6.3 code font ---- */
 .root { --cs-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; --cs-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; --cs-lig: none; --cs-zoom: 1; }
-.review, .sub .plbl { zoom: var(--cs-zoom); }
+.review, .sub .plbl, .rfoot > * { zoom: var(--cs-zoom); }
 .fontbtn { flex:none; display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:26px; font:inherit; font-size:12px; font-weight:600; color:var(--muted); background:transparent; border:1px solid transparent; border-radius:6px; padding:0 6px; cursor:pointer; }
 .fontbtn:hover, .fontbtn[aria-expanded=true] { color:var(--fg); background:var(--bg2); border-color:var(--border); }
 .fontbtn:focus-visible { outline:2px solid var(--accent); outline-offset:0; }
@@ -240,7 +246,7 @@ li.file.chg .fname { color:var(--fg); }
 .fp-chk input:disabled + span { color:var(--muted); }
 
 /* ---- v0.6.7 "← Previous" (undo last mark & next) ---- */
-.sfoot { container-type:inline-size; }
+.sfoot { container-type:inline-size; min-width:0; }
 .ctarow { display:flex; align-items:stretch; gap:6px; min-width:0; max-width:100%; }
 .ctarow .btn.next { flex:1 1 0; min-width:0; width:auto; }
 .btn.prev { flex:none; display:inline-flex; align-items:center; justify-content:center; gap:4px; padding:5px 9px; font-size:12px; font-weight:500; color:var(--muted); background:transparent; border-color:var(--border); white-space:nowrap; }

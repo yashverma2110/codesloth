@@ -24,6 +24,9 @@ CodeSloth is a browser extension for **human** code review on github.com. It rea
 - Every file and every step also has its own checkbox, and the progress line shows where you are: *Step 2 of 6 · 12 of 36 files reviewed*.
 - **Keyboard** (while the panel has focus): **n** mark & next · **p** previous · **j / k** next / previous file · **r** next risky file · **Esc** close. They never fire while you're typing in GitHub.
 - Ticks are saved per PR, in this browser.
+- **← Previous**, **Mark file as reviewed & next →** and the shortcut hint are **pinned to the bottom of the panel**, so they stay in reach however long the step list is. When everything is reviewed, that spot shows *All N files reviewed* with ← Previous.
+
+![Demo on its 20-file tests step: the list scrolled with test_runtime.py selected, and the pinned footer with ← Previous, Mark file as reviewed & next → and the shortcut hint](docs/images/review-footer.png)
 
 ### Stale reviews banner
 

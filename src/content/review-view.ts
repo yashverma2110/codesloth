@@ -184,11 +184,13 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
   const hist = storyActive(h.history) ? h.history : null;
   const sum = summarize(plan, state);
   if (h.stale) root.append(staleBanner(h.stale, h));
+  // The pinned footer (moved out of the scrolling list by the widget): the CTA row of one step, or the done message.
+  let foot: HTMLElement | null = null;
   if (sum.totalFiles && sum.reviewedFiles === sum.totalFiles) {
-    const done = el("div", { class: "alldone", role: "status", tabindex: "-1" }, el("span", { class: "ok", "aria-hidden": "true" }, "✓"), el("span", { class: "msg" }, `All ${files(sum.totalFiles)} reviewed`));
-    if (h.canPrevious && h.onPrevious) done.append(prevButton(h));
-    root.append(done);
+    foot = el("div", { class: "alldone", role: "status", tabindex: "-1" }, el("span", { class: "ok", "aria-hidden": "true" }, "✓"), el("span", { class: "msg" }, `All ${files(sum.totalFiles)} reviewed`));
+    if (h.canPrevious && h.onPrevious) foot.append(prevButton(h));
   }
+  const ctas = new Map<number, HTMLElement>();
   const banner = h.risk ? riskBanner(plan, h.risk) : null;
   if (banner) root.append(banner);
   const filtering = !!(banner && h.risk?.filter);
@@ -296,12 +298,19 @@ export function renderReview(plan: LayerPlan, state: ReviewState, h: ReviewHandl
         const name = target.path.slice(target.path.lastIndexOf("/") + 1);
         const btn = el("button", { type: "button", class: "btn primary next", "data-tour": "next", title: `Marks ${name} reviewed (shortcut: n)` }, last ? "Mark file as reviewed ✓" : "Mark file as reviewed & next →");
         btn.addEventListener("click", () => h.onMarkNext(l));
-        body.append(el("div", { class: "sfoot" }, el("div", { class: "ctarow" }, prevButton(h), btn), el("div", { class: "hint", title: `For ${name} · n next · p previous${banner ? " · r next risky" : ""} · j/k move` }, `For ${name} · n next · p previous${banner ? " · r next risky" : ""} · j/k move`)));
+        const hint = `For ${name} · n next · p previous${banner ? " · r next risky" : ""} · j/k move`;
+        ctas.set(i, el("div", { class: "sfoot", "data-layer": l.id }, el("div", { class: "ctarow" }, prevButton(h), btn), el("div", { class: "hint", title: hint }, hint)));
       }
       li.append(body);
     }
     wrap.append(li);
   });
   root.append(wrap);
+  // Same step the n key acts on: the selected file's step, else the current step, else the first open one with a CTA.
+  if (!foot) {
+    const selLayer = h.selected ? plan.layers.findIndex((l) => l.files.some((f) => f.path === h.selected)) : -1;
+    foot = ctas.get(selLayer) ?? ctas.get(cur) ?? [...ctas.values()][0] ?? null;
+  }
+  if (foot) root.append(el("div", { class: "rfoot-src", hidden: "" }, foot));
   return root;
 }

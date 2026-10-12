@@ -223,6 +223,7 @@ describe("Widget (DOM)", () => {
     const titles: string[] = [];
     for (let i = 0; i < 6; i++) {
       titles.push(s.querySelector(".tour-card h4")!.textContent!);
+      if (i === 3) expect(s.querySelector('.rfoot:not([hidden]) [data-tour="next"]')).not.toBeNull(); // the CTA step points at the pinned footer
       const next = [...s.querySelectorAll(".tour-card button")].find((b) => /Next|Done/.test(b.textContent!)) as HTMLButtonElement;
       next.click();
     }
@@ -343,7 +344,7 @@ describe("Widget (DOM)", () => {
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+    const cta = () => s.querySelector(".rfoot .next") as HTMLButtonElement;
     expect(cta().textContent).toBe("Mark file as reviewed & next →");
     cta().click(); // a.ts (no selection: first unreviewed) -> step 1 done, step 2 opens with b.ts selected
     expect(s.querySelector('[data-layer="core"]')!.className).toContain("done");
@@ -365,6 +366,54 @@ describe("Widget (DOM)", () => {
     expect(Object.keys(set.value.files).sort()).toEqual(["src/a.ts", "src/ui/b.ts", "src/ui/c.ts"]);
   });
 
+  it("pinned footer: CTA row + hint sit outside the scrolling list, follow the selected file's step, hide on Graph, hold the done message", async () => {
+    const w = new Widget();
+    await w.mount();
+    w.setPr({ owner: "o", repo: "r", number: 7 });
+    w.toggle("bubble");
+    const s = shadowOf();
+    await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
+    const pane = s.querySelector(".pane.body") as HTMLElement;
+    const foot = s.querySelector(".rfoot") as HTMLElement;
+    expect(foot.hidden).toBe(false);
+    expect(foot.parentElement).toBe(pane.parentElement);
+    expect(pane.querySelector(".sfoot, .next, .hint")).toBeNull();
+    // DOM (and Tab) order: header, tabs, progress, list, footer
+    expect(pane.compareDocumentPosition(foot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect([...foot.querySelectorAll("button")].map((b) => b.className)).toEqual(["btn prev", "btn primary next"]);
+    expect(foot.querySelector(".sfoot")!.getAttribute("data-layer")).toBe("core");
+    expect(foot.querySelector(".hint")!.textContent).toBe("For a.ts · n next · p previous · j/k move");
+    // selecting a file in another open step moves the footer to that step
+    (s.querySelectorAll(".sh")[1] as HTMLButtonElement).click();
+    (s.querySelector('.fbtn[data-path="src/ui/b.ts"]') as HTMLButtonElement).click();
+    expect(s.querySelector(".rfoot .sfoot")!.getAttribute("data-layer")).toBe("caller1");
+    expect(s.querySelector(".rfoot .hint")!.textContent).toContain("For b.ts");
+    // shadow only while list content continues beneath the footer
+    Object.defineProperty(pane, "scrollHeight", { value: 900, configurable: true });
+    Object.defineProperty(pane, "clientHeight", { value: 400, configurable: true });
+    pane.scrollTop = 0;
+    pane.dispatchEvent(new Event("scroll"));
+    expect(foot.classList.contains("shade")).toBe(true);
+    Object.defineProperty(pane, "scrollHeight", { value: 400, configurable: true });
+    pane.dispatchEvent(new Event("scroll"));
+    expect(foot.classList.contains("shade")).toBe(false);
+    // Graph tab: hidden; back on Review: shown
+    (s.querySelector("#prl-tab-graph") as HTMLButtonElement).click();
+    expect(foot.hidden).toBe(true);
+    (s.querySelector("#prl-tab-review") as HTMLButtonElement).click();
+    expect(foot.hidden).toBe(false);
+    // mark & next keeps focus on the pinned CTA; at the end the footer holds the done message + Previous
+    const cta = () => s.querySelector(".rfoot .next") as HTMLButtonElement;
+    cta().click();
+    expect(s.activeElement).toBe(cta());
+    cta().click();
+    cta().click();
+    expect(s.querySelector(".rfoot .alldone")!.textContent).toContain("All 3 files reviewed");
+    expect(s.querySelector(".rfoot .alldone .prev")).not.toBeNull();
+    expect(s.activeElement).toBe(s.querySelector(".rfoot .alldone"));
+    expect(pane.querySelector(".alldone")).toBeNull();
+  });
+
   it("'← Previous' undoes mark & next step by step, across steps; disabled when empty; p shortcut", async () => {
     const w = new Widget();
     await w.mount();
@@ -372,12 +421,12 @@ describe("Widget (DOM)", () => {
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    const prev = () => s.querySelector(".step.open .prev") as HTMLButtonElement;
-    const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+    const prev = () => s.querySelector(".rfoot .prev") as HTMLButtonElement;
+    const cta = () => s.querySelector(".rfoot .next") as HTMLButtonElement;
     const sel = () => s.querySelector('.fbtn[aria-current="true"]')?.getAttribute("data-path");
     expect(prev().disabled).toBe(true);
     expect(prev().nextElementSibling).toBe(cta()); // same row, Previous on the left
-    expect(s.querySelector(".step.open .hint")!.textContent).toContain("n next · p previous · j/k move");
+    expect(s.querySelector(".rfoot .hint")!.textContent).toContain("n next · p previous · j/k move");
     cta().click(); // a.ts -> step 2
     cta().click(); // b.ts -> c.ts
     expect(prev().disabled).toBe(false);
@@ -430,10 +479,10 @@ describe("Widget (DOM)", () => {
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    (s.querySelector(".step.open .next") as HTMLButtonElement).click(); // a.ts
+    (s.querySelector(".rfoot .next") as HTMLButtonElement).click(); // a.ts
     await vi.waitFor(() => expect(cb.checked).toBe(true));
     expect(w.undoStack()[0]).toMatchObject({ path: "src/a.ts", viewed: true });
-    (s.querySelector(".step.open .prev") as HTMLButtonElement).click();
+    (s.querySelector(".rfoot .prev") as HTMLButtonElement).click();
     await vi.waitFor(() => expect(cb.checked).toBe(false));
     f.remove();
   });
@@ -445,13 +494,13 @@ describe("Widget (DOM)", () => {
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+    const cta = () => s.querySelector(".rfoot .next") as HTMLButtonElement;
     cta().click(); // a.ts
     cta().click(); // b.ts
     const ft = s.querySelector('.ftick[data-path="src/ui/b.ts"]') as HTMLInputElement;
     ft.checked = false;
     ft.dispatchEvent(new Event("change"));
-    (s.querySelector(".step.open .prev") as HTMLButtonElement).click();
+    (s.querySelector(".rfoot .prev") as HTMLButtonElement).click();
     expect(s.querySelector('.fbtn[aria-current="true"]')?.getAttribute("data-path")).toBe("src/a.ts");
   });
 
@@ -539,7 +588,7 @@ describe("Widget (DOM)", () => {
     w.toggle("bubble");
     const s = shadowOf();
     await vi.waitFor(() => expect(s.querySelectorAll("li.file")).toHaveLength(1));
-    (s.querySelector(".step.open .next") as HTMLButtonElement).click();
+    (s.querySelector(".rfoot .next") as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 50));
     expect(cb.checked).toBe(false);
     f.remove();
@@ -840,7 +889,7 @@ describe("Widget (DOM)", () => {
 
     it("'← Previous' history is cleared by Restart review (and back with its Undo)", async () => {
       const { s } = await setup();
-      const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+      const cta = () => s.querySelector(".rfoot .next") as HTMLButtonElement;
       const prev = () => s.querySelector(".prev") as HTMLButtonElement;
       (s.querySelector('.stalebar [data-act="untick"]') as HTMLButtonElement).click(); // a.ts unticked + selected
       cta().click(); // a.ts -> c.ts (b.ts already ticked)
@@ -860,7 +909,7 @@ describe("Widget (DOM)", () => {
     it("'← Previous' tracks a re-mark after 'Untick changed files' and drops it once unticked", async () => {
       // a.ts was marked via next in this session, then a push made it stale and the user unticked it
       const { w, s } = await setup();
-      const cta = () => s.querySelector(".step.open .next") as HTMLButtonElement;
+      const cta = () => s.querySelector(".rfoot .next") as HTMLButtonElement;
       (s.querySelector('.stalebar [data-act="untick"]') as HTMLButtonElement).click(); // a.ts unticked, selected
       cta().click(); // a.ts marked again via next
       expect(w.undoStack().map((e) => e.path)).toEqual(["src/a.ts"]);

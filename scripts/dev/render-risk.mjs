@@ -43,6 +43,17 @@ async function shot(p, name) {
   await p.screenshot({ path: `${out}/${name}.png`, clip: box });
   console.log("frame", `${out}/${name}.png`);
 }
+// 0) v0.7.1: demo on its long step (step 4, 20 tests) with the pinned footer: list scrolled, CTA + hint stay visible.
+for (const mode of ["light", "dark"]) {
+  const p = await open("", mode, 1000);
+  await p.evaluate(() => window.__w.loadDemo(false));
+  await sleep(200);
+  await p.evaluate(() => window.__shadow.querySelector('.stalebar [data-act="dismiss"]').click());
+  await p.evaluate(() => window.__w.select("tests/test_telemetry/test_runtime.py", true));
+  await sleep(400);
+  await shot(p, `review-demo-footer-${mode}`);
+  await p.close();
+}
 // 1) Demo (fastapi/fastapi#16403): banner + list, _runtime.py selected with its findings.
 for (const mode of ["light", "dark"]) {
   const p = await open("", mode, 1500);
